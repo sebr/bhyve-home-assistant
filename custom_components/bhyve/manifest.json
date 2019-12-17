@@ -1,0 +1,8 @@
+{
+  "domain": "bhyve",
+  "name": "Orbit BHyve Integration",
+  "documentation": "https://github.com/sebr/bhyve-home-assistant/blob/master/README.md",
+  "dependencies": [],
+  "codeowners": ["@sebr"],
+  "requirements": []
+}
