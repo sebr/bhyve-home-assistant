@@ -7,8 +7,7 @@ BHyve component for [Home Assistant](https://www.home-assistant.io/).
 
 ## Installation
 
-Recommended installation is via HACS
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge)](https://github.com/custom-components/hacs)
+Recommended installation is via HACS - add this repo to [custom repositories](https://hacs.xyz/docs/navigation/settings#custom-repositories).
 
 ### Sample Configuration
 
