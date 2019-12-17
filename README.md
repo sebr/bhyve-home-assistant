@@ -9,7 +9,7 @@ BHyve component for [Home Assistant](https://www.home-assistant.io/).
 
 Recommended installation is via HACS - add this repo to [custom repositories](https://hacs.xyz/docs/navigation/settings#custom-repositories).
 
-### Sample Configuration
+## Configuration
 
 ```yaml
 bhyve:
