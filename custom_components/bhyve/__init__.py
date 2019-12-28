@@ -1,5 +1,7 @@
-"""Support for Orbit BHyve Service."""
+"""Support for Ambient Weather Station Service."""
 import logging
+import os
+import pprint
 
 import voluptuous as vol
 
@@ -18,7 +20,15 @@ from homeassistant.helpers.dispatcher import (  # async_dispatcher_send,
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.event import async_call_later
 
-from .const import CONF_ATTRIBUTION, DOMAIN, MANUFACTURER, TOPIC_UPDATE
+from .const import (
+    CONF_ATTRIBUTION,
+    CONF_CONF_DIR,
+    CONF_PACKET_DUMP,
+    CONF_WATERING_DURATION,
+    DOMAIN,
+    MANUFACTURER,
+    TOPIC_UPDATE,
+)
 from .pybhyve import Client
 from .pybhyve.errors import WebsocketError
 
@@ -27,7 +37,10 @@ _LOGGER = logging.getLogger(__name__)
 DATA_CONFIG = "config"
 
 DEFAULT_SOCKET_MIN_RETRY = 15
+DEFAULT_PACKET_DUMP = True
+DEFAULT_CONF_DIR = ""
 DEFAULT_WATCHDOG_SECONDS = 5 * 60
+DEFAULT_WATERING_DURATION = 5 * 60
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -35,6 +48,11 @@ CONFIG_SCHEMA = vol.Schema(
             {
                 vol.Required(CONF_USERNAME): cv.string,
                 vol.Required(CONF_PASSWORD): cv.string,
+                vol.Optional(
+                    CONF_WATERING_DURATION, default=DEFAULT_WATERING_DURATION
+                ): cv.time_period,
+                vol.Optional(CONF_PACKET_DUMP, default=DEFAULT_PACKET_DUMP): cv.boolean,
+                vol.Optional(CONF_CONF_DIR, default=DEFAULT_CONF_DIR): cv.string,
             }
         )
     },
@@ -50,11 +68,24 @@ async def async_setup(hass, config):
         return True
 
     conf = config[DOMAIN]
+    packet_dump = conf.get(CONF_PACKET_DUMP)
+    conf_dir = conf.get(CONF_CONF_DIR)
+
+    _LOGGER.info("config dir %s", hass.config.config_dir)
+    if conf_dir == "":
+        conf_dir = hass.config.config_dir + "/.bhyve"
 
     session = aiohttp_client.async_get_clientsession(hass)
 
     try:
-        bhyve = BHyve(hass, Client(conf[CONF_USERNAME], conf[CONF_PASSWORD], session,),)
+        client = Client(conf[CONF_USERNAME], conf[CONF_PASSWORD], session)
+        bhyve = BHyve(
+            hass,
+            client,
+            storage_dir=conf_dir,
+            packet_dump=packet_dump,
+            watering_duration=conf[CONF_WATERING_DURATION],
+        )
         await bhyve.login()
         await bhyve.client.api.devices
         hass.loop.create_task(bhyve.ws_connect())
@@ -71,17 +102,28 @@ async def async_setup(hass, config):
 
 
 class BHyve:
-    """Define a class to handle the BHyve websocket."""
+    """Define a class to handle the Ambient websocket."""
 
-    def __init__(self, hass, client):
+    def __init__(self, hass, client, *, storage_dir, packet_dump):
         """Initialize."""
         self._entry_setup_complete = False
         self._hass = hass
         self._watchdog_listener = None
         self._ws_reconnect_delay = DEFAULT_SOCKET_MIN_RETRY
+        self._storage_dir = storage_dir
+        self._packet_dump = packet_dump
+        self._dump_file = self._storage_dir + "/" + "packets.dump"
+
         self.client: Client = client
         self.monitored_conditions = []
         self.devices = {}
+
+        # Create storage/scratch directory.
+        try:
+            os.mkdir(self._storage_dir)
+        except Exception as err:
+            _LOGGER.info("Could not create storage dir: %s", err)
+            pass
 
     async def login(self):
         """Login."""
@@ -118,10 +160,14 @@ class BHyve:
 
         def on_message(data):
             """Define a handler to fire when the data is received."""
-            _LOGGER.debug("New data received: {} - {}".format(data["event"], data["device_id"]))
+            # _LOGGER.debug("New data received: {} - {}".format(data["event"], data["device_id"]))
             # device_id = data.device_id
             # self.devices[device_id][ATTR_LAST_DATA] = data
             # async_dispatcher_send(self._hass, TOPIC_UPDATE)
+
+            if self._packet_dump:
+                with open(self._dump_file, "a") as dump:
+                    dump.write(pprint.pformat(data, indent=2) + "\n")
 
             _LOGGER.debug("Resetting watchdog")
             self._watchdog_listener()

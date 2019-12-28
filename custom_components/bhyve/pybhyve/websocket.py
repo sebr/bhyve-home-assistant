@@ -28,10 +28,9 @@ class Websocket:
         try:
             self._websocket = await self._session.ws_connect(WS_HOST)
 
-            await self.send({
-                'event': 'app_connection',
-                'orbit_session_token': self._token
-            })
+            await self.send(
+                {"event": "app_connection", "orbit_session_token": self._token}
+            )
 
             if self._async_user_connect_handler:
                 await self._async_user_connect_handler()  # type: ignore
@@ -86,4 +85,3 @@ class Websocket:
         """Ping the websocket."""
         _LOGGER.info("Ping")
         await self.send({"event": "ping"})
-

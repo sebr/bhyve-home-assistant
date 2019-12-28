@@ -66,9 +66,7 @@ class BHyveSensor(BHyveEntity):
 
     def __init__(self, bhyve, device, name, icon, unit, update_callback, device_class):
         """Initialize the sensor."""
-        super().__init__(
-            bhyve, device, name, icon, update_callback, device_class
-        )
+        super().__init__(bhyve, device, name, icon, update_callback, device_class)
 
         self._unit = unit
 
@@ -79,7 +77,7 @@ class BHyveSensor(BHyveEntity):
 
     @property
     def unit_of_measurement(self):
-        """Returns the unit of measurement for the sensor."""
+        """Return the unit of measurement for the sensor."""
         return self._unit
 
     @property
