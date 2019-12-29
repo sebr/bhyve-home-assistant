@@ -1,4 +1,4 @@
-"""Support for Ambient Weather Station Service."""
+"""Support for Orbit BHyve irrigation devices."""
 import logging
 import os
 import pprint
