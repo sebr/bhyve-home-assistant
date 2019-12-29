@@ -1,14 +1,11 @@
-"""Support for Ambient Weather Station Service."""
+"""Support for Orbit BHyve irrigation devices."""
 import logging
 import os
 import pprint
 
 import voluptuous as vol
 
-from aiohttp import (
-    WSMsgType,
-    WSMessage
-)
+from aiohttp import WSMsgType, WSMessage
 
 from homeassistant.const import (
     ATTR_ATTRIBUTION,
@@ -85,12 +82,7 @@ async def async_setup(hass, config):
 
     try:
         client = Client(conf[CONF_USERNAME], conf[CONF_PASSWORD], session)
-        bhyve = BHyve(
-            hass,
-            client,
-            storage_dir=conf_dir,
-            packet_dump=packet_dump,
-        )
+        bhyve = BHyve(hass, client, storage_dir=conf_dir, packet_dump=packet_dump,)
         await bhyve.login()
         await bhyve.client.api.devices
         hass.loop.create_task(bhyve.ws_connect())
@@ -107,7 +99,7 @@ async def async_setup(hass, config):
 
 
 class BHyve:
-    """Define a class to handle the Ambient websocket."""
+    """Define a class to handle the BHyve websocket."""
 
     def __init__(self, hass, client, *, storage_dir, packet_dump):
         """Initialize."""
@@ -205,11 +197,6 @@ class BHyve:
             #             "name", station["macAddress"]
             #         ),
             #     }
-
-            # If the websocket disconnects and reconnects, the on_subscribed
-            # handler will get called again; in that case, we don't want to
-            # attempt forward setup of the config entry (because it will have
-            # already been done):
 
             self._ws_reconnect_delay = DEFAULT_SOCKET_MIN_RETRY
 
