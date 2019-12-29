@@ -1,9 +1,14 @@
-"""Support for Orbit BHyve irrigation devices."""
+"""Support for Ambient Weather Station Service."""
 import logging
 import os
 import pprint
 
 import voluptuous as vol
+
+from aiohttp import (
+    WSMsgType,
+    WSMessage
+)
 
 from homeassistant.const import (
     ATTR_ATTRIBUTION,
@@ -14,7 +19,8 @@ from homeassistant.const import (
 from homeassistant.core import callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import aiohttp_client, config_validation as cv
-from homeassistant.helpers.dispatcher import (  # async_dispatcher_send,
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_send,
     async_dispatcher_connect,
 )
 from homeassistant.helpers.entity import Entity
@@ -84,7 +90,6 @@ async def async_setup(hass, config):
             client,
             storage_dir=conf_dir,
             packet_dump=packet_dump,
-            watering_duration=conf[CONF_WATERING_DURATION],
         )
         await bhyve.login()
         await bhyve.client.api.devices
@@ -158,12 +163,20 @@ class BHyve:
                 self._hass, DEFAULT_WATCHDOG_SECONDS, _ws_reconnect
             )
 
-        def on_message(data):
+        def on_message(ws_message: WSMessage):
             """Define a handler to fire when the data is received."""
-            # _LOGGER.debug("New data received: {} - {}".format(data["event"], data["device_id"]))
-            # device_id = data.device_id
-            # self.devices[device_id][ATTR_LAST_DATA] = data
-            # async_dispatcher_send(self._hass, TOPIC_UPDATE)
+            ws_type: WSMsgType = ws_message.type
+
+            if ws_message.type == WSMsgType.TEXT:
+                data = ws_message.json()
+                device_id = data["device_id"]
+                event = data["event"]
+                _LOGGER.debug("New data received: {} - {}".format(device_id, event))
+                # device_id = data.device_id
+                # self.devices[device_id][ATTR_LAST_DATA] = data
+                async_dispatcher_send(self._hass, TOPIC_UPDATE, device_id, data)
+            elif ws_message.type == aiohttp.WSMsgType.ERROR:
+                _LOGGER.debug("WS Error received: {}".format(ws_message.data))
 
             if self._packet_dump:
                 with open(self._dump_file, "a") as dump:
@@ -276,9 +289,11 @@ class BHyveEntity(Entity):
         """Register callbacks."""
 
         @callback
-        def update():
+        def update(device_id, data):
             """Update the state."""
-            self.async_schedule_update_ha_state(True)
+            if self._device_id == device_id:
+                _LOGGER.info("Callback update: {} - {}".format(device_id, data))
+                self.async_schedule_update_ha_state(True)
 
         self._async_unsub_dispatcher_connect = async_dispatcher_connect(
             self.hass, TOPIC_UPDATE, update

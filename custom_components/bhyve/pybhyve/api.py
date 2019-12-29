@@ -61,7 +61,7 @@ class API:
     async def _refresh_devices(self):
         now = time.time()
         if now - self._last_poll < API_POLL_PERIOD:
-            _LOGGER.debug("Skipping refresh, not enough time has passed")
+            # _LOGGER.debug("Skipping refresh, not enough time has passed")
             return
 
         params = {"t": str(time.time())}
