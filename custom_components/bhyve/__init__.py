@@ -240,6 +240,8 @@ class BHyveEntity(Entity):
         self._available = False
         self._attrs = {}
 
+        self._ws_event_data = []
+
     @property
     def available(self):
         """Return True if entity is available."""
@@ -288,6 +290,7 @@ class BHyveEntity(Entity):
             """Update the state."""
             if self._device_id == device_id:
                 _LOGGER.info("Callback update: {} - {}".format(device_id, data))
+                self._ws_event_data.append(data)
                 self.async_schedule_update_ha_state(True)
 
         self._async_unsub_dispatcher_connect = async_dispatcher_connect(

@@ -132,6 +132,29 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
 
+    def on_ws_data(self, data):
+        """
+            {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
+            {'event': 'watering_in_progress_notification', 'program': 'e', 'current_station': 1, 'run_time': 14, 'started_watering_station_at': '2020-01-09T20:29:59.000Z', 'rain_sensor_hold': False, 'device_id': 'id', 'timestamp': '2020-01-09T20:29:59.000Z'}
+            {'event': 'device_idle', 'device_id': '5ae3c7884f0c72d7d626ba06', 'timestamp': '2020-01-10T12:32:06.000Z'}
+        """
+        event = data.get("event")
+        if event is None:
+            _LOGGER.warning("No event on ws data {}".format(data))
+            return
+        elif event == "device_idle":
+            self._state = False
+        elif event == "watering_in_progress_notification":
+            zone = data.get("current_station")
+            if zone == self._zone_id:
+                self._state = True
+                self._attrs["started_watering_station_at"] = data.get(
+                    "started_watering_station_at"
+                )
+        elif event == "change_mode":
+            program = data.get("program")
+            self._state = program == "e" or program == "manual"  # e == smart watering
+
     async def async_update(self):
         """Retrieve latest state."""
         try:
