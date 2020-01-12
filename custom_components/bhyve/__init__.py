@@ -146,8 +146,7 @@ class BHyve:
 
         def on_connect():
             """Define a handler to fire when the websocket is connected."""
-            _LOGGER.info("Connected to websocket")
-            _LOGGER.debug("Watchdog starting")
+            _LOGGER.debug("Connected to websocket. Watchdog starting.")
 
             if self._watchdog_listener is not None:
                 self._watchdog_listener()
@@ -161,14 +160,23 @@ class BHyve:
 
             if ws_message.type == WSMsgType.TEXT:
                 data = ws_message.json()
-                device_id = data["device_id"]
-                event = data["event"]
-                _LOGGER.debug("New data received: {} - {}".format(device_id, event))
+                _LOGGER.info("New data received: {}".format(data))
+                device_id = data.get("device_id")
+                event = data.get("event")
                 # device_id = data.device_id
                 # self.devices[device_id][ATTR_LAST_DATA] = data
-                async_dispatcher_send(self._hass, TOPIC_UPDATE, device_id, data)
+                if device_id is not None:
+                    async_dispatcher_send(self._hass, TOPIC_UPDATE, device_id, data)
+                else:
+                    _LOGGER.info("No device_id present on websocket message")
             elif ws_message.type == aiohttp.WSMsgType.ERROR:
-                _LOGGER.debug("WS Error received: {}".format(ws_message.data))
+                _LOGGER.info("WS Error received: {}".format(ws_message.data))
+            else:
+                _LOGGER.info(
+                    "WS other received: {} - {}".format(
+                        ws_message.type, ws_message.data
+                    )
+                )
 
             if self._packet_dump:
                 with open(self._dump_file, "a") as dump:
