@@ -33,7 +33,7 @@ from .const import (
     TOPIC_UPDATE,
 )
 from .pybhyve import Client
-from .pybhyve.errors import WebsocketError
+from .pybhyve.errors import BHyveError, WebsocketError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ async def async_setup(hass, config):
     packet_dump = conf.get(CONF_PACKET_DUMP)
     conf_dir = conf.get(CONF_CONF_DIR)
 
-    _LOGGER.info("config dir %s", hass.config.config_dir)
+    _LOGGER.debug("config dir %s", hass.config.config_dir)
     if conf_dir == "":
         conf_dir = hass.config.config_dir + "/.bhyve"
 
@@ -87,7 +87,7 @@ async def async_setup(hass, config):
         await bhyve.client.api.devices
         hass.loop.create_task(bhyve.ws_connect())
         hass.data[DOMAIN] = bhyve
-    except WebsocketError as err:
+    except BHyveError as err:
         _LOGGER.error("Config entry failed: %s", err)
         raise ConfigEntryNotReady
 
@@ -119,7 +119,7 @@ class BHyve:
         try:
             os.mkdir(self._storage_dir)
         except Exception as err:
-            _LOGGER.info("Could not create storage dir: %s", err)
+            _LOGGER.debug("Could not create storage dir: %s", err)
             pass
 
     async def login(self):
@@ -240,7 +240,7 @@ class BHyveEntity(Entity):
         self._available = False
         self._attrs = {}
 
-        self._ws_event_data = []
+        self._ws_unprocessed_events = []
 
     @property
     def available(self):
@@ -290,7 +290,7 @@ class BHyveEntity(Entity):
             """Update the state."""
             if self._device_id == device_id:
                 _LOGGER.info("Callback update: {} - {}".format(device_id, data))
-                self._ws_event_data.append(data)
+                self._ws_unprocessed_events.append(data)
                 self.async_schedule_update_ha_state(True)
 
         self._async_unsub_dispatcher_connect = async_dispatcher_connect(

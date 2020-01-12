@@ -158,6 +158,13 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
     async def async_update(self):
         """Retrieve latest state."""
         try:
+            ws_updates = list(self._ws_unprocessed_events)
+            self._ws_unprocessed_events[:] = []
+
+            for ws_event in ws_updates:
+                _LOGGER.info("Processing ws data. {}".format(ws_event.get("event")))
+                self.on_ws_data(ws_event)
+
             device_id = self._device_id
 
             device = await self._bhyve.client.api.get_device(device_id)
