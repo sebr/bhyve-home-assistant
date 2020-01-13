@@ -33,7 +33,7 @@ from .const import (
     TOPIC_UPDATE,
 )
 from .pybhyve import Client
-from .pybhyve.errors import BHyveError, WebsocketError
+from .pybhyve.errors import WebsocketError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ async def async_setup(hass, config):
     packet_dump = conf.get(CONF_PACKET_DUMP)
     conf_dir = conf.get(CONF_CONF_DIR)
 
-    _LOGGER.debug("config dir %s", hass.config.config_dir)
+    _LOGGER.info("config dir %s", hass.config.config_dir)
     if conf_dir == "":
         conf_dir = hass.config.config_dir + "/.bhyve"
 
@@ -87,7 +87,7 @@ async def async_setup(hass, config):
         await bhyve.client.api.devices
         hass.loop.create_task(bhyve.ws_connect())
         hass.data[DOMAIN] = bhyve
-    except BHyveError as err:
+    except WebsocketError as err:
         _LOGGER.error("Config entry failed: %s", err)
         raise ConfigEntryNotReady
 
@@ -119,7 +119,7 @@ class BHyve:
         try:
             os.mkdir(self._storage_dir)
         except Exception as err:
-            _LOGGER.debug("Could not create storage dir: %s", err)
+            _LOGGER.info("Could not create storage dir: %s", err)
             pass
 
     async def login(self):
@@ -154,33 +154,30 @@ class BHyve:
                 self._hass, DEFAULT_WATCHDOG_SECONDS, _ws_reconnect
             )
 
+        def on_disconnect():
+            """Define a handler to fire when the websocket is disconnected."""
+            _LOGGER.info("Disconnected from websocket")
+
         def on_message(ws_message: WSMessage):
             """Define a handler to fire when the data is received."""
             ws_type: WSMsgType = ws_message.type
+            
+            
+            data = ws_message.json()
 
-            if ws_message.type == WSMsgType.TEXT:
-                data = ws_message.json()
-                _LOGGER.info("New data received: {}".format(data))
-                device_id = data.get("device_id")
-                event = data.get("event")
-                # device_id = data.device_id
-                # self.devices[device_id][ATTR_LAST_DATA] = data
-                if device_id is not None:
-                    async_dispatcher_send(self._hass, TOPIC_UPDATE, device_id, data)
-                else:
-                    _LOGGER.info("No device_id present on websocket message")
-            elif ws_message.type == aiohttp.WSMsgType.ERROR:
-                _LOGGER.info("WS Error received: {}".format(ws_message.data))
-            else:
-                _LOGGER.info(
-                    "WS other received: {} - {}".format(
-                        ws_message.type, ws_message.data
-                    )
-                )
-
-            if self._packet_dump:
+            if data is not None and self._packet_dump:
                 with open(self._dump_file, "a") as dump:
                     dump.write(pprint.pformat(data, indent=2) + "\n")
+
+            _LOGGER.debug("New data received: {}".format(data))
+            device_id = data.get("device_id")
+            event = data.get("event")
+            # device_id = data.device_id
+            # self.devices[device_id][ATTR_LAST_DATA] = data
+            if device_id is not None:
+                async_dispatcher_send(self._hass, TOPIC_UPDATE, device_id, data)
+            else:
+                _LOGGER.info("No device_id present on websocket message")
 
             _LOGGER.debug("Resetting watchdog")
             self._watchdog_listener()
@@ -188,27 +185,8 @@ class BHyve:
                 self._hass, DEFAULT_WATCHDOG_SECONDS, _ws_reconnect
             )
 
-        def on_disconnect():
-            """Define a handler to fire when the websocket is disconnected."""
-            _LOGGER.info("Disconnected from websocket")
-
-            # for station in data["devices"]:
-            #     if station["macAddress"] in self.stations:
-            #         continue
-
-            #     _LOGGER.debug("New station subscription: %s", data)
-
-            #     self.stations[station["macAddress"]] = {
-            #         ATTR_LAST_DATA: station["lastData"],
-            #         ATTR_LOCATION: station.get("info", {}).get("location"),
-            #         ATTR_NAME: station.get("info", {}).get(
-            #             "name", station["macAddress"]
-            #         ),
-            #     }
-
-            self._ws_reconnect_delay = DEFAULT_SOCKET_MIN_RETRY
-
         self.client.api.websocket.on_connect(on_connect)
+        self.client.api.websocket.on_disconnect(on_disconnect)
         self.client.api.websocket.on_message(on_message)
 
         await self._attempt_connect()
