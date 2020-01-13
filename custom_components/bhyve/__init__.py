@@ -99,7 +99,7 @@ async def async_setup(hass, config):
         event = data.get("event")
         
         if device_id is not None:
-            async_dispatcher_send(self._hass, TOPIC_UPDATE, device_id, data)
+            async_dispatcher_send(hass, TOPIC_UPDATE, device_id, data)
         else:
             _LOGGER.info("No device_id present on websocket message")
 
@@ -115,6 +115,7 @@ async def async_setup(hass, config):
             )
         
         await bhyve.login()
+        await bhyve.devices
         
         hass.data[DOMAIN] = bhyve
     except WebsocketError as err:
