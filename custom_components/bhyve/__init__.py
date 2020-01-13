@@ -65,6 +65,7 @@ CONFIG_SCHEMA = vol.Schema(
 
 async def async_setup(hass, config):
     """Set up the BHyve component."""
+
     hass.data[DOMAIN] = {}
 
     if DOMAIN not in config:
@@ -78,122 +79,53 @@ async def async_setup(hass, config):
     if conf_dir == "":
         conf_dir = hass.config.config_dir + "/.bhyve"
 
+    # Create storage/scratch directory.
+    try:
+        os.mkdir(conf_dir)
+    except Exception as err:
+        _LOGGER.info("Could not create storage dir: %s", err)
+        pass
+
+    async def async_update_callback(data):
+        # async_dispatcher_send(hass, SIGNAL_UPDATE_ALARM.format(spc_object.id))
+
+        if data is not None and packet_dump:
+            dump_file = conf_dir + "/" + "packets.dump"
+            with open(dump_file, "a") as dump:
+                dump.write(pprint.pformat(data, indent=2) + "\n")
+
+        _LOGGER.debug("New data received: {}".format(data))
+        device_id = data.get("device_id")
+        event = data.get("event")
+        
+        if device_id is not None:
+            async_dispatcher_send(self._hass, TOPIC_UPDATE, device_id, data)
+        else:
+            _LOGGER.info("No device_id present on websocket message")
+
     session = aiohttp_client.async_get_clientsession(hass)
 
     try:
-        client = Client(conf[CONF_USERNAME], conf[CONF_PASSWORD], session)
-        bhyve = BHyve(hass, client, storage_dir=conf_dir, packet_dump=packet_dump,)
+        bhyve = Client(
+            conf[CONF_USERNAME],
+            conf[CONF_PASSWORD],
+            loop=hass.loop,
+            session=session,
+            async_callback=async_update_callback
+            )
+        
         await bhyve.login()
-        await bhyve.client.api.devices
-        hass.loop.create_task(bhyve.ws_connect())
+        
         hass.data[DOMAIN] = bhyve
     except WebsocketError as err:
         _LOGGER.error("Config entry failed: %s", err)
         raise ConfigEntryNotReady
 
     hass.bus.async_listen_once(
-        EVENT_HOMEASSISTANT_STOP, bhyve.client.api.websocket.disconnect()
+        EVENT_HOMEASSISTANT_STOP, bhyve.stop()
     )
 
     return True
-
-
-class BHyve:
-    """Define a class to handle the BHyve websocket."""
-
-    def __init__(self, hass, client, *, storage_dir, packet_dump):
-        """Initialize."""
-        self._entry_setup_complete = False
-        self._hass = hass
-        self._watchdog_listener = None
-        self._ws_reconnect_delay = DEFAULT_SOCKET_MIN_RETRY
-        self._storage_dir = storage_dir
-        self._packet_dump = packet_dump
-        self._dump_file = self._storage_dir + "/" + "packets.dump"
-
-        self.client: Client = client
-        self.monitored_conditions = []
-        self.devices = {}
-
-        # Create storage/scratch directory.
-        try:
-            os.mkdir(self._storage_dir)
-        except Exception as err:
-            _LOGGER.info("Could not create storage dir: %s", err)
-            pass
-
-    async def login(self):
-        """Login."""
-        await self.client.api.login()
-
-    async def _attempt_connect(self):
-        """Attempt to connect to the socket (retrying later on fail)."""
-        try:
-            await self.client.api.websocket.connect()
-        except WebsocketError as err:
-            _LOGGER.error("Error with the websocket connection: %s", err)
-            self._ws_reconnect_delay = min(2 * self._ws_reconnect_delay, 480)
-            async_call_later(self._hass, self._ws_reconnect_delay, self.ws_connect)
-
-    async def ws_connect(self):
-        """Register handlers and connect to the websocket."""
-
-        async def _ws_reconnect(event_time):
-            """Forcibly disconnect from and reconnect to the websocket."""
-            _LOGGER.debug("Watchdog expired; forcing socket reconnection")
-            await self.client.api.websocket.disconnect()
-            await self._attempt_connect()
-
-        def on_connect():
-            """Define a handler to fire when the websocket is connected."""
-            _LOGGER.debug("Connected to websocket. Watchdog starting.")
-
-            if self._watchdog_listener is not None:
-                self._watchdog_listener()
-            self._watchdog_listener = async_call_later(
-                self._hass, DEFAULT_WATCHDOG_SECONDS, _ws_reconnect
-            )
-
-        def on_disconnect():
-            """Define a handler to fire when the websocket is disconnected."""
-            _LOGGER.info("Disconnected from websocket")
-
-        def on_message(ws_message: WSMessage):
-            """Define a handler to fire when the data is received."""
-            ws_type: WSMsgType = ws_message.type
-            
-            
-            data = ws_message.json()
-
-            if data is not None and self._packet_dump:
-                with open(self._dump_file, "a") as dump:
-                    dump.write(pprint.pformat(data, indent=2) + "\n")
-
-            _LOGGER.debug("New data received: {}".format(data))
-            device_id = data.get("device_id")
-            event = data.get("event")
-            # device_id = data.device_id
-            # self.devices[device_id][ATTR_LAST_DATA] = data
-            if device_id is not None:
-                async_dispatcher_send(self._hass, TOPIC_UPDATE, device_id, data)
-            else:
-                _LOGGER.info("No device_id present on websocket message")
-
-            _LOGGER.debug("Resetting watchdog")
-            self._watchdog_listener()
-            self._watchdog_listener = async_call_later(
-                self._hass, DEFAULT_WATCHDOG_SECONDS, _ws_reconnect
-            )
-
-        self.client.api.websocket.on_connect(on_connect)
-        self.client.api.websocket.on_disconnect(on_disconnect)
-        self.client.api.websocket.on_message(on_message)
-
-        await self._attempt_connect()
-
-    async def ws_disconnect(self):
-        """Disconnect from the websocket."""
-        await self.client.api.websocket.disconnect()
 
 
 class BHyveEntity(Entity):

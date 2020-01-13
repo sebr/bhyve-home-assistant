@@ -64,7 +64,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     bhyve = hass.data[DOMAIN]
 
     switches = []
-    devices = await bhyve.client.api.devices
+    devices = await bhyve.devices
     for device in devices:
         if device.get("type") == "sprinkler_timer":
             sensor_type = SENSOR_TYPES["zone"]
@@ -123,7 +123,7 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
                 "stations": [{"station": self._zone_id, "run_time": 1.0}],
             }
             _LOGGER.info("Starting watering")
-            await self._bhyve.client.api.websocket.send(payload)
+            await self._bhyve.send_message(payload)
 
         except BHyveError as err:
             _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
@@ -162,12 +162,12 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             self._ws_unprocessed_events[:] = []
 
             for ws_event in ws_updates:
-                _LOGGER.info("Processing ws data. {}".format(ws_event.get("event")))
+                _LOGGER.info("Processing ws data. {}".format(ws_event.get('event')))
                 self.on_ws_data(ws_event)
 
             device_id = self._device_id
 
-            device = await self._bhyve.client.api.get_device(device_id)
+            device = await self._bhyve.get_device(device_id)
             if not device:
                 _LOGGER.info("No device found with id %s", device_id)
                 self._available = False

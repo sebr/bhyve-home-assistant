@@ -40,7 +40,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     bhyve = hass.data[DOMAIN]
 
     sensors = []
-    devices = await bhyve.client.api.devices
+    devices = await bhyve.devices
     for device in devices:
         if device.get("type") == "sprinkler_timer":
             for _, sensor_type in SENSOR_TYPES.items():
@@ -94,7 +94,7 @@ class BHyveSensor(BHyveEntity):
         try:
             device_id = self._device_id
 
-            device = await self._bhyve.client.api.get_device(device_id)
+            device = await self._bhyve.get_device(device_id)
             if not device:
                 _LOGGER.info("No device found with id %s", device_id)
                 self._available = False

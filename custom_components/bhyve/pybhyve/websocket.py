@@ -1,106 +1,93 @@
-"""Define an object to interact with the Websocket API."""
-import asyncio
 import logging
-import threading
+import json
+from asyncio import ensure_future
 
-from asyncio import sleep
-from typing import Awaitable, Callable, Optional, Union
-
-from aiohttp import ClientError, ClientSession, ClientWebSocketResponse, WSMsgType, WSMessage
-
-from .const import WS_HOST
-from .errors import WebsocketError
+import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 
+STATE_STARTING = 'starting'
+STATE_RUNNING = 'running'
+STATE_STOPPED = 'stopped'
 
-class Websocket:
-    """Define the websocket."""
+RETRY_TIMER = 15
 
-    def __init__(self, token: str, session: ClientSession) -> None:
-        """Initialize."""
-        self._token: str = token
-        self._session: ClientSession = session
-        self._websocket: ClientWebSocketResponse = None
-        self._user_connect_handler: Optional[Callable] = None
-        self._user_disconnect_handler: Optional[Callable] = None
-        self._user_message_handler: Optional[Callable] = None
-        self._update_interval: int = 5
-        self._lock = threading.Condition()
 
-    async def connect(self) -> None:
-        """Connect to the socket."""
+class OrbitWebsocket:
+    """Websocket transport, session handling, message generation."""
+    """https://github.com/Kane610/deconz/blob/master/pydeconz/websocket.py"""
+
+    def __init__(self, token, loop, session, url, async_callback):
+        """Create resources for websocket communication."""
+        self._token = token
+        self._loop = loop
+        self._session = session
+        self._url = url
+        self._async_callback = async_callback
+        self._data = None
+        self._state = None
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def state(self):
+        """"""
+        return self._state
+
+    @state.setter
+    def state(self, value):
+        """"""
+        self._state = value
+        _LOGGER.debug('Websocket %s', value)
+
+    def start(self):
+        if self.state != STATE_RUNNING:
+            self.state = STATE_STARTING
+        self._loop.create_task(self.running())
+
+    async def running(self):
+        """Start websocket connection."""
         try:
-            with self._lock:
-                self._websocket = await self._session.ws_connect(WS_HOST)
+            async with self._session.ws_connect(self._url) as ws:
 
-            _LOGGER.info("Sending app token")
-            await self.send(
-                {"event": "app_connection", "orbit_session_token": self._token}
-            )
+                await ws.send_str(
+                    json.dumps({"event": "app_connection", "orbit_session_token": self._token})
+                )
 
-            if self._user_connect_handler:
-                _LOGGER.info("Invoking ws connect handler")
-                self._user_connect_handler()
+                self.state = STATE_RUNNING
+                async for msg in ws:
+                    if msg.type == aiohttp.WSMsgType.TEXT:
+                        ensure_future(self._async_callback(
+                            json.loads(msg.data)))
+                        _LOGGER.debug('Websocket data: %s', msg.data)
+                    elif msg.type == aiohttp.WSMsgType.CLOSED:
+                        _LOGGER.debug('Websocket closed: %s', msg.data)
+                        break
+                    elif msg.type == aiohttp.WSMsgType.ERROR:
+                        break
+        except aiohttp.ClientConnectorError:
+            if self.state != STATE_STOPPED:
+                self.retry()
+        except Exception as err:
+            _LOGGER.error('Unexpected error %s', err)
+            if self.state != STATE_STOPPED:
+                self.retry()
+        else:
+            if self.state != STATE_STOPPED:
+                self.retry()
 
-            while True:
-                _LOGGER.info("Waiting for messages")
-                with self._lock:
-                    msg = await self._websocket.receive()
+    def stop(self):
+        """Close websocket connection."""
+        self.state = STATE_STOPPED
 
-                _LOGGER.info("Received message: %s", msg)
-                if msg.type == WSMsgType.TEXT:
-                    if self._user_message_handler:
-                        self._user_message_handler(msg)
-                elif msg.type == WSMsgType.BINARY:
-                    pass
-                elif msg.type == WSMsgType.PING:
-                    self._websocket.pong()
-                elif msg.type == WSMsgType.PONG:
-                    pass
-                else:
-                    if msg.type == WSMsgType.CLOSE:
-                        _LOGGER.warning('Close code received: {} extra: {}'.format(msg.data, msg.extra))
-                        if self._user_disconnect_handler:
-                            self._user_disconnect_handler()
-                    elif msg.type == WSMsgType.ERROR:
-                        _LOGGER.warning('Error during receive {}'.format(self._websocket.exception()))
-                    break
+    def retry(self):
+        """Retry to connect to Orbit."""
+        self.state = STATE_STARTING
+        self._loop.call_later(RETRY_TIMER, self.start)
+        _LOGGER.debug('Reconnecting to Orbit in %i.', RETRY_TIMER)
 
-                await self._ping()
-                await asyncio.sleep(self._update_interval)
-
-        except ClientError as err:
-            _LOGGER.info(err)
-            raise WebsocketError(err) from None
-
-    async def disconnect(self) -> None:
-        """Disconnect from the socket."""
-        await self._websocket.close()
-
-    async def send(self, payload: dict) -> None:
-        """Send a message via websocket."""
-        try:
-            _LOGGER.debug("Sending %s", payload)
-            await self._websocket.send_json(payload)
-        except ClientError as err:
-            _LOGGER.info(err)
-            raise WebsocketError(err) from None
-
-    def on_connect(self, target: Callable) -> None:
-        """Define a method to be called when connecting."""
-        self._async_user_connect_handler = None
-        self._user_connect_handler = target
-
-    def on_disconnect(self, target: Callable) -> None:
-        """Define a method to be called when connecting."""
-        self._user_disconnect_handler = target
-
-    def on_message(self, target: Union[Awaitable, Callable]) -> None:
-        """Define a method to be called when data is received."""
-        self._async_user_message_handler = None
-        self._user_message_handler = target
-
-    async def _ping(self) -> None:
-        """Ping the websocket."""
-        await self.send({"event": "ping"})
+    def send(self, payload):
+        _LOGGER.error('Not implemented')
+        pass
