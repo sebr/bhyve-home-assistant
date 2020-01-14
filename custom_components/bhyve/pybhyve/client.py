@@ -75,14 +75,12 @@ class Client:
         for device in self._devices:
             deviceName = device.get("name")
             deviceType = device.get("type")
-            _LOGGER.info("Created device: {} [{}]".format(deviceType, deviceName))
+            _LOGGER.info("Found device: {} [{}]".format(deviceType, deviceName))
 
         self._last_poll = now
 
     async def _async_ws_handler(self, data):
         """Process incoming websocket message."""
-        _LOGGER.debug("WS data is {}".format(data))
-
         if self._async_callback:
             ensure_future(self._async_callback(data))
 

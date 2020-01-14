@@ -76,3 +76,26 @@ class BHyveBinarySensor(BHyveEntity, BinarySensorDevice):
     def is_on(self):
         """Return the status of the sensor."""
         return self._state is True
+
+    @property
+    def should_poll(self):
+        """Disable polling."""
+        return False
+
+    async def async_update(self):
+        """Retrieve latest state."""
+        self._ws_unprocessed_events[:] = []  # We don't care about these
+
+        try:
+            self._device = await self._bhyve.get_device(self._device_id)
+            if not device:
+                _LOGGER.info("No device found with id %s", self._device_id)
+                self._available = False
+                return
+
+            self._setup(self._device)
+
+        except BHyveError as err:
+            _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
+            self._available = False
+

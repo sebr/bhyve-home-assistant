@@ -84,6 +84,3 @@ class BHyveSensor(BHyveEntity):
             )
         return self._icon
 
-    async def async_update(self):
-        self._ws_unprocessed_events[:] = []
-        _LOGGER.info("{} - no updates to make".format(self.name))
