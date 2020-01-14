@@ -15,7 +15,7 @@ SENSOR_TYPES = {
         "name": "Battery Level",
         "icon": "battery",
         "unit": "%",
-        "device_class": DEVICE_CLASS_BATTERY
+        "device_class": DEVICE_CLASS_BATTERY,
     }
 }
 

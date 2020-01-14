@@ -1,10 +1,11 @@
 # bhyve-home-assistant
 
-BHyve component for [Home Assistant](https://www.home-assistant.io/).
+Orbit BHyve component for [Home Assistant](https://www.home-assistant.io/).
 
-## Supported Features
-* Battery sensor for `sprinkler_timer` devices
-* Rain delay binary_sensor
+## Supported Entities
+* `sensor` for measuring battery levels of `sprinkler_timer` devices
+* `binary_sensor` for tracking rain/weather delays
+* `switch` for turning a zone on/off
 
 ## Installation
 
@@ -22,5 +23,7 @@ sensor:
 
 binary_sensor:
   - platform: bhyve
-```
 
+switch:
+  - platform: bhyve
+```

@@ -12,10 +12,13 @@ from .websocket import OrbitWebsocket
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class Client:
     """Define the API object."""
 
-    def __init__(self, username: str, password: str, loop, session, async_callback) -> None:
+    def __init__(
+        self, username: str, password: str, loop, session, async_callback
+    ) -> None:
         """Initialize."""
         self._username: str = username
         self._password: int = password
@@ -26,7 +29,7 @@ class Client:
         self._loop = loop
         self._session = session
         self._async_callback = async_callback
-        
+
         self._devices = []
         self._last_poll = 0
 
@@ -87,7 +90,7 @@ class Client:
         """Log in with username & password and save the token."""
         url: str = f"{API_HOST}{LOGIN_PATH}"
         json = {"session": {"email": self._username, "password": self._password}}
-        
+
         async with self._session.request("post", url, json=json) as resp:
             try:
                 resp.raise_for_status()
@@ -101,11 +104,13 @@ class Client:
         if self._token is None:
             return False
 
-        self._websocket = OrbitWebsocket(token=self._token,
-                                        loop=self._loop,
-                                        session=self._session,
-                                        url=self._ws_url,
-                                        async_callback=self._async_ws_handler)
+        self._websocket = OrbitWebsocket(
+            token=self._token,
+            loop=self._loop,
+            session=self._session,
+            url=self._ws_url,
+            async_callback=self._async_ws_handler,
+        )
         self._websocket.start()
         return True
 
