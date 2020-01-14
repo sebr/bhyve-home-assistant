@@ -94,13 +94,13 @@ class BHyveSensor(BHyveEntity):
         self._ws_unprocessed_events[:] = []  # We don't care about these
 
         try:
-            self._device = await self._bhyve.get_device(self._device_id)
+            device = await self._bhyve.get_device(self._device_id)
             if not device:
                 _LOGGER.info("No device found with id %s", self._device_id)
                 self._available = False
                 return
 
-            self._setup(self._device)
+            self._setup(device)
 
         except BHyveError as err:
             _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
