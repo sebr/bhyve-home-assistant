@@ -43,6 +43,17 @@ class BHyveBinarySensor(BHyveEntity, BinarySensorDevice):
 
         self._extract_rain_delay(rain_delay, device_status)
 
+    def _on_ws_data(self, data):
+        """
+            {'event': 'rain_delay', 'device_id': 'id', 'delay': 0, 'timestamp': '2020-01-14T12:10:10.000Z'}
+        """
+        event = data.get("event")
+        if event is None:
+            _LOGGER.warning("No event on ws data {}".format(data))
+            return
+        elif event == "rain_delay":
+            self._extract_rain_delay(data.get("delay"), {})
+
     def _extract_rain_delay(self, rain_delay, device_status=None):
         if rain_delay is not None and rain_delay > 0:
             self._state = True
@@ -65,25 +76,3 @@ class BHyveBinarySensor(BHyveEntity, BinarySensorDevice):
     def is_on(self):
         """Return the status of the sensor."""
         return self._state is True
-
-    def on_ws_data(self, data):
-        """
-            {'event': 'rain_delay', 'device_id': 'id', 'delay': 0, 'timestamp': '2020-01-14T12:10:10.000Z'}
-        """
-        event = data.get("event")
-        if event is None:
-            _LOGGER.warning("No event on ws data {}".format(data))
-            return
-        elif event == "rain_delay":
-            self._extract_rain_delay(data.get("delay"), {})
-
-    async def async_update(self):
-        """Retrieve latest state."""
-        ws_updates = list(self._ws_unprocessed_events)
-        self._ws_unprocessed_events[:] = []
-
-        for ws_event in ws_updates:
-            _LOGGER.info(
-                "{} - processing ws data. {}".format(self.name, ws_event.get("event"))
-            )
-            self.on_ws_data(ws_event)

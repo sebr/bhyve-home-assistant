@@ -80,40 +80,7 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
                     "started_watering_station_at"
                 ]
 
-    @property
-    def unique_id(self):
-        """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_type}:zone:{self._zone_id}"
-
-    @property
-    def is_on(self):
-        """Return the status of the sensor."""
-        return self._state is True
-
-    async def async_turn_on(self, **kwargs):
-        """Turn the switch on."""
-        try:
-            now = datetime.datetime.now()
-            iso_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-            payload = {
-                "event": "change_mode",
-                "mode": "manual",
-                "device_id": self._device_id,
-                "timestamp": iso_time,
-                "stations": [{"station": self._zone_id, "run_time": 1.0}],
-            }
-            _LOGGER.info("Starting watering")
-            await self._bhyve.send_message(payload)
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
-            raise (err)
-
-    async def async_turn_off(self, **kwargs):
-        """Turn the switch off."""
-
-    def on_ws_data(self, data):
+    def _on_ws_data(self, data):
         """
             {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
             {'event': 'watering_in_progress_notification', 'program': 'e', 'current_station': 1, 'run_time': 14, 'started_watering_station_at': '2020-01-09T20:29:59.000Z', 'rain_sensor_hold': False, 'device_id': 'id', 'timestamp': '2020-01-09T20:29:59.000Z'}
@@ -138,14 +105,42 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
 
         _LOGGER.info("Device {} is now: {}".format(self.name, self._state))
 
-    async def async_update(self):
-        """Retrieve latest state."""
-        ws_updates = list(self._ws_unprocessed_events)
-        self._ws_unprocessed_events[:] = []
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_type}:zone:{self._zone_id}"
 
-        for ws_event in ws_updates:
-            _LOGGER.info(
-                "{} - processing ws data. {}".format(self.name, ws_event.get("event"))
-            )
-            self.on_ws_data(ws_event)
+    @property
+    def is_on(self):
+        """Return the status of the sensor."""
+        return self._state is True
+
+    async def _send_station_message(self, station_payload):
+        try:
+            now = datetime.datetime.now()
+            iso_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            payload = {
+                "event": "change_mode",
+                "mode": "manual",
+                "device_id": self._device_id,
+                "timestamp": iso_time,
+                "stations": station_payload,
+            }
+            _LOGGER.info("Starting watering")
+            await self._bhyve.send_message(payload)
+
+        except BHyveError as err:
+            _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
+            raise (err)
+
+    async def async_turn_on(self, **kwargs):
+        """Turn the switch on."""
+        station_payload = [{"station": self._zone_id, "run_time": 1.0}]
+        self._send_station_message(station_payload)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn the switch off."""
+        station_payload = []
+        self._send_station_message(station_payload)
 

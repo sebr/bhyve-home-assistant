@@ -94,7 +94,6 @@ async def async_setup(hass, config):
             with open(dump_file, "a") as dump:
                 dump.write(pprint.pformat(data, indent=2) + "\n")
 
-        _LOGGER.debug("New data received: {}".format(data))
         device_id = data.get("device_id")
         event = data.get("event")
 
@@ -103,7 +102,7 @@ async def async_setup(hass, config):
                 hass, SIGNAL_UPDATE_DEVICE.format(device_id), device_id, data
             )
         else:
-            _LOGGER.info("No device_id present on websocket message")
+            _LOGGER.debug("No device_id present on websocket message")
 
     session = aiohttp_client.async_get_clientsession(hass)
 
@@ -154,6 +153,9 @@ class BHyveEntity(Entity):
         self._setup(device)
 
     def _setup(self, device):
+        pass
+
+    def _on_ws_data(self, data):
         pass
 
     @property
@@ -216,3 +218,14 @@ class BHyveEntity(Entity):
         """Disconnect dispatcher listener when removed."""
         if self._async_unsub_dispatcher_connect:
             self._async_unsub_dispatcher_connect()
+
+    async def async_update(self):
+        """Retrieve latest state."""
+        ws_updates = list(self._ws_unprocessed_events)
+        self._ws_unprocessed_events[:] = []
+
+        for ws_event in ws_updates:
+            _LOGGER.debug(
+                "{} - processing ws data. {}".format(self.name, ws_event.get("event"))
+            )
+            self._on_ws_data(ws_event)
