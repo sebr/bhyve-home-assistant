@@ -10,7 +10,7 @@ STATE_STARTING = 'starting'
 STATE_RUNNING = 'running'
 STATE_STOPPED = 'stopped'
 
-RETRY_TIMER = 15
+RETRY_TIMER = 10
 
 
 class OrbitWebsocket:
@@ -59,9 +59,8 @@ class OrbitWebsocket:
                 self.state = STATE_RUNNING
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.TEXT:
-                        ensure_future(self._async_callback(
-                            json.loads(msg.data)))
-                        _LOGGER.debug('Websocket data: %s', msg.data)
+                        ensure_future(self._async_callback(json.loads(msg.data)))
+                        _LOGGER.info('Websocket data: %s', msg.data)
                     elif msg.type == aiohttp.WSMsgType.CLOSED:
                         _LOGGER.debug('Websocket closed: %s', msg.data)
                         break

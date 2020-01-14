@@ -30,7 +30,7 @@ from .const import (
     CONF_WATERING_DURATION,
     DOMAIN,
     MANUFACTURER,
-    TOPIC_UPDATE,
+    SIGNAL_UPDATE_DEVICE,
 )
 from .pybhyve import Client
 from .pybhyve.errors import WebsocketError
@@ -97,9 +97,11 @@ async def async_setup(hass, config):
         _LOGGER.debug("New data received: {}".format(data))
         device_id = data.get("device_id")
         event = data.get("event")
-        
+
         if device_id is not None:
-            async_dispatcher_send(hass, TOPIC_UPDATE, device_id, data)
+            async_dispatcher_send(
+                hass, SIGNAL_UPDATE_DEVICE.format(device_id), device_id, data
+            )
         else:
             _LOGGER.info("No device_id present on websocket message")
 
@@ -111,20 +113,18 @@ async def async_setup(hass, config):
             conf[CONF_PASSWORD],
             loop=hass.loop,
             session=session,
-            async_callback=async_update_callback
-            )
-        
+            async_callback=async_update_callback,
+        )
+
         await bhyve.login()
         await bhyve.devices
-        
+
         hass.data[DOMAIN] = bhyve
     except WebsocketError as err:
         _LOGGER.error("Config entry failed: %s", err)
         raise ConfigEntryNotReady
 
-    hass.bus.async_listen_once(
-        EVENT_HOMEASSISTANT_STOP, bhyve.stop()
-    )
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, bhyve.stop())
 
     return True
 
@@ -133,7 +133,7 @@ class BHyveEntity(Entity):
     """Define a base BHyve entity."""
 
     def __init__(
-        self, bhyve, device, name, icon, update_callback=None, device_class=None,
+        self, bhyve, device, name, icon, device_class=None,
     ):
         """Initialize the sensor."""
         self._bhyve: BHyve = bhyve
@@ -146,12 +146,15 @@ class BHyveEntity(Entity):
         self._device_name = device.get("name")
         self._name = name
         self._icon = "mdi:{}".format(icon)
-        self._update_callback = update_callback
         self._state = None
         self._available = False
         self._attrs = {}
 
         self._ws_unprocessed_events = []
+        self._setup(device)
+
+    def _setup(self, device):
+        pass
 
     @property
     def available(self):
@@ -199,13 +202,14 @@ class BHyveEntity(Entity):
         @callback
         def update(device_id, data):
             """Update the state."""
-            if self._device_id == device_id:
-                _LOGGER.info("Callback update: {} - {}".format(device_id, data))
-                self._ws_unprocessed_events.append(data)
-                self.async_schedule_update_ha_state(True)
+            _LOGGER.info(
+                "Callback update: {} - {} - {}".format(self.name, self._device_id, data)
+            )
+            self._ws_unprocessed_events.append(data)
+            self.async_schedule_update_ha_state(True)
 
         self._async_unsub_dispatcher_connect = async_dispatcher_connect(
-            self.hass, TOPIC_UPDATE, update
+            self.hass, SIGNAL_UPDATE_DEVICE.format(self._device_id), update
         )
 
     async def async_will_remove_from_hass(self):

@@ -10,27 +10,12 @@ from .pybhyve.errors import BHyveError
 
 _LOGGER = logging.getLogger(__name__)
 
-
-def battery_callback(device):
-    """Update callback for battery sensor."""
-    state = None
-    attrs = {}
-    battery = device["battery"]
-
-    if battery is not None:
-        state = battery["percent"]
-        attrs[ATTR_BATTERY_LEVEL] = battery["percent"]
-
-    return state, attrs
-
-
 SENSOR_TYPES = {
     "battery_level": {
         "name": "Battery Level",
         "icon": "battery",
         "unit": "%",
-        "device_class": DEVICE_CLASS_BATTERY,
-        "update_callback": battery_callback,
+        "device_class": DEVICE_CLASS_BATTERY
     }
 }
 
@@ -53,7 +38,6 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                         name,
                         sensor_type["icon"],
                         sensor_type["unit"],
-                        sensor_type["update_callback"],
                         sensor_type["device_class"],
                     )
                 )
@@ -64,11 +48,22 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 class BHyveSensor(BHyveEntity):
     """Define a BHyve sensor."""
 
-    def __init__(self, bhyve, device, name, icon, unit, update_callback, device_class):
+    def __init__(self, bhyve, device, name, icon, unit, device_class):
         """Initialize the sensor."""
-        super().__init__(bhyve, device, name, icon, update_callback, device_class)
+        super().__init__(bhyve, device, name, icon, device_class)
 
         self._unit = unit
+
+    def _setup(self, device):
+        self._state = None
+        self._attrs = {}
+        self._available = device.get("is_connected", False)
+
+        battery = device.get("battery")
+
+        if battery is not None:
+            self._state = battery["percent"]
+            self._attrs[ATTR_BATTERY_LEVEL] = battery["percent"]
 
     @property
     def state(self):
@@ -90,21 +85,5 @@ class BHyveSensor(BHyveEntity):
         return self._icon
 
     async def async_update(self):
-        """Retrieve latest state."""
-        try:
-            device_id = self._device_id
-
-            device = await self._bhyve.get_device(device_id)
-            if not device:
-                _LOGGER.info("No device found with id %s", device_id)
-                self._available = False
-                return
-
-            self._available = device["is_connected"]
-            state, attrs = self._update_callback(device)
-            self._attrs = attrs
-            self._state = state
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
-            self._available = False
+        self._ws_unprocessed_events[:] = []
+        _LOGGER.info("{} - no updates to make".format(self.name))

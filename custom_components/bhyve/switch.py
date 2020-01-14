@@ -11,52 +11,7 @@ from .pybhyve.errors import BHyveError
 _LOGGER = logging.getLogger(__name__)
 
 
-def zone_update_callback(device, zone_id):
-    """Update callback for rain delay binary sensor."""
-    state = False
-    attrs = {}
-
-    status = device["status"]
-    watering_status = status["watering_status"]
-
-    _LOGGER.info("watering_status: %s", watering_status)
-
-    zones = device["zones"]
-    zone = next(filter(lambda x: x.get("station") == zone_id, zones))
-
-    zone = None
-    for z in zones:
-        if z.get("station") == zone_id:
-            zone = z
-            break
-
-    if zone is not None:
-        is_watering = (
-            watering_status is not None
-            and watering_status["current_station"] == zone_id
-        )
-        state = is_watering
-        attrs = {
-            "smart_watering_enabled": zone["smart_watering_enabled"],
-            "sprinkler_type": zone["sprinkler_type"],
-            "image_url": zone["image_url"],
-        }
-
-        if is_watering:
-            attrs["started_watering_station_at"] = watering_status[
-                "started_watering_station_at"
-            ]
-
-    return state, attrs
-
-
-SENSOR_TYPES = {
-    "zone": {
-        "name": "Zone",
-        "icon": "water-pump",
-        "update_callback": zone_update_callback,
-    }
-}
+SENSOR_TYPES = {"zone": {"name": "Zone", "icon": "water-pump"}}
 
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
@@ -73,14 +28,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                 name = "{0} Zone".format(zone["name"])
                 _LOGGER.info("Creating switch: %s", name)
                 switches.append(
-                    BHyveSwitch(
-                        bhyve,
-                        device,
-                        zone,
-                        name,
-                        sensor_type["icon"],
-                        sensor_type["update_callback"],
-                    )
+                    BHyveSwitch(bhyve, device, zone, name, sensor_type["icon"],)
                 )
 
     async_add_entities(switches, True)
@@ -89,15 +37,48 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 class BHyveSwitch(BHyveEntity, SwitchDevice):
     """Define a BHyve switch."""
 
-    def __init__(self, bhyve, device, zone, name, icon, update_callback):
+    def __init__(self, bhyve, device, zone, name, icon):
         """Initialize the switch."""
-        super().__init__(
-            bhyve, device, name, icon, update_callback, DEVICE_CLASS_SWITCH
-        )
-
         self._zone = zone
         self._zone_id = zone.get("station")
         self._entity_picture = zone.get("image_url")
+
+        super().__init__(bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
+
+    def _setup(self, device):
+        self._state = None
+        self._attrs = {}
+        self._available = device.get("is_connected", False)
+
+        status = device["status"]
+        watering_status = status["watering_status"]
+
+        _LOGGER.info("{} watering_status: {}".format(self.name, watering_status))
+
+        zones = device["zones"]
+
+        zone = None
+        for z in zones:
+            if z.get("station") == self._zone_id:
+                zone = z
+                break
+
+        if zone is not None:
+            is_watering = (
+                watering_status is not None
+                and watering_status["current_station"] == self._zone_id
+            )
+            self._state = is_watering
+            self._attrs = {
+                "smart_watering_enabled": zone["smart_watering_enabled"],
+                "sprinkler_type": zone["sprinkler_type"],
+                "image_url": zone["image_url"],
+            }
+
+            if is_watering:
+                self._attrs["started_watering_station_at"] = watering_status[
+                    "started_watering_station_at"
+                ]
 
     @property
     def unique_id(self):
@@ -142,7 +123,7 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
         if event is None:
             _LOGGER.warning("No event on ws data {}".format(data))
             return
-        elif event == "device_idle":
+        elif event == "device_idle" or event == "watering_complete":
             self._state = False
         elif event == "watering_in_progress_notification":
             zone = data.get("current_station")
@@ -155,29 +136,16 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             program = data.get("program")
             self._state = program == "e" or program == "manual"  # e == smart watering
 
+        _LOGGER.info("Device {} is now: {}".format(self.name, self._state))
+
     async def async_update(self):
         """Retrieve latest state."""
-        try:
-            ws_updates = list(self._ws_unprocessed_events)
-            self._ws_unprocessed_events[:] = []
+        ws_updates = list(self._ws_unprocessed_events)
+        self._ws_unprocessed_events[:] = []
 
-            for ws_event in ws_updates:
-                _LOGGER.info("Processing ws data. {}".format(ws_event.get('event')))
-                self.on_ws_data(ws_event)
+        for ws_event in ws_updates:
+            _LOGGER.info(
+                "{} - processing ws data. {}".format(self.name, ws_event.get("event"))
+            )
+            self.on_ws_data(ws_event)
 
-            device_id = self._device_id
-
-            device = await self._bhyve.get_device(device_id)
-            if not device:
-                _LOGGER.info("No device found with id %s", device_id)
-                self._available = False
-                return
-
-            self._available = device["is_connected"]
-            state, attrs = self._update_callback(device, self._zone_id)
-            self._attrs = attrs
-            self._state = state
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
-            self._available = False

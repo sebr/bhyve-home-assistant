@@ -9,7 +9,7 @@ CONF_WATERING_DURATION = 300
 
 ATTR_LAST_DATA = "last_data"
 
-TOPIC_UPDATE = "update"
+SIGNAL_UPDATE_DEVICE = "bhyve_update_device_{}"
 
 TYPE_BINARY_SENSOR = "binary_sensor"
 TYPE_SENSOR = "sensor"
