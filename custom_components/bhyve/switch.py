@@ -137,10 +137,10 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
         station_payload = [{"station": self._zone_id, "run_time": 1.0}]
-        self._send_station_message(station_payload)
+        await self._send_station_message(station_payload)
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         station_payload = []
-        self._send_station_message(station_payload)
+        await self._send_station_message(station_payload)
 
