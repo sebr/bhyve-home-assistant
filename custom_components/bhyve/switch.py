@@ -139,12 +139,12 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             await self._bhyve.send_message(payload)
 
         except BHyveError as err:
-            _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
+            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
             raise (err)
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
-        station_payload = [{"station": self._zone_id, "run_time": 1.0}]
+        station_payload = [{"station": self._zone_id, "run_time": 10.0}]
         await self._send_station_message(station_payload)
 
     async def async_turn_off(self, **kwargs):

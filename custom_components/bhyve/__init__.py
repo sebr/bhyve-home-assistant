@@ -133,7 +133,7 @@ class BHyveEntity(Entity):
         self, bhyve, device, name, icon, device_class=None,
     ):
         """Initialize the sensor."""
-        self._bhyve: BHyve = bhyve
+        self._bhyve: Client = bhyve
         self._device_class = device_class
         self._async_unsub_dispatcher_connect = None
 

@@ -60,7 +60,7 @@ class Client:
             try:
                 resp.raise_for_status()
                 return await resp.json(content_type=None)
-            except ClientError as err:
+            except Exception as err:
                 raise RequestError(f"Error requesting data from {url}: {err}")
 
     async def _refresh_devices(self):
@@ -96,7 +96,7 @@ class Client:
                 _LOGGER.debug("Logged in")
                 self._token = response["orbit_session_token"]
 
-            except ClientError as err:
+            except Exception as err:
                 raise RequestError(f"Error requesting data from {url}: {err}")
 
         if self._token is None:
@@ -130,5 +130,5 @@ class Client:
                 return device
         return None
 
-    def send_message(self, payload):
-        self._websocket.send(payload)
+    async def send_message(self, payload):
+        await self._websocket.send(payload)
