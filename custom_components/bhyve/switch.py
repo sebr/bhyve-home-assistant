@@ -25,7 +25,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
             sensor_type = SENSOR_TYPES["zone"]
             for zone in device.get("zones"):
                 _LOGGER.info("ZONE: %s", zone)
-                name = "{0} Zone".format(zone["name"])
+                name = "{0} Zone".format(zone.get("name", "Unknown"))
                 _LOGGER.info("Creating switch: %s", name)
                 switches.append(
                     BHyveSwitch(bhyve, device, zone, name, sensor_type["icon"],)
@@ -50,12 +50,12 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
         self._attrs = {}
         self._available = device.get("is_connected", False)
 
-        status = device["status"]
-        watering_status = status["watering_status"]
+        status = device.get("status", {})
+        watering_status = status.get("watering_status")
 
         _LOGGER.info("{} watering_status: {}".format(self.name, watering_status))
 
-        zones = device["zones"]
+        zones = device.get("zones", [])
 
         zone = None
         for z in zones:
@@ -66,19 +66,27 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
         if zone is not None:
             is_watering = (
                 watering_status is not None
-                and watering_status["current_station"] == self._zone_id
+                and watering_status.get("current_station") == self._zone_id
             )
             self._state = is_watering
-            self._attrs = {
-                "smart_watering_enabled": zone["smart_watering_enabled"],
-                "sprinkler_type": zone["sprinkler_type"],
-                "image_url": zone["image_url"],
-            }
+            self._attrs = {}
+
+            smart_watering_enabled = zone.get("smart_watering_enabled")
+            if smart_watering_enabled is not None:
+                self._attrs["smart_watering_enabled"] = smart_watering_enabled
+
+            sprinkler_type = zone.get("sprinkler_type")
+            if sprinkler_type is not None:
+                self._attrs["sprinkler_type"] = sprinkler_type
+
+            image_url = zone.get("image_url")
+            if image_url is not None:
+                self._attrs["image_url"] = image_url
 
             if is_watering:
-                self._attrs["started_watering_station_at"] = watering_status[
+                self._attrs["started_watering_station_at"] = watering_status.get(
                     "started_watering_station_at"
-                ]
+                )
 
     def _on_ws_data(self, data):
         """

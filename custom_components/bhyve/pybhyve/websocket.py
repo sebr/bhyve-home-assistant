@@ -53,7 +53,7 @@ class OrbitWebsocket:
             self._loop.create_task(self._ping())
 
     async def _ping(self):
-        _LOGGER.info("Sending ping")
+        _LOGGER.debug("Sending ping")
         await self._ws.send_str(json.dumps({"event": "ping"}))
         self._reset_heartbeat()
 
