@@ -55,6 +55,7 @@ class OrbitWebsocket:
     async def _ping(self):
         _LOGGER.info("Sending ping")
         await self._ws.send_str(json.dumps({"event": "ping"}))
+        self._reset_heartbeat()
 
     @property
     def data(self):
@@ -80,7 +81,6 @@ class OrbitWebsocket:
 
         try:
             if self._ws is None or self._ws.closed or self.state != STATE_RUNNING:
-                _LOGGER.info("Websocket connecting")
                 async with self._session.ws_connect(self._url) as self._ws:
                     await self._ws.send_str(
                         json.dumps(
@@ -91,18 +91,18 @@ class OrbitWebsocket:
                         )
                     )
 
+                    _LOGGER.info("Websocket connected")
+
                     self._reset_heartbeat()
 
                     self.state = STATE_RUNNING
 
                     while True:
-                        _LOGGER.debug("Websocket reading msgs")
                         msg = await self._ws.receive()
                         self._reset_heartbeat()
                         _LOGGER.debug("msg received {}".format(msg))
 
                         if msg.type == WSMsgType.TEXT:
-                            _LOGGER.debug("Text: ", msg.data.strip())
                             ensure_future(self._async_callback(json.loads(msg.data)))
                         elif msg.type == WSMsgType.PING:
                             self._ws.pong()
