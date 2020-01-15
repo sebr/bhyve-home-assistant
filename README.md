@@ -14,7 +14,9 @@ If this integration has been useful to you, please consider chipping in and buyi
 
 ## Installation
 
-Recommended installation is via HACS - add this repo to [custom repositories](https://hacs.xyz/docs/navigation/settings#custom-repositories).
+Recommended installation is via HACS.
+
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)
 
 ## Configuration
 

@@ -1,0 +1,4 @@
+{
+  "name": "Orbit BHyve",
+  "domains": ["binary_sensor", "sensor", "switch"]
+}
