@@ -1,124 +1,107 @@
+"""Support for Orbit BHyve sensors."""
 import logging
 
-import voluptuous as vol
-
-import homeassistant.helpers.config_validation as cv
-from homeassistant.const import (ATTR_ATTRIBUTION, DEVICE_CLASS_BATTERY)
-from homeassistant.core import callback
-from homeassistant.helpers.config_validation import (PLATFORM_SCHEMA)
-from homeassistant.helpers.entity import (Entity)
+from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY
 from homeassistant.helpers.icon import icon_for_battery_level
-from . import CONF_ATTRIBUTION, DATA_BHYVE, DEFAULT_BRAND
+
+from . import BHyveEntity
+from .const import DOMAIN
+from .pybhyve.errors import BHyveError
 
 _LOGGER = logging.getLogger(__name__)
 
-DEPENDENCIES = ['bhyve']
-
-# sensor_type [ description, unit, icon, attribute ]
 SENSOR_TYPES = {
-    'battery_level': ['Battery Level', '%', 'battery-50', 'battery.percent']
+    "battery_level": {
+        "name": "Battery Level",
+        "icon": "battery",
+        "unit": "%",
+        "device_class": DEVICE_CLASS_BATTERY,
+    }
 }
 
-async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
-    bhyve = hass.data.get(DATA_BHYVE)
-    _LOGGER.info('Setting up sensors')
-    if not bhyve:
-        return
 
-    _LOGGER.info('Lets go!')
+async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
+    """Set up BHyve sensors based on a config entry."""
+    bhyve = hass.data[DOMAIN]
 
     sensors = []
-    for device in bhyve.devices:
-        if device.device_type == 'sprinkler_timer':
-            for sensor_type in SENSOR_TYPES:
-                name = '{0} {1}'.format(SENSOR_TYPES[sensor_type][0], device.name)
-                _LOGGER.info('Creating sensor: %s', name)
-                sensors.append(BHyveSensor(bhyve, name, device, sensor_type))
+    devices = await bhyve.devices
+    for device in devices:
+        if device.get("type") == "sprinkler_timer":
+            for _, sensor_type in SENSOR_TYPES.items():
+                name = "{0} {1}".format(sensor_type.get("name"), device.get("name"))
+                _LOGGER.info("Creating sensor: %s", name)
+                sensors.append(
+                    BHyveSensor(
+                        bhyve,
+                        device,
+                        name,
+                        sensor_type["icon"],
+                        sensor_type["unit"],
+                        sensor_type["device_class"],
+                    )
+                )
 
     async_add_entities(sensors, True)
 
 
-class BHyveSensor(Entity):
+class BHyveSensor(BHyveEntity):
+    """Define a BHyve sensor."""
 
-    def __init__(self, bhyve, name, device, sensor_type):
-        self._bhyve = bhyve
-        self._name = name
-        self._unique_id = self._name.lower().replace(' ', '_')
-        self._device = device
-        self._sensor_type = sensor_type
-        self._icon = 'mdi:{}'.format(SENSOR_TYPES.get(self._sensor_type)[2])
-        self._available = False
+    def __init__(self, bhyve, device, name, icon, unit, device_class):
+        """Initialize the sensor."""
+        super().__init__(bhyve, device, name, icon, device_class)
+
+        self._unit = unit
+
+    def _setup(self, device):
         self._state = None
-        self._do_update(device)
+        self._attrs = {}
+        self._available = device.get("is_connected", False)
 
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return self._unique_id
+        battery = device.get("battery")
 
-    @property
-    def available(self):
-        """Return True if entity is available."""
-        return self._available
+        if battery is not None:
+            self._state = battery["percent"]
+            self._attrs[ATTR_BATTERY_LEVEL] = battery["percent"]
 
     @property
     def state(self):
+        """Return the state of the sensor."""
         return self._state
+
+    @property
+    def unit_of_measurement(self):
+        """Return the unit of measurement for the sensor."""
+        return self._unit
 
     @property
     def icon(self):
         """Icon to use in the frontend, if any."""
-        if self._sensor_type == 'battery_level' and self._state is not None:
-            return icon_for_battery_level(battery_level=int(self._state), charging=False)
+        if self._device_class == DEVICE_CLASS_BATTERY and self._state is not None:
+            return icon_for_battery_level(
+                battery_level=int(self._state), charging=False
+            )
         return self._icon
 
     @property
-    def unit_of_measurement(self):
-        """Return the units of measurement."""
-        return SENSOR_TYPES.get(self._sensor_type)[1]
-
-    @property
-    def device_class(self):
-        """Return the device class of the sensor."""
-        if self._sensor_type == 'battery_level':
-            return DEVICE_CLASS_BATTERY
-        return None
-
-    @property
-    def device_state_attributes(self):
-        """Return the device state attributes."""
-        attrs = {}
-
-        attrs[ATTR_ATTRIBUTION] = CONF_ATTRIBUTION
-        attrs['brand'] = DEFAULT_BRAND
-        attrs['friendly_name'] = self._name
-
-        return attrs
+    def should_poll(self):
+        """Enable polling."""
+        return True
 
     async def async_update(self):
         """Retrieve latest state."""
-        try:
-            device_id = self._device.device_id
+        self._ws_unprocessed_events[:] = []  # We don't care about these
 
-            device = self._bhyve.get_device(device_id)
+        try:
+            device = await self._bhyve.get_device(self._device_id)
             if not device:
-                _LOGGER.info("No device found with id %s", device_id)
+                _LOGGER.info("No device found with id %s", self._device_id)
                 self._available = False
                 return
 
-            self._do_update(device)
-        except:
-            _LOGGER.warning("Failed to connect to BHyve servers.")
+            self._setup(device)
+
+        except BHyveError as err:
+            _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
             self._available = False
-
-    def _do_update(self, device):
-        if not device:
-            return
-
-        self._available = device.attribute('is_connected')
-        if self._sensor_type == 'battery_level':
-            battery = device.attribute('battery')
-            _LOGGER.debug("Getting battery level %s", battery)
-
-            if battery != None:
-                self._state = battery.get('percent')

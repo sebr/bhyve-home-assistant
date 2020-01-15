@@ -1,64 +1,229 @@
+"""Support for Orbit BHyve irrigation devices."""
 import logging
-from datetime import timedelta
+import os
+import pprint
 
 import voluptuous as vol
-from requests.exceptions import HTTPError, ConnectTimeout
+
+from aiohttp import WSMsgType, WSMessage
 
 from homeassistant.const import (
-    CONF_USERNAME, CONF_PASSWORD, CONF_SCAN_INTERVAL, CONF_HOST)
-from homeassistant.helpers import config_validation as cv
+    ATTR_ATTRIBUTION,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    EVENT_HOMEASSISTANT_STOP,
+)
+from homeassistant.core import callback
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import aiohttp_client, config_validation as cv
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_send,
+    async_dispatcher_connect,
+)
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.event import async_call_later
 
-__version__ = '0.0.1'
+from .const import (
+    CONF_ATTRIBUTION,
+    CONF_CONF_DIR,
+    CONF_PACKET_DUMP,
+    CONF_WATERING_DURATION,
+    DOMAIN,
+    MANUFACTURER,
+    SIGNAL_UPDATE_DEVICE,
+)
+from .pybhyve import Client
+from .pybhyve.errors import WebsocketError
 
 _LOGGER = logging.getLogger(__name__)
 
-CONF_ATTRIBUTION = "Data provided by api.orbitbhyve.com"
-DATA_BHYVE = 'data_bhyve'
-DEFAULT_BRAND = 'Orbit BHyve'
-DOMAIN = 'bhyve'
+DATA_CONFIG = "config"
 
-NOTIFICATION_ID = 'bhyve_notification'
-NOTIFICATION_TITLE = 'Orbit BHyve Component Setup'
+DEFAULT_SOCKET_MIN_RETRY = 15
+DEFAULT_PACKET_DUMP = True
+DEFAULT_CONF_DIR = ""
+DEFAULT_WATCHDOG_SECONDS = 5 * 60
+DEFAULT_WATERING_DURATION = 5 * 60
 
-DEFAULT_HOST = 'https://api.orbitbhyve.com'
+CONFIG_SCHEMA = vol.Schema(
+    {
+        DOMAIN: vol.Schema(
+            {
+                vol.Required(CONF_USERNAME): cv.string,
+                vol.Required(CONF_PASSWORD): cv.string,
+                vol.Optional(
+                    CONF_WATERING_DURATION, default=DEFAULT_WATERING_DURATION
+                ): cv.time_period,
+                vol.Optional(CONF_PACKET_DUMP, default=DEFAULT_PACKET_DUMP): cv.boolean,
+                vol.Optional(CONF_CONF_DIR, default=DEFAULT_CONF_DIR): cv.string,
+            }
+        )
+    },
+    extra=vol.ALLOW_EXTRA,
+)
 
-CONFIG_SCHEMA = vol.Schema({
-    DOMAIN: vol.Schema({
-        vol.Required(CONF_USERNAME): cv.string,
-        vol.Required(CONF_PASSWORD): cv.string,
-        vol.Optional(CONF_HOST, default=DEFAULT_HOST): cv.url
-    }),
-}, extra=vol.ALLOW_EXTRA)
 
-
-def setup(hass, config):
+async def async_setup(hass, config):
     """Set up the BHyve component."""
 
-    _LOGGER.info('bhyve loading')
+    hass.data[DOMAIN] = {}
 
-    # Read config
+    if DOMAIN not in config:
+        return True
+
     conf = config[DOMAIN]
-    username = conf.get(CONF_USERNAME)
-    password = conf.get(CONF_PASSWORD)
-    host = conf.get(CONF_HOST)
+    packet_dump = conf.get(CONF_PACKET_DUMP)
+    conf_dir = conf.get(CONF_CONF_DIR)
 
-    _LOGGER.info(host)
-    
+    _LOGGER.info("config dir %s", hass.config.config_dir)
+    if conf_dir == "":
+        conf_dir = hass.config.config_dir + "/.bhyve"
+
+    # Create storage/scratch directory.
     try:
-        from .pybhyve import PyBHyve
+        os.mkdir(conf_dir)
+    except Exception as err:
+        _LOGGER.info("Could not create storage dir: %s", err)
+        pass
 
-        bhyve = PyBHyve(username=username, password=password)
-        if not bhyve.is_connected:
-            return False
+    async def async_update_callback(data):
+        if data is not None and packet_dump:
+            dump_file = conf_dir + "/" + "packets.dump"
+            with open(dump_file, "a") as dump:
+                dump.write(pprint.pformat(data, indent=2) + "\n")
 
-        hass.data[DATA_BHYVE] = bhyve
+        device_id = data.get("device_id")
+        event = data.get("event")
 
-    except (ConnectTimeout, HTTPError) as ex:
-        _LOGGER.error("Unable to connect to Orbit BHyve: %s", str(ex))
-        hass.components.persistent_notification.create(
-            'Error: {}<br />You will need to restart hass after fixing.'.format(ex),
-            title=NOTIFICATION_TITLE,
-            notification_id=NOTIFICATION_ID)
-        return False
+        if device_id is not None:
+            async_dispatcher_send(
+                hass, SIGNAL_UPDATE_DEVICE.format(device_id), device_id, data
+            )
+        else:
+            _LOGGER.debug("No device_id present on websocket message")
+
+    session = aiohttp_client.async_get_clientsession(hass)
+
+    try:
+        bhyve = Client(
+            conf[CONF_USERNAME],
+            conf[CONF_PASSWORD],
+            loop=hass.loop,
+            session=session,
+            async_callback=async_update_callback,
+        )
+
+        await bhyve.login()
+        await bhyve.devices
+
+        hass.data[DOMAIN] = bhyve
+    except WebsocketError as err:
+        _LOGGER.error("Config entry failed: %s", err)
+        raise ConfigEntryNotReady
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, bhyve.stop())
 
     return True
+
+
+class BHyveEntity(Entity):
+    """Define a base BHyve entity."""
+
+    def __init__(
+        self, bhyve, device, name, icon, device_class=None,
+    ):
+        """Initialize the sensor."""
+        self._bhyve: BHyve = bhyve
+        self._device_class = device_class
+        self._async_unsub_dispatcher_connect = None
+
+        self._mac_address = device.get("mac_address")
+        self._device_id = device.get("id")
+        self._device_type = device.get("type")
+        self._device_name = device.get("name")
+        self._name = name
+        self._icon = "mdi:{}".format(icon)
+        self._state = None
+        self._available = False
+        self._attrs = {}
+
+        self._ws_unprocessed_events = []
+        self._setup(device)
+
+    def _setup(self, device):
+        pass
+
+    def _on_ws_data(self, data):
+        pass
+
+    @property
+    def available(self):
+        """Return True if entity is available."""
+        return self._available
+
+    @property
+    def device_class(self):
+        """Return the device class."""
+        return self._device_class
+
+    @property
+    def device_info(self):
+        """Return device registry information for this entity."""
+        return {
+            "identifiers": {(DOMAIN, self._mac_address)},
+            "name": self._device_name,
+            "manufacturer": MANUFACTURER,
+            ATTR_ATTRIBUTION: CONF_ATTRIBUTION,
+        }
+
+    @property
+    def device_state_attributes(self):
+        """Return the device state attributes."""
+        return self._attrs
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._name}"
+
+    @property
+    def should_poll(self):
+        """Disable polling."""
+        return False
+
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_type}"
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+
+        @callback
+        def update(device_id, data):
+            """Update the state."""
+            _LOGGER.info(
+                "Callback update: {} - {} - {}".format(self.name, self._device_id, data)
+            )
+            self._ws_unprocessed_events.append(data)
+            self.async_schedule_update_ha_state(True)
+
+        self._async_unsub_dispatcher_connect = async_dispatcher_connect(
+            self.hass, SIGNAL_UPDATE_DEVICE.format(self._device_id), update
+        )
+
+    async def async_will_remove_from_hass(self):
+        """Disconnect dispatcher listener when removed."""
+        if self._async_unsub_dispatcher_connect:
+            self._async_unsub_dispatcher_connect()
+
+    async def async_update(self):
+        """Retrieve latest state."""
+        ws_updates = list(self._ws_unprocessed_events)
+        self._ws_unprocessed_events[:] = []
+
+        for ws_event in ws_updates:
+            _LOGGER.debug(
+                "{} - processing ws data. {}".format(self.name, ws_event.get("event"))
+            )
+            self._on_ws_data(ws_event)
