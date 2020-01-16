@@ -92,7 +92,7 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
         """
             {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
             {'event': 'watering_in_progress_notification', 'program': 'e', 'current_station': 1, 'run_time': 14, 'started_watering_station_at': '2020-01-09T20:29:59.000Z', 'rain_sensor_hold': False, 'device_id': 'id', 'timestamp': '2020-01-09T20:29:59.000Z'}
-            {'event': 'device_idle', 'device_id': '5ae3c7884f0c72d7d626ba06', 'timestamp': '2020-01-10T12:32:06.000Z'}
+            {'event': 'device_idle', 'device_id': 'id', 'timestamp': '2020-01-10T12:32:06.000Z'}
         """
         event = data.get("event")
         if event is None:
@@ -145,10 +145,12 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
         station_payload = [{"station": self._zone_id, "run_time": 10.0}]
+        self._state = True
         await self._send_station_message(station_payload)
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         station_payload = []
+        self._state = False
         await self._send_station_message(station_payload)
 
