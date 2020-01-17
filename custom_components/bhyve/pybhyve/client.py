@@ -112,9 +112,9 @@ class Client:
         self._websocket.start()
         return True
 
-    def stop(self):
+    async def stop(self):
         if self._websocket is not None:
-            self._websocket.stop()
+            await self._websocket.stop()
 
     @property
     async def devices(self):
