@@ -52,7 +52,9 @@ class BHyveBinarySensor(BHyveEntity, BinarySensorDevice):
             _LOGGER.warning("No event on ws data {}".format(data))
             return
         elif event == "rain_delay":
-            self._extract_rain_delay(data.get("delay"), {})
+            self._extract_rain_delay(data.get("delay"), {
+                "rain_delay_started_at": data.get("timestamp")
+            })
 
     def _extract_rain_delay(self, rain_delay, device_status=None):
         if rain_delay is not None and rain_delay > 0:
