@@ -72,7 +72,8 @@ async def async_setup(hass, config):
 
     # Create storage/scratch directory.
     try:
-        os.mkdir(conf_dir)
+        if not os.path.exists(conf_dir):
+            os.mkdir(conf_dir)
     except Exception as err:
         _LOGGER.info("Could not create storage dir: %s", err)
         pass
