@@ -92,3 +92,19 @@ The following attributes are set on `switch` entities:
 | `sprinkler_type`              | `string`  | The configured type of sprinker.                                     |
 | `image_url`                   | `string`  | The url to zone image                                                |
 | `started_watering_station_at` | `string`  | The timestamp the zone started watering.                             |
+
+# Debugging
+
+To debug this integration and provide device integration for future improvements, please enable debugging in Home Assistant's `configuration.yaml`
+
+```yaml
+logger:
+  logs:
+    custom_components.bhyve: debug
+
+bhyve:
+  username: !secret bhyve_username
+  password: !secret bhyve_password
+  packet_dump: true # Save all websocket event data to a file
+  conf_dir: "" # Storage directory for packet dump file. Usually not needed, defaults to hass_config_dir/.bhyve
+```

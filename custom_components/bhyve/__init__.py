@@ -37,10 +37,8 @@ _LOGGER = logging.getLogger(__name__)
 
 DATA_CONFIG = "config"
 
-DEFAULT_SOCKET_MIN_RETRY = 15
-DEFAULT_PACKET_DUMP = True
+DEFAULT_PACKET_DUMP = False
 DEFAULT_CONF_DIR = ""
-DEFAULT_WATCHDOG_SECONDS = 5 * 60
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -108,7 +106,13 @@ async def async_setup(hass, config):
         )
 
         await bhyve.login()
-        await bhyve.devices
+        devices = await bhyve.devices
+        for device in devices:
+            device["address"] = "REDACTED"
+            device["full_location"] = "REDACTED"
+            device["location"] = "REDACTED"
+
+        _LOGGER.debug("Devices: {}".format(devices))
 
         hass.data[DOMAIN] = bhyve
     except WebsocketError as err:

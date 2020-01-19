@@ -3,7 +3,7 @@ DOMAIN = "bhyve"
 MANUFACTURER = "Orbit BHyve"
 
 CONF_ATTRIBUTION = "Data provided by api.orbitbhyve.com"
-CONF_CONF_DIR = ""
+CONF_CONF_DIR = "conf_dir"
 CONF_PACKET_DUMP = "packet_dump"
 
 ATTR_LAST_DATA = "last_data"

@@ -75,7 +75,6 @@ class Client:
         for device in self._devices:
             deviceName = device.get("name")
             deviceType = device.get("type")
-            _LOGGER.info("Found device: {} [{}]".format(deviceType, deviceName))
 
         self._last_poll = now
 
