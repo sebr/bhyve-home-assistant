@@ -67,7 +67,6 @@ async def async_setup(hass, config):
     packet_dump = conf.get(CONF_PACKET_DUMP)
     conf_dir = conf.get(CONF_CONF_DIR)
 
-    _LOGGER.info("config dir %s", hass.config.config_dir)
     if conf_dir == "":
         conf_dir = hass.config.config_dir + "/.bhyve"
 

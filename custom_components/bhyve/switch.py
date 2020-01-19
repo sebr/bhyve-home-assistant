@@ -32,7 +32,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
         if device.get("type") == "sprinkler_timer":
             sensor_type = SENSOR_TYPES["zone"]
             for zone in device.get("zones"):
-                _LOGGER.info("ZONE: %s", zone)
+                _LOGGER.debug("ZONE: %s", zone)
                 name = "{0} Zone".format(zone.get("name", "Unknown"))
                 _LOGGER.info("Creating switch: %s", name)
                 switches.append(
