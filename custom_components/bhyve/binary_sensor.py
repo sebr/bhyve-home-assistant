@@ -42,6 +42,7 @@ class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorDevice):
         device_status = device["status"]
         rain_delay = device_status["rain_delay"]
 
+        self._update_device_cb = None
         self._extract_rain_delay(rain_delay, device_status)
 
     def _on_ws_data(self, data):
