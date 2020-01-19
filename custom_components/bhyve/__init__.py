@@ -21,7 +21,6 @@ from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
 )
 from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.event import async_call_later
 
 from .const import (
     CONF_ATTRIBUTION,
@@ -155,6 +154,20 @@ class BHyveEntity(Entity):
 
     def _on_ws_data(self, data):
         pass
+
+    async def _refetch_device(self):
+        try:
+            device = await self._bhyve.get_device(self._device_id)
+            if not device:
+                _LOGGER.info("No device found with id %s", self._device_id)
+                self._available = False
+                return
+
+            self._setup(device)
+
+        except BHyveError as err:
+            _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
+            self._available = False
 
     @property
     def available(self):
