@@ -26,7 +26,6 @@ from .const import (
     CONF_ATTRIBUTION,
     CONF_CONF_DIR,
     CONF_PACKET_DUMP,
-    CONF_WATERING_DURATION,
     DOMAIN,
     MANUFACTURER,
     SIGNAL_UPDATE_DEVICE,
@@ -42,7 +41,6 @@ DEFAULT_SOCKET_MIN_RETRY = 15
 DEFAULT_PACKET_DUMP = True
 DEFAULT_CONF_DIR = ""
 DEFAULT_WATCHDOG_SECONDS = 5 * 60
-DEFAULT_WATERING_DURATION = 5 * 60
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -50,9 +48,6 @@ CONFIG_SCHEMA = vol.Schema(
             {
                 vol.Required(CONF_USERNAME): cv.string,
                 vol.Required(CONF_PASSWORD): cv.string,
-                vol.Optional(
-                    CONF_WATERING_DURATION, default=DEFAULT_WATERING_DURATION
-                ): cv.time_period,
                 vol.Optional(CONF_PACKET_DUMP, default=DEFAULT_PACKET_DUMP): cv.boolean,
                 vol.Optional(CONF_CONF_DIR, default=DEFAULT_CONF_DIR): cv.string,
             }

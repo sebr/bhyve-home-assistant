@@ -7,10 +7,10 @@ If this integration has been useful to you, please consider chipping in and buyi
 <a href="https://www.buymeacoffee.com/sebr" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee"></a>
 
 ## Supported Entities
-* `sensor` for measuring battery levels of `sprinkler_timer` devices
-* `binary_sensor` for tracking rain/weather delays
-* `switch` for turning a zone on/off
 
+- `sensor` for measuring battery levels of `sprinkler_timer` devices
+- `binary_sensor` for tracking rain/weather delays
+- `switch` for turning a zone on/off
 
 ## Installation
 
@@ -37,11 +37,11 @@ switch:
 
 ## Sensor Entities
 
-Sensor entities are automatically created for any device which has a battery level to report.
+`sensor` entities are automatically created for any device which has a battery level to report.
 
 ## Binary Sensor Entities
 
-A **Rain Delay** binary sensor will be created for each discovered `sprinkler_timer` device. This entity will be **on** whenever BHyve reports that a device's watering schedule will be delayed due to weather conditions.
+A **Rain Delay** `binary sensor` will be created for each discovered `sprinkler_timer` device. This entity will be **on** whenever BHyve reports that a device's watering schedule will be delayed due to weather conditions.
 
 ### Rain Delay Attributes
 
@@ -54,10 +54,10 @@ The following attributes are set on `binary_sensor.rain_delay_*` entities, if th
 | `weather_type` | `string` | The reported cause of the weather delay. Values seen: `wind`, `rain`. May be empty.       |
 | `started_at`   | `string` | The timestamp the delay was put in place.                                                 |
 
-
 ### Rain Delay Template Sensors
 
 It is possible to create template sensors from these attributes. Here are two examples which provide a sensor to report:
+
 1. When the current rain delay for a device is ending
 2. The number of hours remaining on the current rain delay
 
@@ -71,7 +71,24 @@ sensor:
 
       rain_delay_lawn_remaining:
         friendly_name: "Rain Delay Lawn Remaining"
-        unit_of_measurement: 'h'
+        unit_of_measurement: "h"
         value_template: "{{((as_timestamp(state_attr('binary_sensor.rain_delay_lawn', 'started_at')) + state_attr('binary_sensor.rain_delay_lawn', 'delay') * 3600 - as_timestamp(now())) / 3600) | round(0) }}"
 ```
 
+## Switch Entities
+
+A `switch` entity is created for each zones of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone.
+
+Turning on the switch will enable watering of the zone for the amount of time configured in the BHyve app.
+
+### Switch Attributes
+
+The following attributes are set on `switch` entities:
+
+| Attribute                     | Type      | Notes                                                                |
+| ----------------------------- | --------- | -------------------------------------------------------------------- |
+| `manual_preset_runtime`       | `number`  | The number of seconds to run zone watering when switch is turned on. |
+| `smart_watering_enabled`      | `boolean` | True if the zone has a smart water schedule enabled.                 |
+| `sprinkler_type`              | `string`  | The configured type of sprinker.                                     |
+| `image_url`                   | `string`  | The url to zone image                                                |
+| `started_watering_station_at` | `string`  | The timestamp the zone started watering.                             |

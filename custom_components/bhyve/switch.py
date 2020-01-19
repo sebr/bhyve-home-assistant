@@ -2,6 +2,7 @@
 import datetime
 import logging
 
+from datetime import timedelta
 from homeassistant.components.switch import DEVICE_CLASS_SWITCH, SwitchDevice
 
 from . import BHyveEntity
@@ -12,6 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 SENSOR_TYPES = {"zone": {"name": "Zone", "icon": "water-pump"}}
+DEFAULT_MANUAL_RUNTIME = timedelta(minutes=10)
 
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
@@ -42,6 +44,9 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
         self._zone = zone
         self._zone_id = zone.get("station")
         self._entity_picture = zone.get("image_url")
+        self._manual_preset_runtime = device.get(
+            "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
+        )
 
         super().__init__(bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
 
@@ -69,7 +74,9 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
                 and watering_status.get("current_station") == self._zone_id
             )
             self._state = is_watering
-            self._attrs = {}
+            self._attrs = {
+                "manual_preset_runtime": self._manual_preset_runtime
+            }
 
             smart_watering_enabled = zone.get("smart_watering_enabled")
             if smart_watering_enabled is not None:
@@ -144,7 +151,9 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
-        station_payload = [{"station": self._zone_id, "run_time": 10.0}]
+        station_payload = [
+            {"station": self._zone_id, "run_time": self._manual_preset_runtime}
+        ]
         self._state = True
         await self._send_station_message(station_payload)
 
