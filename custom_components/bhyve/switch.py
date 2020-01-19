@@ -21,6 +21,7 @@ ATTR_SPRINKLER_TYPE = "sprinkler_type"
 ATTR_IMAGE_URL = "image_url"
 ATTR_STARTED_WATERING_AT = "started_watering_station_at"
 
+
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
     """Set up BHyve binary sensors based on a config entry."""
     bhyve = hass.data[DOMAIN]
@@ -35,7 +36,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                 name = "{0} Zone".format(zone.get("name", "Unknown"))
                 _LOGGER.info("Creating switch: %s", name)
                 switches.append(
-                    BHyveSwitch(bhyve, device, zone, name, sensor_type["icon"],)
+                    BHyveSwitch(hass, bhyve, device, zone, name, sensor_type["icon"],)
                 )
 
     async_add_entities(switches, True)
@@ -44,7 +45,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 class BHyveSwitch(BHyveEntity, SwitchDevice):
     """Define a BHyve switch."""
 
-    def __init__(self, bhyve, device, zone, name, icon):
+    def __init__(self, hass, bhyve, device, zone, name, icon):
         """Initialize the switch."""
         self._zone = zone
         self._zone_id = zone.get("station")
@@ -53,7 +54,7 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
 
-        super().__init__(bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
+        super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
 
     def _setup(self, device):
         self._state = None
@@ -79,9 +80,7 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
                 and watering_status.get("current_station") == self._zone_id
             )
             self._state = is_watering
-            self._attrs = {
-                ATTR_MANUAL_RUNTIME: self._manual_preset_runtime
-            }
+            self._attrs = {ATTR_MANUAL_RUNTIME: self._manual_preset_runtime}
 
             smart_watering_enabled = zone.get("smart_watering_enabled")
             if smart_watering_enabled is not None:

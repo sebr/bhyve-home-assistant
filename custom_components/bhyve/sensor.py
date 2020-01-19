@@ -33,6 +33,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                 _LOGGER.info("Creating sensor: %s", name)
                 sensors.append(
                     BHyveSensor(
+                        hass,
                         bhyve,
                         device,
                         name,
@@ -48,9 +49,9 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 class BHyveSensor(BHyveEntity):
     """Define a BHyve sensor."""
 
-    def __init__(self, bhyve, device, name, icon, unit, device_class):
+    def __init__(self, hass, bhyve, device, name, icon, unit, device_class):
         """Initialize the sensor."""
-        super().__init__(bhyve, device, name, icon, device_class)
+        super().__init__(hass, bhyve, device, name, icon, device_class)
 
         self._unit = unit
 

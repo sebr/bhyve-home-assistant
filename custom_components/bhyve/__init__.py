@@ -124,9 +124,10 @@ class BHyveEntity(Entity):
     """Define a base BHyve entity."""
 
     def __init__(
-        self, bhyve, device, name, icon, device_class=None,
+        self, hass, bhyve, device, name, icon, device_class=None,
     ):
         """Initialize the sensor."""
+        self._hass = hass
         self._bhyve: Client = bhyve
         self._device_class = device_class
         self._async_unsub_dispatcher_connect = None

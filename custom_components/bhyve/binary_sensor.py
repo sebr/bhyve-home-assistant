@@ -25,7 +25,9 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                 name = "{0} {1}".format(sensor_type["name"], device.get("name"))
                 _LOGGER.info("Creating binary_sensor: %s", name)
                 binary_sensors.append(
-                    BHyveRainDelayBinarySensor(bhyve, device, name, sensor_type["icon"])
+                    BHyveRainDelayBinarySensor(
+                        hass, bhyve, device, name, sensor_type["icon"]
+                    )
                 )
 
     async_add_entities(binary_sensors, True)
@@ -54,16 +56,16 @@ class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorDevice):
             _LOGGER.warning("No event on ws data {}".format(data))
             return
         elif event == "rain_delay":
-            self._extract_rain_delay(data.get("delay"), {
-                "rain_delay_started_at": data.get("timestamp")
-            })
+            self._extract_rain_delay(
+                data.get("delay"), {"rain_delay_started_at": data.get("timestamp")}
+            )
             # The REST API returns more data about a rain delay (eg cause/weather_type)
             self._update_device_soon()
 
     def _update_device_soon(self):
         if self._update_device_cb is not None:
             self._update_device_cb.cancel()
-        self._update_device_cb = async_call_later(5, self._refetch_device)
+        self._update_device_cb = async_call_later(self._hass, 5, self._refetch_device)
 
     def _extract_rain_delay(self, rain_delay, device_status=None):
         if rain_delay is not None and rain_delay > 0:
