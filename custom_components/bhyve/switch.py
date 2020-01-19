@@ -15,6 +15,11 @@ _LOGGER = logging.getLogger(__name__)
 SENSOR_TYPES = {"zone": {"name": "Zone", "icon": "water-pump"}}
 DEFAULT_MANUAL_RUNTIME = timedelta(minutes=10)
 
+ATTR_MANUAL_RUNTIME = "manual_preset_runtime"
+ATTR_SMART_WATERING_ENABLED = "smart_watering_enabled"
+ATTR_SPRINKLER_TYPE = "sprinkler_type"
+ATTR_IMAGE_URL = "image_url"
+ATTR_STARTED_WATERING_AT = "started_watering_station_at"
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
     """Set up BHyve binary sensors based on a config entry."""
@@ -75,23 +80,23 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             )
             self._state = is_watering
             self._attrs = {
-                "manual_preset_runtime": self._manual_preset_runtime
+                ATTR_MANUAL_RUNTIME: self._manual_preset_runtime
             }
 
             smart_watering_enabled = zone.get("smart_watering_enabled")
             if smart_watering_enabled is not None:
-                self._attrs["smart_watering_enabled"] = smart_watering_enabled
+                self._attrs[ATTR_SMART_WATERING_ENABLED] = smart_watering_enabled
 
             sprinkler_type = zone.get("sprinkler_type")
             if sprinkler_type is not None:
-                self._attrs["sprinkler_type"] = sprinkler_type
+                self._attrs[ATTR_SPRINKLER_TYPE] = sprinkler_type
 
             image_url = zone.get("image_url")
             if image_url is not None:
-                self._attrs["image_url"] = image_url
+                self._attrs[ATTR_IMAGE_URL] = image_url
 
             if is_watering:
-                self._attrs["started_watering_station_at"] = watering_status.get(
+                self._attrs[ATTR_STARTED_WATERING_AT] = watering_status.get(
                     "started_watering_station_at"
                 )
 
@@ -100,6 +105,7 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
             {'event': 'watering_in_progress_notification', 'program': 'e', 'current_station': 1, 'run_time': 14, 'started_watering_station_at': '2020-01-09T20:29:59.000Z', 'rain_sensor_hold': False, 'device_id': 'id', 'timestamp': '2020-01-09T20:29:59.000Z'}
             {'event': 'device_idle', 'device_id': 'id', 'timestamp': '2020-01-10T12:32:06.000Z'}
+            {'event': 'set_manual_preset_runtime', 'device_id': 'id', 'seconds': 480, 'timestamp': '2020-01-18T17:00:35.000Z'}
         """
         event = data.get("event")
         if event is None:
@@ -111,12 +117,15 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             zone = data.get("current_station")
             if zone == self._zone_id:
                 self._state = True
-                self._attrs["started_watering_station_at"] = data.get(
+                self._attrs[ATTR_STARTED_WATERING_AT] = data.get(
                     "started_watering_station_at"
                 )
         elif event == "change_mode":
             program = data.get("program")
             self._state = program == "e" or program == "manual"  # e == smart watering
+        elif event == "set_manual_preset_runtime":
+            self._manual_preset_runtime = data.get("seconds")
+            self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
 
         _LOGGER.info("Device {} is now: {}".format(self.name, self._state))
 
