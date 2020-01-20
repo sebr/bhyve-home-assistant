@@ -155,7 +155,7 @@ class BHyveEntity(Entity):
     def _on_ws_data(self, data):
         pass
 
-    async def _refetch_device(self):
+    async def _refetch_device(self, **args):
         try:
             device = await self._bhyve.get_device(self._device_id)
             if not device:
