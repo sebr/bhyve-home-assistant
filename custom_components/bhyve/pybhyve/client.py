@@ -63,9 +63,11 @@ class Client:
             except Exception as err:
                 raise RequestError(f"Error requesting data from {url}: {err}")
 
-    async def _refresh_devices(self):
+    async def _refresh_devices(self, force_update=False):
         now = time.time()
-        if now - self._last_poll < API_POLL_PERIOD:
+        if force_update:
+            _LOGGER.debug("Forcing device refresh")
+        elif now - self._last_poll < API_POLL_PERIOD:
             # _LOGGER.debug("Skipping refresh, not enough time has passed")
             return
 
@@ -121,9 +123,9 @@ class Client:
         await self._refresh_devices()
         return self._devices
 
-    async def get_device(self, device_id):
+    async def get_device(self, device_id, force_update=False):
         """Get device by id."""
-        await self._refresh_devices()
+        await self._refresh_devices(force_update=force_update)
         for device in self._devices:
             if device.get("id") == device_id:
                 return device

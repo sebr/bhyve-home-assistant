@@ -65,7 +65,10 @@ class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorDevice):
     def _update_device_soon(self):
         if self._update_device_cb is not None:
             self._update_device_cb() #unsubscribe
-        self._update_device_cb = async_call_later(self._hass, 5, self._refetch_device)
+        self._update_device_cb = async_call_later(self._hass, 5, self._update_device)
+
+    async def _update_device(self, time):
+        await self._refetch_device(force_update=True)
 
     def _extract_rain_delay(self, rain_delay, device_status=None):
         if rain_delay is not None and rain_delay > 0:

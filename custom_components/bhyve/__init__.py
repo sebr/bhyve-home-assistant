@@ -155,9 +155,9 @@ class BHyveEntity(Entity):
     def _on_ws_data(self, data):
         pass
 
-    async def _refetch_device(self, *args):
+    async def _refetch_device(self, force_update=False):
         try:
-            device = await self._bhyve.get_device(self._device_id)
+            device = await self._bhyve.get_device(self._device_id, force_update)
             if not device:
                 _LOGGER.info("No device found with id %s", self._device_id)
                 self._available = False
