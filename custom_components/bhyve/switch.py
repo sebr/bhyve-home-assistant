@@ -4,6 +4,7 @@ import logging
 
 from datetime import timedelta
 from homeassistant.components.switch import DEVICE_CLASS_SWITCH, SwitchDevice
+from homeassistant.util import dt
 
 from . import BHyveEntity
 from .const import DOMAIN
@@ -95,9 +96,16 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
                 self._attrs[ATTR_IMAGE_URL] = image_url
 
             if is_watering:
-                self._attrs[ATTR_STARTED_WATERING_AT] = watering_status.get(
+                started_watering_at = watering_status.get(
                     "started_watering_station_at"
                 )
+                self._set_watering_started(started_watering_at)
+
+    def _set_watering_started(self, timestamp):
+        if timestamp is not None:
+            self._attrs[ATTR_STARTED_WATERING_AT] = dt.as_local(dt.as_timestamp(timestamp))
+        else:
+            self._attrs[ATTR_STARTED_WATERING_AT] = None
 
     def _on_ws_data(self, data):
         """
@@ -112,13 +120,15 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             return
         elif event == "device_idle" or event == "watering_complete":
             self._state = False
+            self._set_watering_started(None)
         elif event == "watering_in_progress_notification":
             zone = data.get("current_station")
             if zone == self._zone_id:
                 self._state = True
-                self._attrs[ATTR_STARTED_WATERING_AT] = data.get(
+                started_watering_at = watering_status.get(
                     "started_watering_station_at"
                 )
+                self._set_watering_started(started_watering_at)
         elif event == "change_mode":
             program = data.get("program")
             self._state = program == "e" or program == "manual"  # e == smart watering
@@ -127,16 +137,6 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
 
         _LOGGER.info("Device {} is now: {}".format(self.name, self._state))
-
-    @property
-    def unique_id(self):
-        """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_type}:zone:{self._zone_id}"
-
-    @property
-    def is_on(self):
-        """Return the status of the sensor."""
-        return self._state is True
 
     async def _send_station_message(self, station_payload):
         try:
@@ -156,6 +156,16 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
         except BHyveError as err:
             _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
             raise (err)
+
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_type}:zone:{self._zone_id}"
+
+    @property
+    def is_on(self):
+        """Return the status of the sensor."""
+        return self._state is True
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
