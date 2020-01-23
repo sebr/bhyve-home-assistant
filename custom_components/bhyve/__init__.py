@@ -218,6 +218,12 @@ class BHyveEntity(Entity):
             _LOGGER.info(
                 "Callback update: {} - {} - {}".format(self.name, self._device_id, data)
             )
+            event = data.get("event")
+            if event == 'device_disconnected':
+                self._available = False
+            elif event == 'device_connected':
+                self._available = True
+
             self._ws_unprocessed_events.append(data)
             self.async_schedule_update_ha_state(True)
 
