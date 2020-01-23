@@ -52,8 +52,6 @@ class Client:
             "Chrome/72.0.3626.81 Safari/537.36"
         )
 
-        _LOGGER.debug("Making request: %s: %s %s", method, endpoint, params)
-
         async with self._session.request(
             method, url, params=params, headers=headers
         ) as resp:
