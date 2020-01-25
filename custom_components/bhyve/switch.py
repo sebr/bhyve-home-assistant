@@ -96,14 +96,15 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
                 self._attrs[ATTR_IMAGE_URL] = image_url
 
             if is_watering:
-                started_watering_at = watering_status.get(
-                    "started_watering_station_at"
-                )
+                started_watering_at = watering_status.get("started_watering_station_at")
                 self._set_watering_started(started_watering_at)
 
     def _set_watering_started(self, timestamp):
+        _LOGGER.debug("Timestamp is {}".format(timestamp))
         if timestamp is not None:
-            self._attrs[ATTR_STARTED_WATERING_AT] = dt.as_local(dt.as_timestamp(timestamp))
+            self._attrs[ATTR_STARTED_WATERING_AT] = dt.as_local(
+                dt.parse_datetime(timestamp)
+            )
         else:
             self._attrs[ATTR_STARTED_WATERING_AT] = None
 
@@ -125,9 +126,7 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             zone = data.get("current_station")
             if zone == self._zone_id:
                 self._state = True
-                started_watering_at = watering_status.get(
-                    "started_watering_station_at"
-                )
+                started_watering_at = data.get("started_watering_station_at")
                 self._set_watering_started(started_watering_at)
         elif event == "change_mode":
             program = data.get("program")
