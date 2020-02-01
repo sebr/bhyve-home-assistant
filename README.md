@@ -85,13 +85,14 @@ Turning on the switch will enable watering of the zone for the amount of time co
 
 The following attributes are set on `switch` entities:
 
-| Attribute                     | Type      | Notes                                                                |
-| ----------------------------- | --------- | -------------------------------------------------------------------- |
-| `manual_preset_runtime`       | `number`  | The number of seconds to run zone watering when switch is turned on. |
-| `smart_watering_enabled`      | `boolean` | True if the zone has a smart water schedule enabled.                 |
-| `sprinkler_type`              | `string`  | The configured type of sprinker.                                     |
-| `image_url`                   | `string`  | The url to zone image                                                |
-| `started_watering_station_at` | `string`  | The timestamp the zone started watering.                             |
+| Attribute                     | Type           | Notes                                                                |
+| ----------------------------- | -------------- | -------------------------------------------------------------------- |
+| `manual_preset_runtime`       | `number`       | The number of seconds to run zone watering when switch is turned on. |
+| `smart_watering_enabled`      | `boolean`      | True if the zone has a smart water schedule enabled.                 |
+| `sprinkler_type`              | `string`       | The configured type of sprinker.                                     |
+| `image_url`                   | `string`       | The url to zone image                                                |
+| `started_watering_station_at` | `string`       | The timestamp the zone started watering.                             |
+| `watering_program`            | `list[string]` | List of timestamps for future/scheduled watering times               |
 
 # Debugging
 

@@ -99,7 +99,7 @@ class OrbitWebsocket:
                     while True:
                         msg = await self._ws.receive()
                         self._reset_heartbeat()
-                        _LOGGER.debug("msg received {}".format(msg))
+                        _LOGGER.debug("msg received {}".format(str(msg)[:80]))
 
                         if msg.type == WSMsgType.TEXT:
                             ensure_future(self._async_callback(json.loads(msg.data)))

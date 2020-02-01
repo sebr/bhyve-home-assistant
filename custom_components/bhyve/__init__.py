@@ -84,8 +84,13 @@ async def async_setup(hass, config):
             with open(dump_file, "a") as dump:
                 dump.write(pprint.pformat(data, indent=2) + "\n")
 
-        device_id = data.get("device_id")
         event = data.get("event")
+        device_id = None
+
+        if event == "program_changed":
+            device_id = data.get("program", {}).get("device_id")
+        else:
+            device_id = data.get("device_id")
 
         if device_id is not None:
             async_dispatcher_send(
@@ -216,12 +221,14 @@ class BHyveEntity(Entity):
         def update(device_id, data):
             """Update the state."""
             _LOGGER.info(
-                "Callback update: {} - {} - {}".format(self.name, self._device_id, data)
+                "Callback update: {} - {} - {}".format(
+                    self.name, self._device_id, str(data)[:160]
+                )
             )
             event = data.get("event")
-            if event == 'device_disconnected':
+            if event == "device_disconnected":
                 self._available = False
-            elif event == 'device_connected':
+            elif event == "device_connected":
                 self._available = True
 
             self._ws_unprocessed_events.append(data)
@@ -242,7 +249,4 @@ class BHyveEntity(Entity):
         self._ws_unprocessed_events[:] = []
 
         for ws_event in ws_updates:
-            _LOGGER.debug(
-                "{} - processing ws data. {}".format(self.name, ws_event.get("event"))
-            )
             self._on_ws_data(ws_event)
