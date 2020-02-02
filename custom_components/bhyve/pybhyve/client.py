@@ -6,7 +6,14 @@ import time
 
 from asyncio import ensure_future
 
-from .const import API_HOST, API_POLL_PERIOD, DEVICES_PATH, LOGIN_PATH, WS_HOST
+from .const import (
+    API_HOST,
+    API_POLL_PERIOD,
+    DEVICES_PATH,
+    TIMER_PROGRAMS_PATH,
+    LOGIN_PATH,
+    WS_HOST,
+)
 from .errors import RequestError
 from .websocket import OrbitWebsocket
 
@@ -31,7 +38,10 @@ class Client:
         self._async_callback = async_callback
 
         self._devices = []
-        self._last_poll = 0
+        self._last_poll_devices = 0
+
+        self._timer_programs = []
+        self._last_poll_programs = 0
 
     async def _request(self, method: str, endpoint: str, params: dict = None) -> list:
         """Make a request against the API."""
@@ -65,18 +75,26 @@ class Client:
         now = time.time()
         if force_update:
             _LOGGER.debug("Forcing device refresh")
-        elif now - self._last_poll < API_POLL_PERIOD:
-            # _LOGGER.debug("Skipping refresh, not enough time has passed")
+        elif now - self._last_poll_devices < API_POLL_PERIOD:
             return
 
-        params = {"t": str(time.time())}
-        self._devices = await self._request("get", DEVICES_PATH, params=params)
+        self._devices = await self._request(
+            "get", DEVICES_PATH, params={"t": str(time.time())}
+        )
 
-        for device in self._devices:
-            deviceName = device.get("name")
-            deviceType = device.get("type")
+        self._last_poll_devices = now
 
-        self._last_poll = now
+    async def _refresh_timer_programs(self, force_update=False):
+        now = time.time()
+        if force_update:
+            _LOGGER.debug("Forcing device refresh")
+        elif now - self._last_poll_programs < API_POLL_PERIOD:
+            return
+
+        self._timer_programs = await self._request(
+            "get", TIMER_PROGRAMS_PATH, params={"t": str(time.time())}
+        )
+        self._last_poll_programs = now
 
     async def _async_ws_handler(self, data):
         """Process incoming websocket message."""
@@ -120,6 +138,11 @@ class Client:
         """Get all devices."""
         await self._refresh_devices()
         return self._devices
+
+    async def get_timer_programs(self, force_update=False):
+        """Get timer programs."""
+        await self._refresh_timer_programs()
+        return self._timer_programs
 
     async def get_device(self, device_id, force_update=False):
         """Get device by id."""
