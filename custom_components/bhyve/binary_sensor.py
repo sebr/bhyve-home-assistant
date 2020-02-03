@@ -6,11 +6,17 @@ from homeassistant.helpers.event import async_call_later
 
 from . import BHyveEntity
 from .const import DOMAIN
+from .util import orbit_time_to_local_time
 from .pybhyve.errors import BHyveError
 
 _LOGGER = logging.getLogger(__name__)
 
 SENSOR_TYPES = {"rain_delay": {"name": "Rain Delay", "icon": "weather-pouring"}}
+
+ATTR_CAUSE = "cause"
+ATTR_DELAY = "delay"
+ATTR_WEATHER_TYPE = "weather_type"
+ATTR_STARTED_AT = "started_at"
 
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
@@ -64,7 +70,7 @@ class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorDevice):
 
     def _update_device_soon(self):
         if self._update_device_cb is not None:
-            self._update_device_cb() #unsubscribe
+            self._update_device_cb()  # unsubscribe
         self._update_device_cb = async_call_later(self._hass, 5, self._update_device)
 
     async def _update_device(self, time):
@@ -73,16 +79,14 @@ class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorDevice):
     def _extract_rain_delay(self, rain_delay, device_status=None):
         if rain_delay is not None and rain_delay > 0:
             self._state = True
-            self._attrs = {"delay": rain_delay}
+            self._attrs = {ATTR_DELAY: rain_delay}
             if device_status is not None:
-                self._attrs.update(
-                    {
-                        "cause": device_status.get("rain_delay_cause", None),
-                        "weather_type": device_status.get(
-                            "rain_delay_weather_type", None
-                        ),
-                        "started_at": device_status.get("rain_delay_started_at", None),
-                    }
+                self._attrs[ATTR_CAUSE] = device_status.get("rain_delay_cause")
+                self._attrs[ATTR_WEATHER_TYPE] = device_status.get(
+                    "rain_delay_weather_type"
+                )
+                self._attrs[ATTR_STARTED_AT] = orbit_time_to_local_time(
+                    device_status.get("rain_delay_started_at")
                 )
         else:
             self._state = False
