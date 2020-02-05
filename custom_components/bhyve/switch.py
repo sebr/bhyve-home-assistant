@@ -187,6 +187,10 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
             raise (err)
 
     @property
+    def entity_picture(self):
+        return self._entity_picture
+
+    @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_type}:zone:{self._zone_id}"
