@@ -10,15 +10,6 @@ from .pybhyve.errors import BHyveError
 
 _LOGGER = logging.getLogger(__name__)
 
-SENSOR_TYPES = {
-    "battery_level": {
-        "name": "Battery Level",
-        "icon": "battery",
-        "unit": "%",
-        "device_class": DEVICE_CLASS_BATTERY,
-    }
-}
-
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
     """Set up BHyve sensors based on a config entry."""
@@ -28,25 +19,37 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     devices = await bhyve.devices
     for device in devices:
         if device.get("type") == "sprinkler_timer":
-            for _, sensor_type in SENSOR_TYPES.items():
-                name = "{0} {1}".format(sensor_type.get("name"), device.get("name"))
+            device_name = device.get("name")
+            name = "Battery level {}".format(device_name)
+            _LOGGER.info("Creating sensor: %s", name)
+            sensors.append(
+                BHyveBatterySensor(
+                    hass,
+                    bhyve,
+                    device,
+                    name,
+                    "battery",
+                    "%",
+                    DEVICE_CLASS_BATTERY,
+                )
+            )
+            for zone in device.get("zones"):
+                name = "{0} Zone State".format(zone.get("name", "Unknown"))
                 _LOGGER.info("Creating sensor: %s", name)
                 sensors.append(
-                    BHyveSensor(
+                    BHyveStateSensor(
                         hass,
                         bhyve,
                         device,
                         name,
-                        sensor_type["icon"],
-                        sensor_type["unit"],
-                        sensor_type["device_class"],
+                        "information",
                     )
                 )
 
     async_add_entities(sensors, True)
 
 
-class BHyveSensor(BHyveEntity):
+class BHyveBatterySensor(BHyveEntity):
     """Define a BHyve sensor."""
 
     def __init__(self, hass, bhyve, device, name, icon, unit, device_class):
@@ -95,3 +98,28 @@ class BHyveSensor(BHyveEntity):
         self._ws_unprocessed_events[:] = []  # We don't care about these
 
         await self._refetch_device()
+
+class BHyveStateSensor(BHyveEntity):
+    """Define a BHyve sensor."""
+
+    def __init__(self, hass, bhyve, device, name, icon):
+        """Initialize the sensor."""
+        super().__init__(hass, bhyve, device, name, icon)
+
+    def _setup(self, device):
+        self._attrs = {}
+        self._state = device.get("status", {}).get("run_mode")
+        self._available = device.get("is_connected", False)
+
+    @property
+    def state(self):
+        """Return the state of the sensor."""
+        return self._state
+
+    def _on_ws_data(self, data):
+        """
+            {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
+        """
+        event = data.get("event")
+        if event == "change_mode":
+            self._state = data.get("mode")

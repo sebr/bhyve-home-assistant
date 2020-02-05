@@ -205,6 +205,11 @@ class BHyveEntity(Entity):
         return f"{self._name}"
 
     @property
+    def icon(self):
+        """Icon to use in the frontend, if any."""
+        return self._icon
+
+    @property
     def should_poll(self):
         """Disable polling."""
         return False
@@ -212,7 +217,7 @@ class BHyveEntity(Entity):
     @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_type}"
+        return f"{self._mac_address}:{self._device_type}:{self._name}"
 
     async def async_added_to_hass(self):
         """Register callbacks."""
