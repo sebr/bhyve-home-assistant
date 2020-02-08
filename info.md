@@ -37,7 +37,9 @@ switch:
 
 ## Sensor Entities
 
-`sensor` entities are automatically created for any device which has a battery level to report.
+A **battery** `sensor` entity is created for any device which has a battery level to report.
+
+A **zone state** `sensor` entity is created for each zone. This reports the state of the zone, for example `auto` or `off`. A zone may be switched to `off` either manually through the BHyve app, or may be automatically set when battery levels are too low to operate the device correctly.
 
 ## Binary Sensor Entities
 
@@ -94,7 +96,7 @@ The following attributes are set on `switch` entities:
 | `sprinkler_type`              | `string`       | The configured type of sprinker.                                     |
 | `image_url`                   | `string`       | The url to zone image.                                               |
 | `started_watering_station_at` | `string`       | The timestamp the zone started watering.                             |
-| `watering_program`            | `list[string]` | List of timestamps for` future/scheduled watering times.             |
+| `watering_program`            | `list[string]` | List of timestamps for future/scheduled watering times.              |
 
 ### Switch Template Sensors
 

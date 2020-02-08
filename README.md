@@ -37,7 +37,9 @@ switch:
 
 ## Sensor Entities
 
-`sensor` entities are automatically created for any device which has a battery level to report.
+A **battery** `sensor` entity is created for any device which has a battery level to report.
+
+A **zone state** `sensor` entity is created for each zone. This reports the state of the zone, for example `auto` or `off`. A zone may be switched to `off` either manually through the BHyve app, or may be automatically set when battery levels are too low to operate the device correctly.
 
 ## Binary Sensor Entities
 
