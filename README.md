@@ -67,11 +67,13 @@ sensor:
     sensors:
       rain_delay_lawn_finishing:
         friendly_name: "Rain Delay Lawn Finishing"
+        availability_template: "{{ states('binary_sensor.rain_delay_lawn') != 'unavailable' }}"
         value_template: "{{(as_timestamp(state_attr('binary_sensor.rain_delay_lawn', 'started_at')) + state_attr('binary_sensor.rain_delay_lawn', 'delay') * 3600) | timestamp_local }}"
 
       rain_delay_lawn_remaining:
         friendly_name: "Rain Delay Lawn Remaining"
         unit_of_measurement: "h"
+        availability_template: "{{ states('binary_sensor.rain_delay_lawn') != 'unavailable' }}"
         value_template: "{{((as_timestamp(state_attr('binary_sensor.rain_delay_lawn', 'started_at')) + state_attr('binary_sensor.rain_delay_lawn', 'delay') * 3600 - as_timestamp(now())) / 3600) | round(0) }}"
 ```
 
@@ -90,9 +92,29 @@ The following attributes are set on `switch` entities:
 | `manual_preset_runtime`       | `number`       | The number of seconds to run zone watering when switch is turned on. |
 | `smart_watering_enabled`      | `boolean`      | True if the zone has a smart water schedule enabled.                 |
 | `sprinkler_type`              | `string`       | The configured type of sprinker.                                     |
-| `image_url`                   | `string`       | The url to zone image                                                |
+| `image_url`                   | `string`       | The url to zone image.                                               |
 | `started_watering_station_at` | `string`       | The timestamp the zone started watering.                             |
-| `watering_program`            | `list[string]` | List of timestamps for future/scheduled watering times               |
+| `watering_program`            | `list[string]` | List of timestamps for future/scheduled watering times.              |
+
+### Switch Template Sensors
+
+It's possible to create a sensor to extract the next watering time, for example:
+
+```yaml
+sensor:
+  - platform: template
+    sensors:
+      lawn_next_watering:
+        friendly_name: "Next watering"
+        availability_template: "{{ states('switch.backyard_zone') != 'unavailable' }}"
+        value_template: >-
+          {% set program = state_attr('switch.backyard_zone', 'watering_program') -%}
+          {% if program and (program | count > 0) %}
+            {{ as_timestamp(program[0]) | timestamp_local }}
+          {% else %}
+            unknown
+          {% endif %}
+```
 
 # Debugging
 
