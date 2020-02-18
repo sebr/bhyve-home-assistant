@@ -112,14 +112,12 @@ class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
             self._initial_programs = None
 
     def _set_watering_started(self, timestamp):
-        _LOGGER.debug("Timestamp is {}".format(timestamp))
         if timestamp is not None:
             self._attrs[ATTR_STARTED_WATERING_AT] = orbit_time_to_local_time(timestamp)
         else:
             self._attrs[ATTR_STARTED_WATERING_AT] = None
 
     def _set_watering_program(self, watering_program):
-        _LOGGER.debug("Watering program {}".format(watering_program))
         if watering_program is None:
             self._attrs[ATTR_WATERING_PROGRAM] = None
             return
