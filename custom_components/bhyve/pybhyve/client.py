@@ -139,7 +139,8 @@ class Client:
         await self._refresh_devices()
         return self._devices
 
-    async def get_timer_programs(self, force_update=False):
+    @property
+    async def timer_programs(self, force_update=False):
         """Get timer programs."""
         await self._refresh_timer_programs()
         return self._timer_programs

@@ -13,8 +13,6 @@ from .util import orbit_time_to_local_time
 
 _LOGGER = logging.getLogger(__name__)
 
-
-SENSOR_TYPES = {"zone": {"name": "Zone", "icon": "water-pump"}}
 DEFAULT_MANUAL_RUNTIME = timedelta(minutes=10)
 
 PROGRAM_SMART_WATERING = "e"
@@ -35,24 +33,25 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
     switches = []
     devices = await bhyve.devices
+    programs = await bhyve.timer_programs
     for device in devices:
         if device.get("type") == "sprinkler_timer":
-            sensor_type = SENSOR_TYPES["zone"]
             for zone in device.get("zones"):
-                _LOGGER.debug("ZONE: %s", zone)
                 name = "{0} Zone".format(zone.get("name", "Unknown"))
                 _LOGGER.info("Creating switch: %s", name)
                 switches.append(
-                    BHyveSwitch(hass, bhyve, device, zone, name, sensor_type["icon"],)
+                    BHyveZoneSwitch(
+                        hass, bhyve, device, zone, name, programs, "water-pump"
+                    )
                 )
 
     async_add_entities(switches, True)
 
 
-class BHyveSwitch(BHyveEntity, SwitchDevice):
+class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
     """Define a BHyve switch."""
 
-    def __init__(self, hass, bhyve, device, zone, name, icon):
+    def __init__(self, hass, bhyve, device, zone, name, programs, icon):
         """Initialize the switch."""
         self._zone = zone
         self._zone_id = zone.get("station")
@@ -60,6 +59,7 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
         self._manual_preset_runtime = device.get(
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
+        self._initial_programs = programs
 
         super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
 
@@ -105,6 +105,12 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
                 started_watering_at = watering_status.get("started_watering_station_at")
                 self._set_watering_started(started_watering_at)
 
+        if self._initial_programs is not None:
+            programs = self._initial_programs
+            for program in programs:
+                self._set_watering_program(program)
+            self._initial_programs = None
+
     def _set_watering_started(self, timestamp):
         _LOGGER.debug("Timestamp is {}".format(timestamp))
         if timestamp is not None:
@@ -112,28 +118,39 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
         else:
             self._attrs[ATTR_STARTED_WATERING_AT] = None
 
-    def _set_watering_program(self, watering_program, lifecycle_phase):
+    def _set_watering_program(self, watering_program):
         _LOGGER.debug("Watering program {}".format(watering_program))
-        if watering_program is not None and lifecycle_phase != "destroy":
-            watering_plan = watering_program.get("watering_plan")
-            upcoming_run_times = []
-            for plan in watering_plan:
-                run_times = plan.get("run_times")
-                if run_times:
-                    zone_times = list(
-                        filter(lambda x: (x.get("station") == self._zone_id), run_times)
-                    )
-                    if zone_times:
-                        plan_date = orbit_time_to_local_time(plan.get("date"))
-                        for time in plan.get("start_times", []):
-                            t = dt.parse_time(time)
-                            upcoming_run_times.append(
-                                plan_date + timedelta(hours=t.hour, minutes=t.minute)
-                            )
-            self._attrs[ATTR_WATERING_PROGRAM] = upcoming_run_times
-        else:
+        if watering_program is None:
             self._attrs[ATTR_WATERING_PROGRAM] = None
-            # self._attrs[ATTR_PROGRAM_NAME] = None
+            return
+
+        program_name = program.get("name", "Unknown")
+        program_id = program.get("program")
+        enabled = watering_program.get("enabled", False)
+        if enabled is False:
+            _LOGGER.info(
+                "Watering program {} ({}) is not enabled, skipping".format(
+                    program_name, program_id
+                )
+            )
+            return
+
+        watering_plan = watering_program.get("watering_plan", [])
+        upcoming_run_times = []
+        for plan in watering_plan:
+            run_times = plan.get("run_times")
+            if run_times:
+                zone_times = list(
+                    filter(lambda x: (x.get("station") == self._zone_id), run_times)
+                )
+                if zone_times:
+                    plan_date = orbit_time_to_local_time(plan.get("date"))
+                    for time in plan.get("start_times", []):
+                        t = dt.parse_time(time)
+                        upcoming_run_times.append(
+                            plan_date + timedelta(hours=t.hour, minutes=t.minute)
+                        )
+        self._attrs[ATTR_WATERING_PROGRAM] = upcoming_run_times
 
     def _on_ws_data(self, data):
         """
@@ -165,7 +182,10 @@ class BHyveSwitch(BHyveEntity, SwitchDevice):
         elif event == "program_changed":
             watering_program = data.get("program")
             lifecycle_phase = data.get("lifecycle_phase")
-            self._set_watering_program(watering_program, lifecycle_phase)
+            if lifecycle_phase != "destroy":
+                self._set_watering_program(watering_program)
+            else:
+                self._attrs[ATTR_WATERING_PROGRAM] = None
 
     async def _send_station_message(self, station_payload):
         try:

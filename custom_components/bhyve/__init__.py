@@ -112,12 +112,14 @@ async def async_setup(hass, config):
 
         await bhyve.login()
         devices = await bhyve.devices
+        programs = await bhyve.timer_programs
         for device in devices:
             device["address"] = "REDACTED"
             device["full_location"] = "REDACTED"
             device["location"] = "REDACTED"
 
         _LOGGER.debug("Devices: {}".format(devices))
+        _LOGGER.debug("Programs: {}".format(programs))
 
         hass.data[DOMAIN] = bhyve
     except WebsocketError as err:

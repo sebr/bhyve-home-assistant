@@ -24,26 +24,14 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
             _LOGGER.info("Creating sensor: %s", name)
             sensors.append(
                 BHyveBatterySensor(
-                    hass,
-                    bhyve,
-                    device,
-                    name,
-                    "battery",
-                    "%",
-                    DEVICE_CLASS_BATTERY,
+                    hass, bhyve, device, name, "battery", "%", DEVICE_CLASS_BATTERY,
                 )
             )
             for zone in device.get("zones"):
                 name = "{0} Zone State".format(zone.get("name", "Unknown"))
                 _LOGGER.info("Creating sensor: %s", name)
                 sensors.append(
-                    BHyveStateSensor(
-                        hass,
-                        bhyve,
-                        device,
-                        name,
-                        "information",
-                    )
+                    BHyveStateSensor(hass, bhyve, device, name, "information",)
                 )
 
     async_add_entities(sensors, True)
@@ -98,6 +86,7 @@ class BHyveBatterySensor(BHyveEntity):
         self._ws_unprocessed_events[:] = []  # We don't care about these
 
         await self._refetch_device()
+
 
 class BHyveStateSensor(BHyveEntity):
     """Define a BHyve sensor."""
