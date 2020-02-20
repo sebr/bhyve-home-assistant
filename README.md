@@ -8,7 +8,7 @@ If this integration has been useful to you, please consider chipping in and buyi
 
 ## Supported Entities
 
-- `sensor` for measuring battery levels of `sprinkler_timer` devices
+- `sensor` for measuring battery levels of `sprinkler_timer` devices as well as the device on/off state (not to be confused with zone on/off switches)
 - `binary_sensor` for tracking rain/weather delays
 - `switch` for turning a zone on/off
 
@@ -89,14 +89,43 @@ Turning on the switch will enable watering of the zone for the amount of time co
 
 The following attributes are set on `switch` entities:
 
-| Attribute                     | Type           | Notes                                                                |
-| ----------------------------- | -------------- | -------------------------------------------------------------------- |
-| `manual_preset_runtime`       | `number`       | The number of seconds to run zone watering when switch is turned on. |
-| `smart_watering_enabled`      | `boolean`      | True if the zone has a smart water schedule enabled.                 |
-| `sprinkler_type`              | `string`       | The configured type of sprinker.                                     |
-| `image_url`                   | `string`       | The url to zone image.                                               |
-| `started_watering_station_at` | `string`       | The timestamp the zone started watering.                             |
-| `watering_program`            | `list[string]` | List of timestamps for future/scheduled watering times.              |
+| Attribute                     | Type           | Notes                                                                                             |
+| ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------- |
+| `manual_preset_runtime`       | `number`       | The number of seconds to run zone watering when switch is turned on.                              |
+| `smart_watering_enabled`      | `boolean`      | True if the zone has a smart water schedule enabled.                                              |
+| `sprinkler_type`              | `string`       | The configured type of sprinker.                                                                  |
+| `image_url`                   | `string`       | The url to zone image.                                                                            |
+| `started_watering_station_at` | `string`       | The timestamp the zone started watering.                                                          |
+| `watering_program`            | `list[string]` | List of timestamps for future/scheduled watering times.<sup>†</sup>                               |
+| `program_x`                   | `Object`       | Provides details on any configured watering programs for the given switch. See below for details. |
+
+<sup>†</sup> Only applicable if a Smart Watering program is enabled. Any rain delays or other custom programs must be considered separately.
+
+#### `program_x` attribute
+
+Any watering programs which are configured for a zone switch are made available as an attribute. The `X` denotes the letter of the program slot. Values `A`, `B` and `C` are well known custom slots. Program `E` is reserved for the Smart Watering plan. Slot `D` does not have a known use at this stage.
+
+```json
+{
+  "enabled": true,
+  "name": "Backyard",
+  "is_smart_program": false,
+  "start_times": [
+    "07:30"
+  ],
+  "frequency": {
+    "type": "days",
+    "days": [ 1, 4 ]
+  },
+  "run_times": [{
+      "run_time": 20,
+      "station": 1
+  }]
+}
+```
+* `start_times`, `frequency` and `run_time` are not present on `program_e` (Smart Watering program)
+* `frequency` days: `0` is Sunday, `1` is Monday etc...
+* `run_time` is in minutes
 
 ### Switch Template Sensors
 
