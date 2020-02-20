@@ -117,14 +117,14 @@ class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
         else:
             self._attrs[ATTR_STARTED_WATERING_AT] = None
 
-    def _set_watering_program(self, watering_program):
-        if watering_program is None:
+    def _set_watering_program(self, program):
+        if program is None:
             self._attrs[ATTR_WATERING_PROGRAM] = None
             return
 
         program_name = program.get("name", "Unknown")
         program_id = program.get("program")
-        enabled = watering_program.get("enabled", False)
+        enabled = program.get("enabled", False)
         if enabled is False:
             _LOGGER.info(
                 "Watering program {} ({}) is not enabled, skipping".format(
@@ -133,7 +133,7 @@ class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
             )
             return
 
-        watering_plan = watering_program.get("watering_plan", [])
+        watering_plan = program.get("watering_plan", [])
         upcoming_run_times = []
         for plan in watering_plan:
             run_times = plan.get("run_times")
