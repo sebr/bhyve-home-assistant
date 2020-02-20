@@ -23,8 +23,9 @@ ATTR_SMART_WATERING_ENABLED = "smart_watering_enabled"
 ATTR_SPRINKLER_TYPE = "sprinkler_type"
 ATTR_IMAGE_URL = "image_url"
 ATTR_STARTED_WATERING_AT = "started_watering_station_at"
-ATTR_WATERING_PROGRAM = "watering_program"
-ATTR_PROGRAM_NAME = "program_name"
+ATTR_SMART_WATERING_PLAN = "watering_program"
+
+ATTR_PROGRAM = "program_{}"
 
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
@@ -119,36 +120,73 @@ class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
 
     def _set_watering_program(self, program):
         if program is None:
-            self._attrs[ATTR_WATERING_PROGRAM] = None
             return
 
         program_name = program.get("name", "Unknown")
         program_id = program.get("program")
-        enabled = program.get("enabled", False)
-        if enabled is False:
+        program_enabled = program.get("enabled", False)
+        program_attr = ATTR_PROGRAM.format(program_id)
+
+        # Filter out any run times which are not for this switch
+        active_program_run_times = list(
+            filter(
+                lambda x: (x.get("station") == self._zone_id),
+                program.get("run_times", []),
+            )
+        )
+
+        is_smart_program = program.get("is_smart_program", False)
+
+        self._attrs[program_attr] = {
+            "enabled": program_enabled,
+            "name": program_name,
+            "is_smart_program": is_smart_program,
+        }
+
+        if not program_enabled or not active_program_run_times:
             _LOGGER.info(
                 "Watering program {} ({}) is not enabled, skipping".format(
                     program_name, program_id
                 )
             )
+            if is_smart_program == True:
+                self._attrs[ATTR_SMART_WATERING_PLAN] = None
+
             return
 
-        watering_plan = program.get("watering_plan", [])
-        upcoming_run_times = []
-        for plan in watering_plan:
-            run_times = plan.get("run_times")
-            if run_times:
-                zone_times = list(
-                    filter(lambda x: (x.get("station") == self._zone_id), run_times)
-                )
-                if zone_times:
-                    plan_date = orbit_time_to_local_time(plan.get("date"))
-                    for time in plan.get("start_times", []):
-                        t = dt.parse_time(time)
-                        upcoming_run_times.append(
-                            plan_date + timedelta(hours=t.hour, minutes=t.minute)
-                        )
-        self._attrs[ATTR_WATERING_PROGRAM] = upcoming_run_times
+        """
+            "name": "Backyard",
+            "frequency": { "type": "days", "days": [1, 4] },
+            "start_times": ["07:30"],
+            "budget": 100,
+            "program": "a",
+            "run_times": [{ "run_time": 20, "station": 1 }],
+        """
+
+        if is_smart_program == True:
+            upcoming_run_times = []
+            for plan in program.get("watering_plan", []):
+                run_times = plan.get("run_times")
+                if run_times:
+                    zone_times = list(
+                        filter(lambda x: (x.get("station") == self._zone_id), run_times)
+                    )
+                    if zone_times:
+                        plan_date = orbit_time_to_local_time(plan.get("date"))
+                        for time in plan.get("start_times", []):
+                            t = dt.parse_time(time)
+                            upcoming_run_times.append(
+                                plan_date + timedelta(hours=t.hour, minutes=t.minute)
+                            )
+            self._attrs[ATTR_SMART_WATERING_PLAN] = upcoming_run_times
+        else:
+            self._attrs[program_attr].update(
+                {
+                    "start_times": program.get("start_times", []),
+                    "frequency": program.get("frequency", []),
+                    "run_times": active_program_run_times,
+                }
+            )
 
     def _on_ws_data(self, data):
         """
@@ -183,7 +221,7 @@ class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
             if lifecycle_phase != "destroy":
                 self._set_watering_program(watering_program)
             else:
-                self._attrs[ATTR_WATERING_PROGRAM] = None
+                self._attrs[ATTR_SMART_WATERING_PLAN] = None
 
     async def _send_station_message(self, station_payload):
         try:
