@@ -31,7 +31,7 @@ from .const import (
     SIGNAL_UPDATE_DEVICE,
 )
 from .pybhyve import Client
-from .pybhyve.errors import WebsocketError
+from .pybhyve.errors import BHyveError, WebsocketError
 
 _LOGGER = logging.getLogger(__name__)
 
