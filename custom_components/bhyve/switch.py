@@ -65,7 +65,7 @@ class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
         super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
 
     def _setup(self, device):
-        self._state = None
+        self._is_on = False
         self._attrs = {}
         self._available = device.get("is_connected", False)
 
@@ -87,7 +87,7 @@ class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
                 watering_status is not None
                 and watering_status.get("current_station") == self._zone_id
             )
-            self._state = is_watering
+            self._is_on = is_watering
             self._attrs = {ATTR_MANUAL_RUNTIME: self._manual_preset_runtime}
 
             smart_watering_enabled = zone.get("smart_watering_enabled")
@@ -201,17 +201,17 @@ class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
             _LOGGER.warning("No event on ws data {}".format(data))
             return
         elif event == "device_idle" or event == "watering_complete":
-            self._state = False
+            self._is_on = False
             self._set_watering_started(None)
         elif event == "watering_in_progress_notification":
             zone = data.get("current_station")
             if zone == self._zone_id:
-                self._state = True
+                self._is_on = True
                 started_watering_at = data.get("started_watering_station_at")
                 self._set_watering_started(started_watering_at)
         elif event == "change_mode":
             program = data.get("program")
-            self._state = program == PROGRAM_SMART_WATERING or program == PROGRAM_MANUAL
+            self._is_on = program == PROGRAM_SMART_WATERING or program == PROGRAM_MANUAL
         elif event == "set_manual_preset_runtime":
             self._manual_preset_runtime = data.get("seconds")
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
@@ -254,19 +254,19 @@ class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
     @property
     def is_on(self):
         """Return the status of the sensor."""
-        return self._state is True
+        return self._is_on
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
         station_payload = [
             {"station": self._zone_id, "run_time": self._manual_preset_runtime}
         ]
-        self._state = True
+        self._is_on = True
         await self._send_station_message(station_payload)
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         station_payload = []
-        self._state = False
+        self._is_on = False
         await self._send_station_message(station_payload)
 

@@ -58,6 +58,11 @@ class BHyveBatterySensor(BHyveEntity):
             self._attrs[ATTR_BATTERY_LEVEL] = battery["percent"]
 
     @property
+    def state(self):
+        """Return the state of the entity"""
+        return self._state
+
+    @property
     def unit_of_measurement(self):
         """Return the unit of measurement for the sensor."""
         return self._unit
@@ -94,6 +99,11 @@ class BHyveStateSensor(BHyveEntity):
         self._attrs = {}
         self._state = device.get("status", {}).get("run_mode")
         self._available = device.get("is_connected", False)
+
+    @property
+    def state(self):
+        """Return the state of the entity"""
+        return self._state
 
     def _on_ws_data(self, data):
         """
