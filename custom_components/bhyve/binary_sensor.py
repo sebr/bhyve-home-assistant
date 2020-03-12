@@ -47,8 +47,8 @@ class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorDevice):
         self._attrs = {}
         self._available = device.get("is_connected", False)
 
-        device_status = device["status"]
-        rain_delay = device_status["rain_delay"]
+        device_status = device.get("status", {})
+        rain_delay = device_status.get("rain_delay")
 
         self._update_device_cb = None
         self._extract_rain_delay(rain_delay, device_status)
