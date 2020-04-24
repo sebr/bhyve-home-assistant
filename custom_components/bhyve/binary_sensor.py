@@ -71,22 +71,25 @@ class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorDevice):
     def _update_device_soon(self):
         if self._update_device_cb is not None:
             self._update_device_cb()  # unsubscribe
-        self._update_device_cb = async_call_later(self._hass, 5, self._update_device)
+        self._update_device_cb = async_call_later(self._hass, 1, self._update_device)
 
     async def _update_device(self, time):
         await self._refetch_device(force_update=True)
+        self.async_schedule_update_ha_state()
 
     def _extract_rain_delay(self, rain_delay, device_status=None):
         if rain_delay is not None and rain_delay > 0:
             self._state = True
             self._attrs = {ATTR_DELAY: rain_delay}
             if device_status is not None:
-                self._attrs[ATTR_CAUSE] = device_status.get("rain_delay_cause")
-                self._attrs[ATTR_WEATHER_TYPE] = device_status.get(
-                    "rain_delay_weather_type"
-                )
-                self._attrs[ATTR_STARTED_AT] = orbit_time_to_local_time(
-                    device_status.get("rain_delay_started_at")
+                self._attrs.update(
+                    {
+                        ATTR_CAUSE: device_status.get("rain_delay_cause"),
+                        ATTR_WEATHER_TYPE: device_status.get("rain_delay_weather_type"),
+                        ATTR_STARTED_AT: orbit_time_to_local_time(
+                            device_status.get("rain_delay_started_at")
+                        ),
+                    }
                 )
         else:
             self._state = False
@@ -96,4 +99,3 @@ class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorDevice):
     def is_on(self):
         """Return the status of the sensor."""
         return self._state is True
-
