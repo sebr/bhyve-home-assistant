@@ -1,7 +1,13 @@
 """Support for Orbit BHyve binary sensors ()."""
 import logging
 
-from homeassistant.components.binary_sensor import BinarySensorDevice
+try:
+    from homeassistant.components.binary_sensor import BinarySensorEntity
+except ImportError:
+    from homeassistant.components.binary_sensor import (
+        BinarySensorDevice as BinarySensorEntity,
+    )
+
 from homeassistant.helpers.event import async_call_later
 
 from . import BHyveEntity
@@ -39,7 +45,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     async_add_entities(binary_sensors, True)
 
 
-class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorDevice):
+class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorEntity):
     """Define a BHyve binary sensor."""
 
     def _setup(self, device):

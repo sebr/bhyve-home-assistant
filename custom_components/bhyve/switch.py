@@ -3,7 +3,15 @@ import datetime
 import logging
 
 from datetime import timedelta
-from homeassistant.components.switch import DEVICE_CLASS_SWITCH, SwitchDevice
+
+try:
+    from homeassistant.components.switch import DEVICE_CLASS_SWITCH, SwitchEntity
+except ImportError:
+    from homeassistant.components.switch import (
+        DEVICE_CLASS_SWITCH,
+        SwitchDevice as SwitchEntity,
+    )
+
 from homeassistant.util import dt
 
 from . import BHyveEntity
@@ -49,7 +57,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     async_add_entities(switches, True)
 
 
-class BHyveZoneSwitch(BHyveEntity, SwitchDevice):
+class BHyveZoneSwitch(BHyveEntity, SwitchEntity):
     """Define a BHyve switch."""
 
     def __init__(self, hass, bhyve, device, zone, name, programs, icon):
