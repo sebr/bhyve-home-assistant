@@ -29,6 +29,7 @@ from .const import (
     DOMAIN,
     MANUFACTURER,
     SIGNAL_UPDATE_DEVICE,
+    SIGNAL_UPDATE_PROGRAM,
 )
 from .pybhyve import Client
 from .pybhyve.errors import BHyveError, WebsocketError
@@ -86,9 +87,11 @@ async def async_setup(hass, config):
 
         event = data.get("event")
         device_id = None
+        program_id = None
 
         if event == "program_changed":
             device_id = data.get("program", {}).get("device_id")
+            program_id = data.get("program", {}).get("id")
         else:
             device_id = data.get("device_id")
 
@@ -96,8 +99,10 @@ async def async_setup(hass, config):
             async_dispatcher_send(
                 hass, SIGNAL_UPDATE_DEVICE.format(device_id), device_id, data
             )
-        else:
-            _LOGGER.debug("No device_id present on websocket message")
+        if program_id is not None:
+            async_dispatcher_send(
+                hass, SIGNAL_UPDATE_PROGRAM.format(program_id), program_id, data
+            )
 
     session = aiohttp_client.async_get_clientsession(hass)
 
@@ -188,30 +193,50 @@ class BHyveEntity(Entity):
         }
 
 
-class BHyveDeviceEntity(BHyveEntity):
+class BHyveWebsocketEntity(BHyveEntity):
+    """An entity which responds to websocket events."""
+
+    def __init__(
+        self, hass, bhyve, name, icon, device_class=None,
+    ):
+        self._async_unsub_dispatcher_connect = None
+        self._ws_unprocessed_events = []
+        super().__init__(hass, bhyve, name, icon, device_class)
+
+    def _on_ws_data(self, data):
+        pass
+
+    def _should_handle_event(self, event):
+        """True if the websocket event should be handled"""
+        return True
+
+    async def async_update(self):
+        """Retrieve latest state."""
+        ws_updates = list(self._ws_unprocessed_events)
+        self._ws_unprocessed_events[:] = []
+
+        for ws_event in ws_updates:
+            self._on_ws_data(ws_event)
+
+
+class BHyveDeviceEntity(BHyveWebsocketEntity):
     """Define a base BHyve entity with a device."""
 
     def __init__(
         self, hass, bhyve, device, name, icon, device_class=None,
     ):
         """Initialize the sensor."""
-        self._async_unsub_dispatcher_connect = None
 
         self._mac_address = device.get("mac_address")
         self._device_id = device.get("id")
         self._device_type = device.get("type")
         self._device_name = device.get("name")
 
-        self._ws_unprocessed_events = []
-
         super().__init__(hass, bhyve, name, icon, device_class)
 
         self._setup(device)
 
     def _setup(self, device):
-        pass
-
-    def _on_ws_data(self, data):
         pass
 
     async def _refetch_device(self, force_update=False):
@@ -259,9 +284,9 @@ class BHyveDeviceEntity(BHyveEntity):
                 self._available = False
             elif event == "device_connected":
                 self._available = True
-
-            self._ws_unprocessed_events.append(data)
-            self.async_schedule_update_ha_state(True)
+            if self._should_handle_event(event):
+                self._ws_unprocessed_events.append(data)
+                self.async_schedule_update_ha_state(True)
 
         self._async_unsub_dispatcher_connect = async_dispatcher_connect(
             self.hass, SIGNAL_UPDATE_DEVICE.format(self._device_id), update
@@ -271,11 +296,3 @@ class BHyveDeviceEntity(BHyveEntity):
         """Disconnect dispatcher listener when removed."""
         if self._async_unsub_dispatcher_connect:
             self._async_unsub_dispatcher_connect()
-
-    async def async_update(self):
-        """Retrieve latest state."""
-        ws_updates = list(self._ws_unprocessed_events)
-        self._ws_unprocessed_events[:] = []
-
-        for ws_event in ws_updates:
-            self._on_ws_data(ws_event)

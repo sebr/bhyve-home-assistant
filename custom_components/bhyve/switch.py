@@ -12,10 +12,16 @@ except ImportError:
         SwitchDevice as SwitchEntity,
     )
 
+from homeassistant.core import callback
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_send,
+    async_dispatcher_connect,
+)
 from homeassistant.util import dt
 
-from . import BHyveEntity, BHyveDeviceEntity
-from .const import DOMAIN
+
+from . import BHyveWebsocketEntity, BHyveDeviceEntity
+from .const import DOMAIN, SIGNAL_UPDATE_PROGRAM
 from .pybhyve.errors import BHyveError
 from .util import orbit_time_to_local_time
 
@@ -57,20 +63,18 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     async_add_entities(switches, True)
 
 
-class BHyveProgramSwitch(BHyveEntity, SwitchEntity):
+class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     """Define a BHyve program switch."""
 
     def __init__(self, hass, bhyve, program, icon):
         """Initialize the switch."""
-        name = program.get("name")
+        name = "{} Program".format(program.get("name"))
 
         super().__init__(hass, bhyve, name, icon, DEVICE_CLASS_SWITCH)
 
         self._program = program
         self._program_id = program.get("id")
         self._available = True
-        self._is_on = program.get("enabled")
-        _LOGGER.info("Created switch: Program {} {}".format("name", self._is_on))
 
     @property
     def device_state_attributes(self):
@@ -97,7 +101,6 @@ class BHyveProgramSwitch(BHyveEntity, SwitchEntity):
         return "bhyve:program:{}".format(self._program.get("id"))
 
     async def _set_state(self, is_on):
-        self._is_on = is_on
         self._program.update({"enabled": is_on})
         await self._bhyve.update_program(self._program_id, self._program)
 
@@ -108,6 +111,49 @@ class BHyveProgramSwitch(BHyveEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         await self._set_state(False)
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+
+        @callback
+        def update(device_id, data):
+            """Update the state."""
+            _LOGGER.info(
+                "Program update: {} - {} - {}".format(
+                    self.name, self._program_id, str(data)[:160]
+                )
+            )
+            event = data.get("event")
+            if event == "program_changed":
+                self._ws_unprocessed_events.append(data)
+                self.async_schedule_update_ha_state(True)
+
+        self._async_unsub_dispatcher_connect = async_dispatcher_connect(
+            self.hass, SIGNAL_UPDATE_PROGRAM.format(self._program_id), update
+        )
+
+    async def async_will_remove_from_hass(self):
+        """Disconnect dispatcher listener when removed."""
+        if self._async_unsub_dispatcher_connect:
+            self._async_unsub_dispatcher_connect()
+
+    def _on_ws_data(self, data):
+        """
+            {'event': 'program_changed' }
+        """
+        _LOGGER.info("Received program data update {}".format(data))
+
+        event = data.get("event")
+        if event is None:
+            _LOGGER.warning("No event on ws data {}".format(data))
+            return
+        elif event == "program_changed":
+            program = data.get("program")
+            if program is not None:
+                self._program = program
+
+    def _should_handle_event(self, event_name):
+        return event_name in ["program_changed"]
 
 
 class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):

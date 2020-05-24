@@ -9,6 +9,7 @@ CONF_PACKET_DUMP = "packet_dump"
 ATTR_LAST_DATA = "last_data"
 
 SIGNAL_UPDATE_DEVICE = "bhyve_update_device_{}"
+SIGNAL_UPDATE_PROGRAM = "bhyve_update_program_{}"
 
 TYPE_BINARY_SENSOR = "binary_sensor"
 TYPE_SENSOR = "sensor"

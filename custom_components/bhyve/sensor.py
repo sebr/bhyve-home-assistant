@@ -81,6 +81,9 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         """Enable polling."""
         return True
 
+    def _should_handle_event(self, event_name):
+        return event_name in ["change_mode"]
+
     async def async_update(self):
         """Retrieve latest state."""
         self._ws_unprocessed_events[:] = []  # We don't care about these
@@ -112,3 +115,6 @@ class BHyveStateSensor(BHyveDeviceEntity):
         event = data.get("event")
         if event == "change_mode":
             self._state = data.get("mode")
+
+    def _should_handle_event(self, event_name):
+        return event_name in ["change_mode"]
