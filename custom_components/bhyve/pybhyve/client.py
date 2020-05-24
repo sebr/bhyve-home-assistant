@@ -43,7 +43,9 @@ class Client:
         self._timer_programs = []
         self._last_poll_programs = 0
 
-    async def _request(self, method: str, endpoint: str, params: dict = None) -> list:
+    async def _request(
+        self, method: str, endpoint: str, params: dict = None, json: dict = None
+    ) -> list:
         """Make a request against the API."""
         url: str = f"{API_HOST}{endpoint}"
 
@@ -63,7 +65,7 @@ class Client:
         )
 
         async with self._session.request(
-            method, url, params=params, headers=headers
+            method, url, params=params, headers=headers, json=json
         ) as resp:
             try:
                 resp.raise_for_status()
@@ -130,6 +132,7 @@ class Client:
         return True
 
     async def stop(self):
+        """Stop the websocket."""
         if self._websocket is not None:
             await self._websocket.stop()
 
@@ -140,7 +143,7 @@ class Client:
         return self._devices
 
     @property
-    async def timer_programs(self, force_update=False):
+    async def timer_programs(self):
         """Get timer programs."""
         await self._refresh_timer_programs()
         return self._timer_programs
@@ -153,5 +156,12 @@ class Client:
                 return device
         return None
 
+    async def update_program(self, program_id, program):
+        """Update the state of a program"""
+        path = "{0}/{1}".format(TIMER_PROGRAMS_PATH, program_id)
+        json = {"sprinkler_timer_program": program}
+        await self._request("put", path, json=json)
+
     async def send_message(self, payload):
+        """Send a message via the websocket"""
         await self._websocket.send(payload)

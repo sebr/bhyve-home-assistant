@@ -14,7 +14,7 @@ except ImportError:
 
 from homeassistant.util import dt
 
-from . import BHyveEntity
+from . import BHyveEntity, BHyveDeviceEntity
 from .const import DOMAIN
 from .pybhyve.errors import BHyveError
 from .util import orbit_time_to_local_time
@@ -54,11 +54,57 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                     )
                 )
 
+    for program in programs:
+        _LOGGER.info("Creating switch: Program %s", program.get("name"))
+        switches.append(BHyveProgramSwitch(hass, bhyve, program, "water-pump"))
+
     async_add_entities(switches, True)
 
 
-class BHyveZoneSwitch(BHyveEntity, SwitchEntity):
-    """Define a BHyve switch."""
+class BHyveProgramSwitch(BHyveEntity):
+    """Define a BHyve program switch."""
+
+    def __init__(self, hass, bhyve, program, icon):
+        """Initialize the switch."""
+        name = program.get("name")
+
+        super().__init__(hass, bhyve, name, icon, DEVICE_CLASS_SWITCH)
+
+        self._program = program
+        self._program_id = program.get("id")
+        self._available = True
+        self._is_on = program.get("enabled")
+
+    @property
+    def device_state_attributes(self):
+        """Return the device state attributes."""
+        return self._attrs.update({"friendly_name": self._program.get("name")})
+
+    @property
+    def is_on(self):
+        """Return the status of the sensor."""
+        return self._program.get("enabled") is True
+
+    @property
+    def unique_id(self):
+        return f"bhyve_program_{0}".format(self._program.get("id"))
+
+    async def _set_state(self, is_on):
+        self._is_on = is_on
+        self._program.update({"enabled": is_on})
+        await self._bhyve.update_program(self._program_id, self._program)
+
+    async def async_turn_on(self, **kwargs):
+        """Turn the switch on."""
+        await self._set_state(True)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn the switch off."""
+        await self._set_state(False)
+
+
+class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
+    """Define a BHyve zone switch."""
 
     def __init__(self, hass, bhyve, device, zone, name, programs, icon):
         """Initialize the switch."""

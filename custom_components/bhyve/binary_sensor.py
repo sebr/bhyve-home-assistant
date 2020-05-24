@@ -10,7 +10,7 @@ except ImportError:
 
 from homeassistant.helpers.event import async_call_later
 
-from . import BHyveEntity
+from . import BHyveDeviceEntity
 from .const import DOMAIN
 from .util import orbit_time_to_local_time
 from .pybhyve.errors import BHyveError
@@ -45,7 +45,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     async_add_entities(binary_sensors, True)
 
 
-class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorEntity):
+class BHyveRainDelayBinarySensor(BHyveDeviceEntity, BinarySensorEntity):
     """Define a BHyve binary sensor."""
 
     def _setup(self, device):

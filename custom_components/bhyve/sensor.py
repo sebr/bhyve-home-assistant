@@ -4,7 +4,7 @@ import logging
 from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY
 from homeassistant.helpers.icon import icon_for_battery_level
 
-from . import BHyveEntity
+from . import BHyveDeviceEntity
 from .const import DOMAIN
 from .pybhyve.errors import BHyveError
 
@@ -37,7 +37,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     async_add_entities(sensors, True)
 
 
-class BHyveBatterySensor(BHyveEntity):
+class BHyveBatterySensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
     def __init__(self, hass, bhyve, device, name, icon, unit, device_class):
@@ -88,7 +88,7 @@ class BHyveBatterySensor(BHyveEntity):
         await self._refetch_device()
 
 
-class BHyveStateSensor(BHyveEntity):
+class BHyveStateSensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
     def __init__(self, hass, bhyve, device, name, icon):

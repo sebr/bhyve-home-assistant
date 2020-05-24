@@ -135,25 +135,77 @@ class BHyveEntity(Entity):
     """Define a base BHyve entity."""
 
     def __init__(
-        self, hass, bhyve, device, name, icon, device_class=None,
+        self, hass, bhyve, name, icon, device_class=None,
     ):
         """Initialize the sensor."""
         self._hass = hass
         self._bhyve: Client = bhyve
         self._device_class = device_class
-        self._async_unsub_dispatcher_connect = None
 
-        self._mac_address = device.get("mac_address")
-        self._device_id = device.get("id")
-        self._device_type = device.get("type")
-        self._device_name = device.get("name")
         self._name = name
         self._icon = "mdi:{}".format(icon)
         self._state = None
         self._available = False
         self._attrs = {}
 
+    @property
+    def available(self):
+        """Return True if entity is available."""
+        return self._available
+
+    @property
+    def device_class(self):
+        """Return the device class."""
+        return self._device_class
+
+    @property
+    def device_state_attributes(self):
+        """Return the device state attributes."""
+        return self._attrs
+
+    @property
+    def name(self):
+        """Return the name of the sensor."""
+        return f"{self._name}"
+
+    @property
+    def icon(self):
+        """Icon to use in the frontend, if any."""
+        return self._icon
+
+    @property
+    def should_poll(self):
+        """Disable polling."""
+        return False
+
+    @property
+    def device_info(self):
+        """Return device registry information for this entity."""
+        return {
+            "name": self._name,
+            "manufacturer": MANUFACTURER,
+            ATTR_ATTRIBUTION: CONF_ATTRIBUTION,
+        }
+
+
+class BHyveDeviceEntity(BHyveEntity):
+    """Define a base BHyve entity with a device."""
+
+    def __init__(
+        self, hass, bhyve, device, name, icon, device_class=None,
+    ):
+        """Initialize the sensor."""
+        self._async_unsub_dispatcher_connect = None
+
+        self._mac_address = device.get("mac_address")
+        self._device_id = device.get("id")
+        self._device_type = device.get("type")
+        self._device_name = device.get("name")
+
         self._ws_unprocessed_events = []
+
+        super().__init__(hass, bhyve, name, icon, device_class)
+
         self._setup(device)
 
     def _setup(self, device):
@@ -177,16 +229,6 @@ class BHyveEntity(Entity):
             self._available = False
 
     @property
-    def available(self):
-        """Return True if entity is available."""
-        return self._available
-
-    @property
-    def device_class(self):
-        """Return the device class."""
-        return self._device_class
-
-    @property
     def device_info(self):
         """Return device registry information for this entity."""
         return {
@@ -197,29 +239,9 @@ class BHyveEntity(Entity):
         }
 
     @property
-    def device_state_attributes(self):
-        """Return the device state attributes."""
-        return self._attrs
-
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return f"{self._name}"
-
-    @property
-    def icon(self):
-        """Icon to use in the frontend, if any."""
-        return self._icon
-
-    @property
-    def should_poll(self):
-        """Disable polling."""
-        return False
-
-    @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_type}:{self._name}"
+        return f"{self._mac_address}:{self._device_type}:{self._device_name}"
 
     async def async_added_to_hass(self):
         """Register callbacks."""
