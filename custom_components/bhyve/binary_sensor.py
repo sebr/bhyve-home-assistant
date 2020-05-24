@@ -74,8 +74,8 @@ class BHyveRainDelayBinarySensor(BHyveDeviceEntity, BinarySensorEntity):
             # The REST API returns more data about a rain delay (eg cause/weather_type)
             self._update_device_soon()
 
-    def _should_handle_event(self, event):
-        return event in ["rain_delay"]
+    def _should_handle_event(self, event_name):
+        return event_name in ["rain_delay"]
 
     def _update_device_soon(self):
         if self._update_device_cb is not None:

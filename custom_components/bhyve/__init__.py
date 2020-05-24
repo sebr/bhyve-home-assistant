@@ -206,7 +206,7 @@ class BHyveWebsocketEntity(BHyveEntity):
     def _on_ws_data(self, data):
         pass
 
-    def _should_handle_event(self, event):
+    def _should_handle_event(self, event_name):
         """True if the websocket event should be handled"""
         return True
 
