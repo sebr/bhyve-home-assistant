@@ -46,12 +46,8 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     for device in devices:
         if device.get("type") == "sprinkler_timer":
             for zone in device.get("zones"):
-                name = "{0} Zone".format(zone.get("name", "Unknown"))
-                _LOGGER.info("Creating switch: %s", name)
                 switches.append(
-                    BHyveZoneSwitch(
-                        hass, bhyve, device, zone, name, programs, "water-pump"
-                    )
+                    BHyveZoneSwitch(hass, bhyve, device, zone, programs, "water-pump")
                 )
 
     for program in programs:
@@ -61,7 +57,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     async_add_entities(switches, True)
 
 
-class BHyveProgramSwitch(BHyveEntity):
+class BHyveProgramSwitch(BHyveEntity, SwitchEntity):
     """Define a BHyve program switch."""
 
     def __init__(self, hass, bhyve, program, icon):
@@ -74,11 +70,22 @@ class BHyveProgramSwitch(BHyveEntity):
         self._program_id = program.get("id")
         self._available = True
         self._is_on = program.get("enabled")
+        _LOGGER.info("Created switch: Program {} {}".format("name", self._is_on))
 
     @property
     def device_state_attributes(self):
         """Return the device state attributes."""
-        return self._attrs.update({"friendly_name": self._program.get("name")})
+
+        attrs = {
+            "is_smart_program": self._program.get("is_smart_program", False),
+            "frequency": self._program.get("frequency"),
+            "start_times": self._program.get("start_times"),
+            "budget": self._program.get("budget"),
+            "program": self._program.get("program"),
+            "run_times": self._program.get("run_times"),
+        }
+
+        return attrs
 
     @property
     def is_on(self):
@@ -87,7 +94,7 @@ class BHyveProgramSwitch(BHyveEntity):
 
     @property
     def unique_id(self):
-        return f"bhyve_program_{0}".format(self._program.get("id"))
+        return "bhyve:program:{}".format(self._program.get("id"))
 
     async def _set_state(self, is_on):
         self._is_on = is_on
@@ -106,7 +113,7 @@ class BHyveProgramSwitch(BHyveEntity):
 class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     """Define a BHyve zone switch."""
 
-    def __init__(self, hass, bhyve, device, zone, name, programs, icon):
+    def __init__(self, hass, bhyve, device, zone, programs, icon):
         """Initialize the switch."""
         self._zone = zone
         self._zone_id = zone.get("station")
@@ -115,6 +122,9 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
         self._initial_programs = programs
+
+        name = "{0} Zone".format(zone.get("name", "Unknown"))
+        _LOGGER.info("Creating switch: %s", name)
 
         super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
 
