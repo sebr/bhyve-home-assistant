@@ -12,6 +12,10 @@ If this integration has been useful to you, please consider chipping in and buyi
 - `binary_sensor` for tracking rain/weather delays
 - `switch` for turning a zone on/off
 
+## Python Script
+
+-
+
 ## Installation
 
 Recommended installation is via HACS.
@@ -47,7 +51,7 @@ A **Rain Delay** `binary sensor` will be created for each discovered `sprinkler_
 
 ### Rain Delay Attributes
 
-The following attributes are set on `binary_sensor.rain_delay_*` entities, if the sensor is on:
+The following attributes are set on `binary_sensor.*_rain_delay` entities, if the sensor is on:
 
 | Attribute      | Type     | Notes                                                                                     |
 | -------------- | -------- | ----------------------------------------------------------------------------------------- |
@@ -110,22 +114,23 @@ Any watering programs which are configured for a zone switch are made available 
   "enabled": true,
   "name": "Backyard",
   "is_smart_program": false,
-  "start_times": [
-    "07:30"
-  ],
+  "start_times": ["07:30"],
   "frequency": {
     "type": "days",
-    "days": [ 1, 4 ]
+    "days": [1, 4]
   },
-  "run_times": [{
+  "run_times": [
+    {
       "run_time": 20,
       "station": 1
-  }]
+    }
+  ]
 }
 ```
-* `start_times`, `frequency` and `run_time` are not present on `program_e` (Smart Watering program)
-* `frequency` days: `0` is Sunday, `1` is Monday etc...
-* `run_time` is in minutes
+
+- `start_times`, `frequency` and `run_time` are not present on `program_e` (Smart Watering program)
+- `frequency` days: `0` is Sunday, `1` is Monday etc...
+- `run_time` is in minutes
 
 ### Switch Template Sensors
 

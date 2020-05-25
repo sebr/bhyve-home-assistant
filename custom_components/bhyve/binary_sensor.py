@@ -34,7 +34,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     for device in devices:
         if device.get("type") == "sprinkler_timer":
             for _, sensor_type in SENSOR_TYPES.items():
-                name = "{0} {1}".format(sensor_type["name"], device.get("name"))
+                name = "{0} {1}".format(device.get("name"), sensor_type["name"])
                 _LOGGER.info("Creating binary_sensor: %s", name)
                 binary_sensors.append(
                     BHyveRainDelayBinarySensor(

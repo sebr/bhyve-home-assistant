@@ -164,19 +164,22 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         self._zone = zone
         self._zone_id = zone.get("station")
         self._entity_picture = zone.get("image_url")
+        self._zone_name = zone.get("name")
         self._manual_preset_runtime = device.get(
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
         self._initial_programs = programs
 
-        name = "{0} Zone".format(zone.get("name", "Unknown"))
+        name = f"{self._zone_name} zone"
         _LOGGER.info("Creating switch: %s", name)
 
         super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
 
     def _setup(self, device):
         self._is_on = False
-        self._attrs = {}
+        self._attrs = {
+            "name": self._zone_name
+        }
         self._available = device.get("is_connected", False)
 
         status = device.get("status", {})
@@ -198,7 +201,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                 and watering_status.get("current_station") == self._zone_id
             )
             self._is_on = is_watering
-            self._attrs = {ATTR_MANUAL_RUNTIME: self._manual_preset_runtime}
+            self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
 
             smart_watering_enabled = zone.get("smart_watering_enabled")
             if smart_watering_enabled is not None:
