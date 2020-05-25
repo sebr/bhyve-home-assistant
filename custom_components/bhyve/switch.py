@@ -178,7 +178,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     def _setup(self, device):
         self._is_on = False
         self._attrs = {
-            "name": self._zone_name
+            "device_name": self._device_name
         }
         self._available = device.get("is_connected", False)
 

@@ -117,4 +117,5 @@ class BHyveStateSensor(BHyveDeviceEntity):
             self._state = data.get("mode")
 
     def _should_handle_event(self, event_name):
+        _LOGGER.debug(f"State sensor {self._name}: should handle event {event_name}")
         return event_name in ["change_mode"]

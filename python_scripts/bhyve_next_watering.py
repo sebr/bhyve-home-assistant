@@ -1,23 +1,24 @@
 now = dt_util.now()
 
 zone_entity_id = data.get("entity_id")
+
 zone = hass.states.get(zone_entity_id)
 
-zone_name = zone.attributes["name"]
+device_name = zone.attributes["device_name"]
 
-next_watering_entity = f"sensor.{zone_name}_next_watering"
+logger.info("updating next_watering & rain_delay_finishing for zone: ({}: {})".format(device_name, zone))
+
+next_watering_entity = f"sensor.next_watering_{device_name}"
 next_watering_attrs = {
-    "friendly_name": f"{zone_name} next watering"
+    "friendly_name": f"{device_name} next watering"
 }
 
-rain_delay_finishing_entity = f"sensor.{zone_name}_rain_delay_finishing"
+rain_delay_finishing_entity = f"sensor.rain_delay_finishing_{device_name}"
 rain_delay_finishing_attrs = {
-    "friendly_name": f"{zone_name} rain delay finishing"
+    "friendly_name": f"{device_name} rain delay finishing"
 }
 
-rain_delay = hass.states.get(f"binary_sensor.{zone_name}_rain_delay")
-
-logger.info("updating next_watering for zone: ({})".format(zone))
+rain_delay = hass.states.get(f"binary_sensor.rain_delay_{device_name}")
 
 if zone.state == "unavailable":
     hass.states.set(next_watering_entity, "Unavailable", next_watering_attrs)
@@ -40,5 +41,5 @@ else:
             next_watering = watering_time
             break
 
-    logger.info(f"{next_watering_entity}: {next_watering}")
+    logger.info("next_watering: {}".format(next_watering))
     hass.states.set(next_watering_entity, next_watering, next_watering_attrs)
