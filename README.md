@@ -107,7 +107,7 @@ Any watering programs which are configured for a zone switch are made available 
 
 ## Python Script
 
-Bundled with this custom component are two [`python_script`](https://www.home-assistant.io/integrations/python_script)s:
+Bundled in this repository are [two `python_script`](https://github.com/sebr/bhyve-home-assistant/tree/master/python_scripts)s. HACS does not install them automatically and they must be added manually to your HA instance.
 
 ### Scripts
 
@@ -118,9 +118,9 @@ Calculates when the next scheduled watering is for a device by considering all e
 Usage:
 
 ```yaml
-  service: python_script.bhyve_next_watering
-  data:
-    entity_id: switch.backyard_zone
+service: python_script.bhyve_next_watering
+data:
+  entity_id: switch.backyard_zone
 ```
 
 #### 2. `bhyve_rain_delay_finish.py`
@@ -130,9 +130,9 @@ Calculates when an active rain delay will finish, or `None` if there is no activ
 Usage:
 
 ```yaml
-  service: python_script.bhyve_rain_delay_finish
-  data:
-    entity_id: switch.backyard_zone
+service: python_script.bhyve_rain_delay_finish
+data:
+  entity_id: switch.backyard_zone
 ```
 
 ### Automation
