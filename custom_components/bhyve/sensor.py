@@ -19,11 +19,13 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     devices = await bhyve.devices
     for device in devices:
         if device.get("type") == "sprinkler_timer":
-            sensors.append(
-                BHyveBatterySensor(hass, bhyve, device)
-            )
+            sensors.append(BHyveBatterySensor(hass, bhyve, device))
             for zone in device.get("zones"):
                 sensors.append(BHyveStateSensor(hass, bhyve, device, zone))
+
+    for sensor in sensors:
+        msg = "Creating sensor: {} - {}".format(sensor.name, sensor.unique_id)
+        _LOGGER.info(msg)
 
     async_add_entities(sensors, True)
 
@@ -35,7 +37,9 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         """Initialize the sensor."""
         name = "Battery level {}".format(device.get("name"))
         _LOGGER.info("Creating battery sensor: %s", name)
-        super().__init__(hass, bhyve, device, name, "battery", DEVICE_CLASS_BATTERY,)
+        super().__init__(
+            hass, bhyve, device, name, "battery", DEVICE_CLASS_BATTERY,
+        )
 
         self._unit = "%"
 
@@ -74,6 +78,11 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         """Enable polling."""
         return True
 
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_type}:{self._device_name}:battery"
+
     def _should_handle_event(self, event_name):
         return event_name in ["change_mode"]
 
@@ -97,12 +106,19 @@ class BHyveStateSensor(BHyveDeviceEntity):
         self._attrs = {}
         self._state = device.get("status", {}).get("run_mode")
         self._available = device.get("is_connected", False)
-        _LOGGER.debug(f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}")
+        _LOGGER.debug(
+            f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
+        )
 
     @property
     def state(self):
         """Return the state of the entity"""
         return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_type}:{self._device_name}:state"
 
     def _on_ws_data(self, data):
         """
