@@ -21,7 +21,17 @@ from homeassistant.util import dt
 
 
 from . import BHyveWebsocketEntity, BHyveDeviceEntity
-from .const import DOMAIN, SIGNAL_UPDATE_PROGRAM
+from .const import (
+    DEVICE_SPRINKLER,
+    DOMAIN,
+    EVENT_CHANGE_MODE,
+    EVENT_DEVICE_IDLE,
+    EVENT_PROGRAM_CHANGED,
+    EVENT_SET_MANUAL_PRESET_TIME,
+    EVENT_WATERING_COMPLETE,
+    EVENT_WATERING_IN_PROGRESS,
+    SIGNAL_UPDATE_PROGRAM,
+)
 from .pybhyve.errors import BHyveError
 from .util import orbit_time_to_local_time
 
@@ -50,7 +60,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     devices = await bhyve.devices
     programs = await bhyve.timer_programs
     for device in devices:
-        if device.get("type") == "sprinkler_timer":
+        if device.get("type") == DEVICE_SPRINKLER:
             for zone in device.get("zones"):
                 switches.append(
                     BHyveZoneSwitch(hass, bhyve, device, zone, programs, "water-pump")
@@ -313,22 +323,22 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         if event is None:
             _LOGGER.warning("No event on ws data {}".format(data))
             return
-        elif event == "device_idle" or event == "watering_complete":
+        elif event == EVENT_DEVICE_IDLE or event == EVENT_WATERING_COMPLETE:
             self._is_on = False
             self._set_watering_started(None)
-        elif event == "watering_in_progress_notification":
+        elif event == EVENT_WATERING_IN_PROGRESS:
             zone = data.get("current_station")
             if zone == self._zone_id:
                 self._is_on = True
                 started_watering_at = data.get("started_watering_station_at")
                 self._set_watering_started(started_watering_at)
-        elif event == "change_mode":
+        elif event == EVENT_CHANGE_MODE:
             program = data.get("program")
             self._is_on = program == PROGRAM_SMART_WATERING or program == PROGRAM_MANUAL
-        elif event == "set_manual_preset_runtime":
+        elif event == EVENT_SET_MANUAL_PRESET_TIME:
             self._manual_preset_runtime = data.get("seconds")
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
-        elif event == "program_changed":
+        elif event == EVENT_PROGRAM_CHANGED:
             watering_program = data.get("program")
             lifecycle_phase = data.get("lifecycle_phase")
             if lifecycle_phase != "destroy":
@@ -342,7 +352,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             iso_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
             payload = {
-                "event": "change_mode",
+                "event": EVENT_CHANGE_MODE,
                 "mode": "manual",
                 "device_id": self._device_id,
                 "timestamp": iso_time,

@@ -8,6 +8,16 @@ CONF_PACKET_DUMP = "packet_dump"
 
 ATTR_LAST_DATA = "last_data"
 
+DEVICE_SPRINKLER = "sprinkler_timer"
+
+EVENT_CHANGE_MODE = "change_mode"
+EVENT_DEVICE_IDLE = "device_idle"
+EVENT_PROGRAM_CHANGED = "program_changed"
+EVENT_RAIN_DELAY = "rain_delay"
+EVENT_SET_MANUAL_PRESET_TIME= "set_manual_preset_runtime"
+EVENT_WATERING_COMPLETE = "watering_complete"
+EVENT_WATERING_IN_PROGRESS = "watering_in_progress_notification"
+
 SIGNAL_UPDATE_DEVICE = "bhyve_update_device_{}"
 SIGNAL_UPDATE_PROGRAM = "bhyve_update_program_{}"
 

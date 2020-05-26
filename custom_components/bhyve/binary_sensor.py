@@ -11,7 +11,7 @@ except ImportError:
 from homeassistant.helpers.event import async_call_later
 
 from . import BHyveDeviceEntity
-from .const import DOMAIN
+from .const import DOMAIN, DEVICE_SPRINKLER, EVENT_RAIN_DELAY
 from .util import orbit_time_to_local_time
 from .pybhyve.errors import BHyveError
 
@@ -32,7 +32,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     binary_sensors = []
     devices = await bhyve.devices
     for device in devices:
-        if device.get("type") == "sprinkler_timer":
+        if device.get("type") == DEVICE_SPRINKLER:
             for _, sensor_type in SENSOR_TYPES.items():
                 name = "{0} {1}".format(device.get("name"), sensor_type["name"])
                 _LOGGER.info("Creating binary_sensor: %s", name)
@@ -67,7 +67,7 @@ class BHyveRainDelayBinarySensor(BHyveDeviceEntity, BinarySensorEntity):
         if event is None:
             _LOGGER.warning("No event on ws data {}".format(data))
             return
-        elif event == "rain_delay":
+        elif event == EVENT_RAIN_DELAY:
             self._extract_rain_delay(
                 data.get("delay"), {"rain_delay_started_at": data.get("timestamp")}
             )
@@ -75,7 +75,7 @@ class BHyveRainDelayBinarySensor(BHyveDeviceEntity, BinarySensorEntity):
             self._update_device_soon()
 
     def _should_handle_event(self, event_name):
-        return event_name in ["rain_delay"]
+        return event_name in [EVENT_RAIN_DELAY]
 
     def _update_device_soon(self):
         if self._update_device_cb is not None:
