@@ -12,10 +12,6 @@ If this integration has been useful to you, please consider chipping in and buyi
 - `binary_sensor` for tracking rain/weather delays
 - `switch` for turning a zone on/off
 
-## Python Script
-
--
-
 ## Installation
 
 Recommended installation is via HACS.
@@ -59,29 +55,6 @@ The following attributes are set on `binary_sensor.*_rain_delay` entities, if th
 | `delay`        | `number` | The number of hours the delay is in place. NB: This is hours from `started_at` attribute. |
 | `weather_type` | `string` | The reported cause of the weather delay. Values seen: `wind`, `rain`. May be empty.       |
 | `started_at`   | `string` | The timestamp the delay was put in place.                                                 |
-
-### Rain Delay Template Sensors
-
-It is possible to create template sensors from these attributes. Here are two examples which provide a sensor to report:
-
-1. When the current rain delay for a device is ending
-2. The number of hours remaining on the current rain delay
-
-```yaml
-sensor:
-  - platform: template
-    sensors:
-      rain_delay_lawn_finishing:
-        friendly_name: "Rain Delay Lawn Finishing"
-        availability_template: "{{ states('binary_sensor.rain_delay_lawn') != 'unavailable' }}"
-        value_template: "{{(as_timestamp(state_attr('binary_sensor.rain_delay_lawn', 'started_at')) + state_attr('binary_sensor.rain_delay_lawn', 'delay') * 3600) | timestamp_local }}"
-
-      rain_delay_lawn_remaining:
-        friendly_name: "Rain Delay Lawn Remaining"
-        unit_of_measurement: "h"
-        availability_template: "{{ states('binary_sensor.rain_delay_lawn') != 'unavailable' }}"
-        value_template: "{{((as_timestamp(state_attr('binary_sensor.rain_delay_lawn', 'started_at')) + state_attr('binary_sensor.rain_delay_lawn', 'delay') * 3600 - as_timestamp(now())) / 3600) | round(0) }}"
-```
 
 ## Switch Entities
 
@@ -132,27 +105,58 @@ Any watering programs which are configured for a zone switch are made available 
 - `frequency` days: `0` is Sunday, `1` is Monday etc...
 - `run_time` is in minutes
 
-### Switch Template Sensors
+## Python Script
 
-It's possible to create a sensor to extract the next watering time, for example:
+Bundled with this custom component are two [`python_script`](https://www.home-assistant.io/integrations/python_script)s:
+
+### Scripts
+
+#### 1. `bhyve_next_watering.py`
+
+Calculates when the next scheduled watering is for a device by considering all enabled watering programs. This script creates or updates an entity named `sensor.next_watering_{device_name}`. Required argument is the switch entity for the device.
+
+Usage:
 
 ```yaml
-sensor:
-  - platform: template
-    sensors:
-      lawn_next_watering:
-        friendly_name: "Next watering"
-        availability_template: "{{ states('switch.backyard_zone') != 'unavailable' }}"
-        value_template: >-
-          {% set program = state_attr('switch.backyard_zone', 'watering_program') -%}
-          {% if program and (program | count > 0) %}
-            {{ as_timestamp(program[0]) | timestamp_local }}
-          {% else %}
-            unknown
-          {% endif %}
+  service: python_script.bhyve_next_watering
+  data:
+    entity_id: switch.backyard_zone
 ```
 
-# Debugging
+#### 2. `bhyve_rain_delay_finish.py`
+
+Calculates when an active rain delay will finish, or `None` if there is no active delay. This script creates or updates an entity named `sensor.rain_delay_finishing_{device_name}`. Required argument is the switch entity for the device.
+
+Usage:
+
+```yaml
+  service: python_script.bhyve_rain_delay_finish
+  data:
+    entity_id: switch.backyard_zone
+```
+
+### Automation
+
+Hook these scripts up to automations to update as required:
+
+```yaml
+automation:
+  - alias: BHyve next watering & rain delay finishing updater
+    trigger:
+      - platform: state
+        entity_id: switch.backyard_zone, binary_sensor.rain_delay_lawn
+      - platform: homeassistant
+        event: start
+    action:
+      - service: python_script.bhyve_next_watering
+        data:
+          entity_id: switch.backyard_zone
+      - service: python_script.bhyve_rain_delay_finish
+        data:
+          entity_id: switch.backyard_zone
+```
+
+## Debugging
 
 To debug this integration and provide device integration for future improvements, please enable debugging in Home Assistant's `configuration.yaml`
 
@@ -160,6 +164,7 @@ To debug this integration and provide device integration for future improvements
 logger:
   logs:
     custom_components.bhyve: debug
+    pybhyve: debug
 
 bhyve:
   username: !secret bhyve_username
