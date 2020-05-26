@@ -81,6 +81,11 @@ class BHyveBatterySensor(BHyveEntity):
         """Enable polling."""
         return True
 
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_type}:{self._device_name}:battery"
+
     async def async_update(self):
         """Retrieve latest state."""
         self._ws_unprocessed_events[:] = []  # We don't care about these
@@ -104,6 +109,11 @@ class BHyveStateSensor(BHyveEntity):
     def state(self):
         """Return the state of the entity"""
         return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_type}:{self._device_name}:state"
 
     def _on_ws_data(self, data):
         """
