@@ -107,13 +107,20 @@ Any watering programs which are configured for a zone switch are made available 
 
 ## Python Script
 
-Bundled in this repository are [two `python_script`](https://github.com/sebr/bhyve-home-assistant/tree/master/python_scripts)s. HACS does not install them automatically and they must be added manually to your HA instance.
+Bundled in this repository is a [`python_script`](https://www.home-assistant.io/integrations/python_script) which calculates a device's next watering time and when a rain delay is scheduled to finish.
+
+Note: HACS does not install them automatically and they must be added manually to your HA instance.
 
 ### Scripts
 
-#### 1. `bhyve_next_watering.py`
+#### [`bhyve_next_watering.py`](https://github.com/sebr/bhyve-home-assistant/blob/master/python_scripts/bhyve_next_watering.py)
 
-Calculates when the next scheduled watering is for a device by considering all enabled watering programs. This script creates or updates an entity named `sensor.next_watering_{device_name}`. Required argument is the switch entity for the device.
+Calculates:
+
+1. When the next scheduled watering is for a device by considering all enabled watering programs
+2. When an active rain delay will finish, or `None` if there is no active delay
+
+This script creates or updates entities named `sensor.next_watering_{device_name}` and `sensor.rain_delay_finishing_{device_name}`.
 
 Usage:
 
@@ -123,17 +130,7 @@ data:
   entity_id: switch.backyard_zone
 ```
 
-#### 2. `bhyve_rain_delay_finish.py`
-
-Calculates when an active rain delay will finish, or `None` if there is no active delay. This script creates or updates an entity named `sensor.rain_delay_finishing_{device_name}`. Required argument is the switch entity for the device.
-
-Usage:
-
-```yaml
-service: python_script.bhyve_rain_delay_finish
-data:
-  entity_id: switch.backyard_zone
-```
+Required argument is the switch entity_id for the device.
 
 ### Automation
 
@@ -149,9 +146,6 @@ automation:
         event: start
     action:
       - service: python_script.bhyve_next_watering
-        data:
-          entity_id: switch.backyard_zone
-      - service: python_script.bhyve_rain_delay_finish
         data:
           entity_id: switch.backyard_zone
 ```
