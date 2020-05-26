@@ -10,7 +10,7 @@ except ImportError:
 
 from homeassistant.helpers.event import async_call_later
 
-from . import BHyveEntity
+from . import BHyveDeviceEntity
 from .const import DOMAIN
 from .util import orbit_time_to_local_time
 from .pybhyve.errors import BHyveError
@@ -34,7 +34,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     for device in devices:
         if device.get("type") == "sprinkler_timer":
             for _, sensor_type in SENSOR_TYPES.items():
-                name = "{0} {1}".format(sensor_type["name"], device.get("name"))
+                name = "{0} {1}".format(device.get("name"), sensor_type["name"])
                 _LOGGER.info("Creating binary_sensor: %s", name)
                 binary_sensors.append(
                     BHyveRainDelayBinarySensor(
@@ -45,7 +45,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     async_add_entities(binary_sensors, True)
 
 
-class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorEntity):
+class BHyveRainDelayBinarySensor(BHyveDeviceEntity, BinarySensorEntity):
     """Define a BHyve binary sensor."""
 
     def _setup(self, device):
@@ -73,6 +73,9 @@ class BHyveRainDelayBinarySensor(BHyveEntity, BinarySensorEntity):
             )
             # The REST API returns more data about a rain delay (eg cause/weather_type)
             self._update_device_soon()
+
+    def _should_handle_event(self, event_name):
+        return event_name in ["rain_delay"]
 
     def _update_device_soon(self):
         if self._update_device_cb is not None:

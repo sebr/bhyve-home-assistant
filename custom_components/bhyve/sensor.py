@@ -4,8 +4,8 @@ import logging
 from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY
 from homeassistant.helpers.icon import icon_for_battery_level
 
-from . import BHyveEntity
-from .const import DOMAIN
+from . import BHyveDeviceEntity
+from .const import DOMAIN, DEVICE_SPRINKLER, EVENT_CHANGE_MODE
 from .pybhyve.errors import BHyveError
 
 _LOGGER = logging.getLogger(__name__)
@@ -18,33 +18,26 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     sensors = []
     devices = await bhyve.devices
     for device in devices:
-        if device.get("type") == "sprinkler_timer":
-            device_name = device.get("name")
-            name = "Battery level {}".format(device_name)
-            _LOGGER.info("Creating sensor: %s", name)
-            sensors.append(
-                BHyveBatterySensor(
-                    hass, bhyve, device, name, "battery", "%", DEVICE_CLASS_BATTERY,
-                )
-            )
+        if device.get("type") == DEVICE_SPRINKER:
+            sensors.append(BHyveBatterySensor(hass, bhyve, device))
             for zone in device.get("zones"):
-                name = "{0} Zone State".format(zone.get("name", "Unknown"))
-                _LOGGER.info("Creating sensor: %s", name)
-                sensors.append(
-                    BHyveStateSensor(hass, bhyve, device, name, "information",)
-                )
+                sensors.append(BHyveStateSensor(hass, bhyve, device, zone))
 
     async_add_entities(sensors, True)
 
 
-class BHyveBatterySensor(BHyveEntity):
+class BHyveBatterySensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
-    def __init__(self, hass, bhyve, device, name, icon, unit, device_class):
+    def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
-        super().__init__(hass, bhyve, device, name, icon, device_class)
+        name = "Battery level {}".format(device.get("name"))
+        _LOGGER.info("Creating battery sensor: %s", name)
+        super().__init__(
+            hass, bhyve, device, name, "battery", DEVICE_CLASS_BATTERY,
+        )
 
-        self._unit = unit
+        self._unit = "%"
 
     def _setup(self, device):
         self._state = None
@@ -86,6 +79,9 @@ class BHyveBatterySensor(BHyveEntity):
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_type}:{self._device_name}:battery"
 
+    def _should_handle_event(self, event_name):
+        return event_name in [EVENT_CHANGE_MODE]
+
     async def async_update(self):
         """Retrieve latest state."""
         self._ws_unprocessed_events[:] = []  # We don't care about these
@@ -93,17 +89,22 @@ class BHyveBatterySensor(BHyveEntity):
         await self._refetch_device()
 
 
-class BHyveStateSensor(BHyveEntity):
+class BHyveStateSensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
-    def __init__(self, hass, bhyve, device, name, icon):
+    def __init__(self, hass, bhyve, device, zone):
         """Initialize the sensor."""
-        super().__init__(hass, bhyve, device, name, icon)
+        name = "{0} Zone State".format(zone.get("name", "Unknown"))
+        _LOGGER.info("Creating state sensor: %s", name)
+        super().__init__(hass, bhyve, device, name, "information")
 
     def _setup(self, device):
         self._attrs = {}
         self._state = device.get("status", {}).get("run_mode")
         self._available = device.get("is_connected", False)
+        _LOGGER.debug(
+            f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
+        )
 
     @property
     def state(self):
@@ -120,5 +121,8 @@ class BHyveStateSensor(BHyveEntity):
             {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
         """
         event = data.get("event")
-        if event == "change_mode":
+        if event == EVENT_CHANGE_MODE:
             self._state = data.get("mode")
+
+    def _should_handle_event(self, event_name):
+        return event_name in [EVENT_CHANGE_MODE]

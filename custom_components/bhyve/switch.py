@@ -12,10 +12,16 @@ except ImportError:
         SwitchDevice as SwitchEntity,
     )
 
+from homeassistant.core import callback
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_send,
+    async_dispatcher_connect,
+)
 from homeassistant.util import dt
 
-from . import BHyveEntity
-from .const import DOMAIN
+
+from . import BHyveWebsocketEntity, BHyveDeviceEntity
+from .const import DOMAIN, SIGNAL_UPDATE_PROGRAM
 from .pybhyve.errors import BHyveError
 from .util import orbit_time_to_local_time
 
@@ -46,35 +52,134 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     for device in devices:
         if device.get("type") == "sprinkler_timer":
             for zone in device.get("zones"):
-                name = "{0} Zone".format(zone.get("name", "Unknown"))
-                _LOGGER.info("Creating switch: %s", name)
                 switches.append(
-                    BHyveZoneSwitch(
-                        hass, bhyve, device, zone, name, programs, "water-pump"
-                    )
+                    BHyveZoneSwitch(hass, bhyve, device, zone, programs, "water-pump")
                 )
+
+    for program in programs:
+        _LOGGER.info("Creating switch: Program %s", program.get("name"))
+        switches.append(BHyveProgramSwitch(hass, bhyve, program, "water-pump"))
 
     async_add_entities(switches, True)
 
 
-class BHyveZoneSwitch(BHyveEntity, SwitchEntity):
-    """Define a BHyve switch."""
+class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
+    """Define a BHyve program switch."""
 
-    def __init__(self, hass, bhyve, device, zone, name, programs, icon):
+    def __init__(self, hass, bhyve, program, icon):
+        """Initialize the switch."""
+        name = "{} Program".format(program.get("name"))
+
+        super().__init__(hass, bhyve, name, icon, DEVICE_CLASS_SWITCH)
+
+        self._program = program
+        self._program_id = program.get("id")
+        self._available = True
+
+    @property
+    def device_state_attributes(self):
+        """Return the device state attributes."""
+
+        attrs = {
+            "is_smart_program": self._program.get("is_smart_program", False),
+            "frequency": self._program.get("frequency"),
+            "start_times": self._program.get("start_times"),
+            "budget": self._program.get("budget"),
+            "program": self._program.get("program"),
+            "run_times": self._program.get("run_times"),
+        }
+
+        return attrs
+
+    @property
+    def is_on(self):
+        """Return the status of the sensor."""
+        return self._program.get("enabled") is True
+
+    @property
+    def unique_id(self):
+        return "bhyve:program:{}".format(self._program.get("id"))
+
+    async def _set_state(self, is_on):
+        self._program.update({"enabled": is_on})
+        await self._bhyve.update_program(self._program_id, self._program)
+
+    async def async_turn_on(self, **kwargs):
+        """Turn the switch on."""
+        await self._set_state(True)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn the switch off."""
+        await self._set_state(False)
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+
+        @callback
+        def update(device_id, data):
+            """Update the state."""
+            _LOGGER.info(
+                "Program update: {} - {} - {}".format(
+                    self.name, self._program_id, str(data)[:160]
+                )
+            )
+            event = data.get("event")
+            if event == "program_changed":
+                self._ws_unprocessed_events.append(data)
+                self.async_schedule_update_ha_state(True)
+
+        self._async_unsub_dispatcher_connect = async_dispatcher_connect(
+            self.hass, SIGNAL_UPDATE_PROGRAM.format(self._program_id), update
+        )
+
+    async def async_will_remove_from_hass(self):
+        """Disconnect dispatcher listener when removed."""
+        if self._async_unsub_dispatcher_connect:
+            self._async_unsub_dispatcher_connect()
+
+    def _on_ws_data(self, data):
+        """
+            {'event': 'program_changed' }
+        """
+        _LOGGER.info("Received program data update {}".format(data))
+
+        event = data.get("event")
+        if event is None:
+            _LOGGER.warning("No event on ws data {}".format(data))
+            return
+        elif event == "program_changed":
+            program = data.get("program")
+            if program is not None:
+                self._program = program
+
+    def _should_handle_event(self, event_name):
+        return event_name in ["program_changed"]
+
+
+class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
+    """Define a BHyve zone switch."""
+
+    def __init__(self, hass, bhyve, device, zone, programs, icon):
         """Initialize the switch."""
         self._zone = zone
         self._zone_id = zone.get("station")
         self._entity_picture = zone.get("image_url")
+        self._zone_name = zone.get("name")
         self._manual_preset_runtime = device.get(
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
         self._initial_programs = programs
 
+        name = f"{self._zone_name} zone"
+        _LOGGER.info("Creating switch: %s", name)
+
         super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
 
     def _setup(self, device):
         self._is_on = False
-        self._attrs = {}
+        self._attrs = {
+            "device_name": self._device_name
+        }
         self._available = device.get("is_connected", False)
 
         status = device.get("status", {})
@@ -96,7 +201,7 @@ class BHyveZoneSwitch(BHyveEntity, SwitchEntity):
                 and watering_status.get("current_station") == self._zone_id
             )
             self._is_on = is_watering
-            self._attrs = {ATTR_MANUAL_RUNTIME: self._manual_preset_runtime}
+            self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
 
             smart_watering_enabled = zone.get("smart_watering_enabled")
             if smart_watering_enabled is not None:
@@ -153,8 +258,8 @@ class BHyveZoneSwitch(BHyveEntity, SwitchEntity):
 
         if not program_enabled or not active_program_run_times:
             _LOGGER.info(
-                "Watering program {} ({}) is not enabled, skipping".format(
-                    program_name, program_id
+                "{} Zone: Watering program {} ({}) is not enabled, skipping".format(
+                    self._zone_name, program_name, program_id
                 )
             )
             if is_smart_program == True:
