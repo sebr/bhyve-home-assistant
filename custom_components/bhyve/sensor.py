@@ -19,20 +19,11 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     devices = await bhyve.devices
     for device in devices:
         if device.get("type") == "sprinkler_timer":
-            device_name = device.get("name")
-            name = "Battery level {}".format(device_name)
-            _LOGGER.info("Creating sensor: %s", name)
             sensors.append(
-                BHyveBatterySensor(
-                    hass, bhyve, device, name, "battery", "%", DEVICE_CLASS_BATTERY,
-                )
+                BHyveBatterySensor(hass, bhyve, device)
             )
             for zone in device.get("zones"):
-                name = "{0} Zone State".format(zone.get("name", "Unknown"))
-                _LOGGER.info("Creating sensor: %s", name)
-                sensors.append(
-                    BHyveStateSensor(hass, bhyve, device, name, "information",)
-                )
+                sensors.append(BHyveStateSensor(hass, bhyve, device, zone))
 
     async_add_entities(sensors, True)
 
@@ -40,11 +31,13 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 class BHyveBatterySensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
-    def __init__(self, hass, bhyve, device, name, icon, unit, device_class):
+    def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
-        super().__init__(hass, bhyve, device, name, icon, device_class)
+        name = "Battery level {}".format(device.get("name"))
+        _LOGGER.info("Creating battery sensor: %s", name)
+        super().__init__(hass, bhyve, device, name, "battery", DEVICE_CLASS_BATTERY,)
 
-        self._unit = unit
+        self._unit = "%"
 
     def _setup(self, device):
         self._state = None
@@ -94,14 +87,17 @@ class BHyveBatterySensor(BHyveDeviceEntity):
 class BHyveStateSensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
-    def __init__(self, hass, bhyve, device, name, icon):
+    def __init__(self, hass, bhyve, device, zone):
         """Initialize the sensor."""
-        super().__init__(hass, bhyve, device, name, icon)
+        name = "{0} Zone State".format(zone.get("name", "Unknown"))
+        _LOGGER.info("Creating state sensor: %s", name)
+        super().__init__(hass, bhyve, device, name, "information")
 
     def _setup(self, device):
         self._attrs = {}
         self._state = device.get("status", {}).get("run_mode")
         self._available = device.get("is_connected", False)
+        _LOGGER.debug(f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}")
 
     @property
     def state(self):

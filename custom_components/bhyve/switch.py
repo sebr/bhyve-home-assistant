@@ -258,8 +258,8 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
         if not program_enabled or not active_program_run_times:
             _LOGGER.info(
-                "Watering program {} ({}) is not enabled, skipping".format(
-                    program_name, program_id
+                "{} Zone: Watering program {} ({}) is not enabled, skipping".format(
+                    self._zone_name, program_name, program_id
                 )
             )
             if is_smart_program == True:
