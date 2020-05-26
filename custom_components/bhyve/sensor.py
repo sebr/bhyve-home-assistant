@@ -23,10 +23,6 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
             for zone in device.get("zones"):
                 sensors.append(BHyveStateSensor(hass, bhyve, device, zone))
 
-    for sensor in sensors:
-        msg = "Creating sensor: {} - {}".format(sensor.name, sensor.unique_id)
-        _LOGGER.info(msg)
-
     async_add_entities(sensors, True)
 
 
