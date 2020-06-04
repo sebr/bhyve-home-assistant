@@ -83,6 +83,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
         super().__init__(hass, bhyve, name, icon, DEVICE_CLASS_SWITCH)
 
         self._program = program
+        self._device_id = program.get("device_id")
         self._program_id = program.get("id")
         self._available = True
 
@@ -91,6 +92,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
         """Return the device state attributes."""
 
         attrs = {
+            "device_id": self._device_id,
             "is_smart_program": self._program.get("is_smart_program", False),
             "frequency": self._program.get("frequency"),
             "start_times": self._program.get("start_times"),
@@ -178,6 +180,15 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         self._manual_preset_runtime = device.get(
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
+
+        # Filter out any programs which are not for this device
+        self._initial_programs = list(
+            filter(
+                lambda program: (program.get("device_id") == self._device_id),
+                programs or []
+            )
+        )
+
         self._initial_programs = programs
 
         name = f"{self._zone_name} zone"
@@ -188,7 +199,8 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     def _setup(self, device):
         self._is_on = False
         self._attrs = {
-            "device_name": self._device_name
+            "device_name": self._device_name,
+            "device_id": self._device_id,
         }
         self._available = device.get("is_connected", False)
 
