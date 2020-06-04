@@ -17,6 +17,7 @@ from homeassistant.helpers.dispatcher import (
     async_dispatcher_send,
     async_dispatcher_connect,
 )
+from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt
 
 
@@ -27,6 +28,7 @@ from .const import (
     EVENT_CHANGE_MODE,
     EVENT_DEVICE_IDLE,
     EVENT_PROGRAM_CHANGED,
+    EVENT_RAIN_DELAY,
     EVENT_SET_MANUAL_PRESET_TIME,
     EVENT_WATERING_COMPLETE,
     EVENT_WATERING_IN_PROGRESS,
@@ -49,6 +51,12 @@ ATTR_IMAGE_URL = "image_url"
 ATTR_STARTED_WATERING_AT = "started_watering_station_at"
 ATTR_SMART_WATERING_PLAN = "watering_program"
 
+# Rain Delay Attributes
+ATTR_CAUSE = "cause"
+ATTR_DELAY = "delay"
+ATTR_WEATHER_TYPE = "weather_type"
+ATTR_STARTED_AT = "started_at"
+
 ATTR_PROGRAM = "program_{}"
 
 
@@ -64,6 +72,9 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
             for zone in device.get("zones"):
                 switches.append(
                     BHyveZoneSwitch(hass, bhyve, device, zone, programs, "water-pump")
+                )
+                switches.append(
+                    BHyveRainDelaySwitch(hass, bhyve, device, "weather-pouring")
                 )
 
     for program in programs:
@@ -184,7 +195,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         # Filter out any programs which are not for this device
         self._initial_programs = list(
             filter(
-                lambda program: (program.get("device_id") == self._device_id),
+                lambda program: (program.get("device_id") == device.get("device_id")),
                 programs or []
             )
         )
@@ -404,3 +415,107 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         station_payload = []
         self._is_on = False
         await self._send_station_message(station_payload)
+
+class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
+    """Define a BHyve rain delay switch."""
+
+    def __init__(self, hass, bhyve, device, icon):
+        """Initialize the switch."""
+        name = "Rain Delay {}".format(device.get("name"))
+        _LOGGER.info("Creating switch: %s", name)
+
+        super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
+
+    def _setup(self, device):
+        self._is_on = False
+        self._attrs = {
+            "device_id": self._device_id,
+        }
+        self._available = device.get("is_connected", False)
+
+        device_status = device.get("status")
+        rain_delay = device_status.get("rain_delay")
+
+        self._update_device_cb = None
+        self._extract_rain_delay(rain_delay, device_status)
+
+    def _on_ws_data(self, data):
+        """
+            {'event': 'rain_delay', 'device_id': 'id', 'delay': 0, 'timestamp': '2020-01-14T12:10:10.000Z'}
+        """
+        event = data.get("event")
+        if event is None:
+            _LOGGER.warning("No event on ws data {}".format(data))
+            return
+        elif event == EVENT_RAIN_DELAY:
+            self._extract_rain_delay(
+                data.get("delay"), {"rain_delay_started_at": data.get("timestamp")}
+            )
+            # The REST API returns more data about a rain delay (eg cause/weather_type)
+            self._update_device_soon()
+
+    def _should_handle_event(self, event_name):
+        return event_name in [EVENT_RAIN_DELAY]
+
+    def _update_device_soon(self):
+        if self._update_device_cb is not None:
+            self._update_device_cb()  # unsubscribe
+        self._update_device_cb = async_call_later(self._hass, 1, self._update_device)
+
+    async def _update_device(self, time):
+        await self._refetch_device(force_update=True)
+        self.async_schedule_update_ha_state()
+
+    def _extract_rain_delay(self, rain_delay, device_status=None):
+        if rain_delay is not None and rain_delay > 0:
+            self._is_on = True
+            self._attrs = {ATTR_DELAY: rain_delay}
+            if device_status is not None:
+                self._attrs.update(
+                    {
+                        ATTR_CAUSE: device_status.get("rain_delay_cause"),
+                        ATTR_WEATHER_TYPE: device_status.get("rain_delay_weather_type"),
+                        ATTR_STARTED_AT: orbit_time_to_local_time(
+                            device_status.get("rain_delay_started_at")
+                        ),
+                    }
+                )
+        else:
+            self._is_on = False
+            self._attrs = {}
+
+    async def _set_rain_delay(self, hours=24):
+        try:
+            # {event: "rain_delay", device_id: "5ae3c7884f0c72d7d626ba06", delay: 48}
+            payload = {
+                "event": EVENT_RAIN_DELAY,
+                "device_id": self._device_id,
+                "delay": hours,
+            }
+            _LOGGER.info("Setting rain delay: {}".format(payload))
+            await self._bhyve.send_message(payload)
+
+        except BHyveError as err:
+            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
+            raise (err)
+
+    @property
+    def is_on(self):
+        """Return the status of the sensor."""
+        return self._is_on
+
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_type}:rain_delay:{self._device_id}"
+
+    async def async_turn_on(self, **kwargs):
+        """Turn the switch on."""
+        self._is_on = True
+        await self._set_rain_delay()
+
+    async def async_turn_off(self, **kwargs):
+        """Turn the switch off."""
+        self._is_on = False
+        await self._set_rain_delay(0)
+

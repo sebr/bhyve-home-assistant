@@ -266,7 +266,7 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
     @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_type}:{self._device_name}"
+        return f"{self._mac_address}:{self._device_type}:{self._device_id}"
 
     async def async_added_to_hass(self):
         """Register callbacks."""
