@@ -1,11 +1,10 @@
 # 0.2.0
 
-### New Features
+## New Features
 
 - Program switches
--
+- Rain delay can now be triggered on/off with a switch (default is 24 hours)
 
-### Breaking Changes
+## Breaking Changes
 
-- `rain_delay_$name` devices renamed to `$name_rain_delay` for consistency
--
+- Rain delay `binary_sensor` entities are now `switch` entities which enables them to be toggled on/off

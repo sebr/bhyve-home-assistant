@@ -28,43 +28,27 @@ bhyve:
 sensor:
   - platform: bhyve
 
-binary_sensor:
-  - platform: bhyve
-
 switch:
   - platform: bhyve
 ```
 
 ## Sensor Entities
 
+### Battery Sensor
+
 A **battery** `sensor` entity is created for any device which has a battery level to report.
+
+### Zone State sensor
 
 A **zone state** `sensor` entity is created for each zone. This reports the state of the zone, for example `auto` or `off`. A zone may be switched to `off` either manually through the BHyve app, or may be automatically set when battery levels are too low to operate the device correctly.
 
-## Binary Sensor Entities
-
-A **Rain Delay** `binary sensor` will be created for each discovered `sprinkler_timer` device. This entity will be **on** whenever BHyve reports that a device's watering schedule will be delayed due to weather conditions.
-
-### Rain Delay Attributes
-
-The following attributes are set on `binary_sensor.*_rain_delay` entities, if the sensor is on:
-
-| Attribute      | Type     | Notes                                                                                     |
-| -------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `cause`        | `string` | Why a delay was put in place. Values seen: `auto`. May be empty.                          |
-| `delay`        | `number` | The number of hours the delay is in place. NB: This is hours from `started_at` attribute. |
-| `weather_type` | `string` | The reported cause of the weather delay. Values seen: `wind`, `rain`. May be empty.       |
-| `started_at`   | `string` | The timestamp the delay was put in place.                                                 |
-
 ## Switch Entities
 
-A `switch` entity is created for each zones of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone.
+### Zone Switch
 
-Turning on the switch will enable watering of the zone for the amount of time configured in the BHyve app.
+A **zone** `switch` entity is created for each zone of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone. Turning on the switch will enable watering of the zone for the amount of time configured in the BHyve app.
 
-### Switch Attributes
-
-The following attributes are set on `switch` entities:
+The following attributes are set on zone switch entities:
 
 | Attribute                     | Type           | Notes                                                                                             |
 | ----------------------------- | -------------- | ------------------------------------------------------------------------------------------------- |
@@ -105,11 +89,24 @@ Any watering programs which are configured for a zone switch are made available 
 - `frequency` days: `0` is Sunday, `1` is Monday etc...
 - `run_time` is in minutes
 
+### Rain Delay Switch
+
+A **rain delay** `switch` entity is created for each discovered `sprinkler_timer` device. This entity will be **on** whenever BHyve reports that a device's watering schedule will be delayed due to weather conditions.
+
+The following attributes are set on `binary_sensor.*_rain_delay` entities, if the sensor is on:
+
+| Attribute      | Type     | Notes                                                                                     |
+| -------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `cause`        | `string` | Why a delay was put in place. Values seen: `auto`. May be empty.                          |
+| `delay`        | `number` | The number of hours the delay is in place. NB: This is hours from `started_at` attribute. |
+| `weather_type` | `string` | The reported cause of the weather delay. Values seen: `wind`, `rain`. May be empty.       |
+| `started_at`   | `string` | The timestamp the delay was put in place.                                                 |
+
 ## Python Script
 
 Bundled in this repository is a [`python_script`](https://www.home-assistant.io/integrations/python_script) which calculates a device's next watering time and when a rain delay is scheduled to finish.
 
-Note: HACS does not install them automatically and they must be added manually to your HA instance.
+Note: HACS does not install the script automatically and they must be added manually to your HA instance.
 
 ### Scripts
 
@@ -141,7 +138,7 @@ automation:
   - alias: BHyve next watering & rain delay finishing updater
     trigger:
       - platform: state
-        entity_id: switch.backyard_zone, binary_sensor.rain_delay_lawn
+        entity_id: switch.backyard_zone, switch.rain_delay_lawn
       - platform: homeassistant
         event: start
     action:

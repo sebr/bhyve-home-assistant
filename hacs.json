@@ -1,5 +1,5 @@
 {
   "name": "Orbit BHyve",
-  "domains": ["binary_sensor", "sensor", "switch"],
+  "domains": ["sensor", "switch"],
   "render_readme": true
 }

@@ -18,7 +18,7 @@ rain_delay_finishing_attrs = {
     "friendly_name": f"{device_name} rain delay finishing"
 }
 
-rain_delay = hass.states.get(f"binary_sensor.rain_delay_{device_name}")
+rain_delay = hass.states.get(f"switch.rain_delay_{device_name}")
 
 if zone.state == "unavailable":
     hass.states.set(next_watering_entity, "Unavailable", next_watering_attrs)
