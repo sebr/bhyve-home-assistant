@@ -3,16 +3,24 @@ import datetime
 import logging
 
 from datetime import timedelta
+import voluptuous as vol
 
 try:
-    from homeassistant.components.switch import DEVICE_CLASS_SWITCH, SwitchEntity
+    from homeassistant.components.switch import (
+        DEVICE_CLASS_SWITCH,
+        DOMAIN as SWITCH_DOMAIN,
+        SwitchEntity,
+    )
 except ImportError:
     from homeassistant.components.switch import (
         DEVICE_CLASS_SWITCH,
+        DOMAIN as SWITCH_DOMAIN,
         SwitchDevice as SwitchEntity,
     )
 
+from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import callback
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import (
     async_dispatcher_send,
     async_dispatcher_connect,
@@ -23,6 +31,7 @@ from homeassistant.util import dt
 
 from . import BHyveWebsocketEntity, BHyveDeviceEntity
 from .const import (
+    DATA_BHYVE,
     DEVICE_SPRINKLER,
     DOMAIN,
     EVENT_CHANGE_MODE,
@@ -51,6 +60,9 @@ ATTR_IMAGE_URL = "image_url"
 ATTR_STARTED_WATERING_AT = "started_watering_station_at"
 ATTR_SMART_WATERING_PLAN = "watering_program"
 
+# Service Attributes
+ATTR_HOURS = "hours"
+
 # Rain Delay Attributes
 ATTR_CAUSE = "cause"
 ATTR_DELAY = "delay"
@@ -59,14 +71,37 @@ ATTR_STARTED_AT = "started_at"
 
 ATTR_PROGRAM = "program_{}"
 
+ENABLE_RAIN_DELAY_SCHEMA = vol.Schema({
+    vol.Required(ATTR_ENTITY_ID): cv.comp_entity_ids,
+    vol.Required(ATTR_HOURS): cv.positive_int,
+})
+
+DISABLE_RAIN_DELAY_SCHEMA = vol.Schema({
+    vol.Required(ATTR_ENTITY_ID): cv.comp_entity_ids,
+})
+
+SERVICE_ENABLE_RAIN_DELAY = "enable_rain_delay"
+SERVICE_DISABLE_RAIN_DELAY = "disable_rain_delay"
+
+SERVICE_TO_METHOD = {
+    SERVICE_ENABLE_RAIN_DELAY: {"method": "enable_rain_delay", "schema": ENABLE_RAIN_DELAY_SCHEMA},
+    SERVICE_DISABLE_RAIN_DELAY: {"method": "disable_rain_delay", "schema": DISABLE_RAIN_DELAY_SCHEMA},
+    # SERVICE_SET_TIMER: {"method": "async_increase_timer", "schema": BS_SCHEMA},
+    # SERVICE_CLEAR_TIMER: {"method": "async_clear_timer", "schema": BS_SCHEMA},
+}
+
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
     """Set up BHyve binary sensors based on a config entry."""
-    bhyve = hass.data[DOMAIN]
+    bhyve = hass.data[DATA_BHYVE]
 
     switches = []
+    _LOGGER.debug("Getting devices")
     devices = await bhyve.devices
+    _LOGGER.debug("Getting programs")
     programs = await bhyve.timer_programs
+    _LOGGER.debug("Done")
+
     for device in devices:
         if device.get("type") == DEVICE_SPRINKLER:
             for zone in device.get("zones"):
@@ -83,6 +118,41 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
     async_add_entities(switches, True)
 
+    async def async_service_handler(service):
+        """Map services to method of BHyve devices."""
+        _LOGGER.info("{} service called".format(service.service))
+        method = SERVICE_TO_METHOD.get(service.service)
+        if not method:
+            _LOGGER.warning("Unknown service method {}".format(service.service))
+            return
+
+        params = {
+            key: value for key, value in service.data.items() if key != ATTR_ENTITY_ID
+        }
+        entity_ids = service.data.get(ATTR_ENTITY_ID)
+        component = hass.data.get(SWITCH_DOMAIN)
+        if entity_ids:
+            target_switches = [
+                component.get_entity(entity)
+                for entity in entity_ids
+            ]
+        else:
+            return
+
+        method_name = method["method"]
+        _LOGGER.debug("Service handler: {} {}".format(method_name, params))
+
+        for entity in target_switches:
+            if not hasattr(entity, method_name):
+                _LOGGER.error("Service not implemented: %s", method_name)
+                return
+            await getattr(entity, method_name)(**params)
+
+    for service in SERVICE_TO_METHOD:
+        schema = SERVICE_TO_METHOD[service]["schema"]
+        hass.services.async_register(
+            DOMAIN, service, async_service_handler, schema=schema
+        )
 
 class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     """Define a BHyve program switch."""
@@ -177,7 +247,6 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
     def _should_handle_event(self, event_name):
         return event_name in ["program_changed"]
-
 
 class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     """Define a BHyve zone switch."""
@@ -484,21 +553,6 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
             self._is_on = False
             self._attrs = {}
 
-    async def _set_rain_delay(self, hours=24):
-        try:
-            # {event: "rain_delay", device_id: "5ae3c7884f0c72d7d626ba06", delay: 48}
-            payload = {
-                "event": EVENT_RAIN_DELAY,
-                "device_id": self._device_id,
-                "delay": hours,
-            }
-            _LOGGER.info("Setting rain delay: {}".format(payload))
-            await self._bhyve.send_message(payload)
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise (err)
-
     @property
     def is_on(self):
         """Return the status of the sensor."""
@@ -512,10 +566,9 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
         self._is_on = True
-        await self._set_rain_delay()
+        await self.enable_rain_delay()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         self._is_on = False
-        await self._set_rain_delay(0)
-
+        await self.disable_rain_delay()

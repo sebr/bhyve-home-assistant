@@ -5,7 +5,11 @@ from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY
 from homeassistant.helpers.icon import icon_for_battery_level
 
 from . import BHyveDeviceEntity
-from .const import DOMAIN, DEVICE_SPRINKLER, EVENT_CHANGE_MODE
+from .const import (
+    DATA_BHYVE,
+    DEVICE_SPRINKLER,
+    EVENT_CHANGE_MODE,
+)
 from .pybhyve.errors import BHyveError
 
 _LOGGER = logging.getLogger(__name__)
@@ -13,7 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
     """Set up BHyve sensors based on a config entry."""
-    bhyve = hass.data[DOMAIN]
+    bhyve = hass.data[DATA_BHYVE]
 
     sensors = []
     devices = await bhyve.devices

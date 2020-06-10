@@ -81,6 +81,7 @@ class OrbitWebsocket:
         try:
             if self._ws is None or self._ws.closed or self.state != STATE_RUNNING:
                 async with self._session.ws_connect(self._url) as self._ws:
+                    _LOGGER.info("Authenticating websocket")
                     await self._ws.send_str(
                         json.dumps(
                             {
@@ -133,6 +134,7 @@ class OrbitWebsocket:
                 self.retry()
         else:
             if self.state != STATE_STOPPED:
+                _LOGGER.info("Reconnecting websocket; state: %s", self.state)
                 self.retry()
 
     async def stop(self):

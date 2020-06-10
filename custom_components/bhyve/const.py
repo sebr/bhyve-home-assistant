@@ -2,11 +2,11 @@
 DOMAIN = "bhyve"
 MANUFACTURER = "Orbit BHyve"
 
+DATA_BHYVE = "bhyve_data"
+
 CONF_ATTRIBUTION = "Data provided by api.orbitbhyve.com"
 CONF_CONF_DIR = "conf_dir"
 CONF_PACKET_DUMP = "packet_dump"
-
-ATTR_LAST_DATA = "last_data"
 
 DEVICE_SPRINKLER = "sprinkler_timer"
 

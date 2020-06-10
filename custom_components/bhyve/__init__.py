@@ -14,7 +14,7 @@ from homeassistant.const import (
     EVENT_HOMEASSISTANT_STOP,
 )
 from homeassistant.core import callback
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import aiohttp_client, config_validation as cv
 from homeassistant.helpers.dispatcher import (
     async_dispatcher_send,
@@ -26,11 +26,14 @@ from .const import (
     CONF_ATTRIBUTION,
     CONF_CONF_DIR,
     CONF_PACKET_DUMP,
+    DATA_BHYVE,
     DOMAIN,
+    EVENT_RAIN_DELAY,
     MANUFACTURER,
     SIGNAL_UPDATE_DEVICE,
     SIGNAL_UPDATE_PROGRAM,
 )
+from .util import anonymize
 from .pybhyve import Client
 from .pybhyve.errors import BHyveError, WebsocketError
 
@@ -58,11 +61,6 @@ CONFIG_SCHEMA = vol.Schema(
 
 async def async_setup(hass, config):
     """Set up the BHyve component."""
-
-    hass.data[DOMAIN] = {}
-
-    if DOMAIN not in config:
-        return True
 
     conf = config[DOMAIN]
     packet_dump = conf.get(CONF_PACKET_DUMP)
@@ -116,17 +114,16 @@ async def async_setup(hass, config):
         )
 
         await bhyve.login()
-        devices = await bhyve.devices
+        devices = [
+            anonymize(device)
+            for device in await bhyve.devices
+        ]
         programs = await bhyve.timer_programs
-        for device in devices:
-            device["address"] = "REDACTED"
-            device["full_location"] = "REDACTED"
-            device["location"] = "REDACTED"
-
+        
         _LOGGER.debug("Devices: {}".format(devices))
         _LOGGER.debug("Programs: {}".format(programs))
 
-        hass.data[DOMAIN] = bhyve
+        hass.data[DATA_BHYVE] = bhyve
     except WebsocketError as err:
         _LOGGER.error("Config entry failed: %s", err)
         raise ConfigEntryNotReady
@@ -134,6 +131,17 @@ async def async_setup(hass, config):
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, bhyve.stop())
 
     return True
+
+def get_entity_from_domain(hass, domains, entity_id):
+    domains = domains if isinstance(domains, list) else [domains]
+    for domain in domains:
+        component = hass.data.get(domain)
+        if component is None:
+            raise HomeAssistantError("{} component not set up".format(domain))
+        entity = component.get_entity(entity_id)
+        if entity is not None:
+            return entity
+    raise HomeAssistantError("{} not found in {}".format(entity_id, ",".join(domains)))
 
 
 class BHyveEntity(Entity):
@@ -296,3 +304,24 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
         """Disconnect dispatcher listener when removed."""
         if self._async_unsub_dispatcher_connect:
             self._async_unsub_dispatcher_connect()
+
+    async def enable_rain_delay(self, hours:int = 24):
+        await self._set_rain_delay(hours)
+
+    async def disable_rain_delay(self):
+        await self._set_rain_delay(0)
+
+    async def _set_rain_delay(self, hours):
+        try:
+            # {event: "rain_delay", device_id: "5ae3c7884f0c72d7d626ba06", delay: 48}
+            payload = {
+                "event": EVENT_RAIN_DELAY,
+                "device_id": self._device_id,
+                "delay": hours,
+            }
+            _LOGGER.info("Setting rain delay: {}".format(payload))
+            await self._bhyve.send_message(payload)
+
+        except BHyveError as err:
+            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
+            raise (err)

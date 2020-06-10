@@ -1,0 +1,18 @@
+# Describes the format for available virtual services
+
+enable_rain_delay:
+  description: Enable rain delay for a zone
+  fields:
+    entity_id:
+      description: Zone
+      example: 'switch.backyard_zone'
+    hours:
+      description: Number of hours of rain delay
+      example: 24
+
+disable_rain_delay:
+  description: Disable rain delay for a zone
+  fields:
+    entity_id:
+      description: Zone
+      example: 'switch.backyard_zone'
