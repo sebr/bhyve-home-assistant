@@ -108,18 +108,18 @@ The following attributes are set on `switch.*_rain_delay` entities, if the senso
 
 This integration provides the following services:
 
-| Service | Parameters | Description |
-| ------- | ---------- | ----------- |
-| `bhyve.start_watering` | `entity_id` - zone(s) entity to start watering. This should be a reference to a zone switch entity <br/> `minutes` - number of minutes to water for | Start watering a zone for a specific number of minutes
-| `bhyve.stop_watering` | `entity_id` - zone(s) entity to stop watering. This should be a reference to a zone switch entity | Stop watering a zone
-| `bhyve.enable_rain_delay` | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch <br/> `hours` - number of hours to enable a rain delay | Enable a rain delay for a device for a specified number of hours
-| `bhyve.disable_rain_delay` | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch | Cancel a rain delay on a given device
+| Service                    | Parameters                                                                                                                                                | Description                                                      |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bhyve.start_watering`     | `entity_id` - zone(s) entity to start watering. This should be a reference to a zone switch entity <br/> `minutes` - number of minutes to water for       | Start watering a zone for a specific number of minutes           |
+| `bhyve.stop_watering`      | `entity_id` - zone(s) entity to stop watering. This should be a reference to a zone switch entity                                                         | Stop watering a zone                                             |
+| `bhyve.enable_rain_delay`  | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch <br/> `hours` - number of hours to enable a rain delay | Enable a rain delay for a device for a specified number of hours |
+| `bhyve.disable_rain_delay` | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch                                                        | Cancel a rain delay on a given device                            |
 
 ## Python Script
 
 Bundled in this repository is a [`python_script`](https://www.home-assistant.io/integrations/python_script) which calculates a device's next watering time and when a rain delay is scheduled to finish.
 
-Note: HACS does not install the script automatically and they must be added manually to your HA instance.
+_Note: HACS does not install the script automatically and they must be added manually to your HA instance._
 
 ### Scripts
 
