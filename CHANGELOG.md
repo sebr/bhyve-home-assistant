@@ -9,6 +9,7 @@
   - Stop watering
   - Enable rain delay for specified number of hours
   - Disable rain delay
+  - Set the manual watering preset runtime for a device
 
 ## Breaking Changes
 
