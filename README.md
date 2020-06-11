@@ -9,8 +9,7 @@ If this integration has been useful to you, please consider chipping in and buyi
 ## Supported Entities
 
 - `sensor` for measuring battery levels of `sprinkler_timer` devices as well as the device on/off state (not to be confused with zone on/off switches)
-- `binary_sensor` for tracking rain/weather delays
-- `switch` for turning a zone on/off
+- `switch` for turning a zone on/off, enabling/disabling rain delays and toggling pre-configured programs
 
 ## Installation
 
