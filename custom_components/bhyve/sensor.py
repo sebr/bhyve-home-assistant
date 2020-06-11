@@ -98,7 +98,7 @@ class BHyveStateSensor(BHyveDeviceEntity):
 
     def __init__(self, hass, bhyve, device, zone):
         """Initialize the sensor."""
-        name = "{0} Zone State".format(zone.get("name", "Unknown"))
+        name = "{0} zone state".format(zone.get("name", "Unknown"))
         _LOGGER.info("Creating state sensor: %s", name)
         super().__init__(hass, bhyve, device, name, "information")
 

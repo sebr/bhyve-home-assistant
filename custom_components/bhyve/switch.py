@@ -184,7 +184,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
         device_name = device.get("name")
         program_name = program.get("name")
 
-        name = f"{device_name} {program_name} Program"
+        name = f"{device_name} {program_name} program"
 
         super().__init__(hass, bhyve, name, icon, DEVICE_CLASS_SWITCH)
 
@@ -514,7 +514,7 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
 
     def __init__(self, hass, bhyve, device, icon):
         """Initialize the switch."""
-        name = "Rain Delay {}".format(device.get("name"))
+        name = "{} rain delay".format(device.get("name"))
         _LOGGER.info("Creating switch: %s", name)
 
         super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
