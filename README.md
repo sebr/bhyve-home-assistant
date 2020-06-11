@@ -46,7 +46,7 @@ A **zone state** `sensor` entity is created for each zone. This reports the stat
 
 ### Zone Switch
 
-A **zone** `switch` entity is created for each zone of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone. Turning on the switch will enable watering of the zone for the amount of time configured in the BHyve app.
+A **zone** `switch` entity is created for each zone of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone. Turning on the switch will enable watering of the zone for the amount of time configured in the BHyve app &mdash; it is not possible to configure the default runtime value via this integration at this time, however it's configured value is available via the `manual_preset_runtime` attribute. In order to water a zone for a specific number of minutes, please use the `start_watering` service call.
 
 The following attributes are set on zone switch entities:
 
@@ -93,7 +93,9 @@ Any watering programs which are configured for a zone switch are made available 
 
 A **rain delay** `switch` entity is created for each discovered `sprinkler_timer` device. This entity will be **on** whenever BHyve reports that a device's watering schedule will be delayed due to weather conditions.
 
-The following attributes are set on `binary_sensor.*_rain_delay` entities, if the sensor is on:
+Enabling the switch will set a 24 hour rain delay on the device &mdash; for a custom rain delay, please use the `enable_rain_delay` service.
+
+The following attributes are set on `switch.*_rain_delay` entities, if the sensor is on:
 
 | Attribute      | Type     | Notes                                                                                     |
 | -------------- | -------- | ----------------------------------------------------------------------------------------- |
@@ -101,6 +103,17 @@ The following attributes are set on `binary_sensor.*_rain_delay` entities, if th
 | `delay`        | `number` | The number of hours the delay is in place. NB: This is hours from `started_at` attribute. |
 | `weather_type` | `string` | The reported cause of the weather delay. Values seen: `wind`, `rain`. May be empty.       |
 | `started_at`   | `string` | The timestamp the delay was put in place.                                                 |
+
+## Services
+
+This integration provides the following services:
+
+| Service | Parameters | Description |
+| ------- | ---------- | ----------- |
+| `bhyve.start_watering` | `entity_id` - zone(s) entity to start watering. This should be a reference to a zone switch entity <br/> `minutes` - number of minutes to water for | Start watering a zone for a specific number of minutes
+| `bhyve.stop_watering` | `entity_id` - zone(s) entity to stop watering. This should be a reference to a zone switch entity | Stop watering a zone
+| `bhyve.enable_rain_delay` | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch <br/> `hours` - number of hours to enable a rain delay | Enable a rain delay for a device for a specified number of hours
+| `bhyve.disable_rain_delay` | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch | Cancel a rain delay on a given device
 
 ## Python Script
 
