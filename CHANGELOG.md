@@ -12,4 +12,5 @@
 
 ## Breaking Changes
 
-- Rain delay `binary_sensor` entities are now `switch` entities which enables them to be toggled on/off
+- Rain delay `binary_sensor` entities are now `switch` entities which enables them to be toggled on/off. This integration no longer provides the `binary_sensor` platform and it should be removed from configuration
+- Battery level `sensor` entities are renamed to be consistent with other entities (from `sensor.battery_level_{}` to `sensor.{}_battery_level`)
