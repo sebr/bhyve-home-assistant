@@ -105,8 +105,20 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     devices = await bhyve.devices
     programs = await bhyve.timer_programs
 
+    device_by_id = dict()
+
     for device in devices:
+        device_id = device.get("id")
+        device_by_id[device_id] = device
         if device.get("type") == DEVICE_SPRINKLER:
+
+            # Filter out any programs which are not for this device
+            device_programs = [
+                program
+                for program in programs
+                if program.get("device_id") == device_id
+            ]
+
             for zone in device.get("zones"):
                 switches.append(
                     BHyveZoneSwitch(hass, bhyve, device, zone, programs, "water-pump")
@@ -117,7 +129,8 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
     for program in programs:
         _LOGGER.info("Creating switch: Program %s", program.get("name"))
-        switches.append(BHyveProgramSwitch(hass, bhyve, program, "water-pump"))
+        program_device = device_by_id.get(program.get("device_id"))
+        switches.append(BHyveProgramSwitch(hass, bhyve, program, program_device, "bulletin-board"))
 
     async_add_entities(switches, True)
 
@@ -160,9 +173,12 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     """Define a BHyve program switch."""
 
-    def __init__(self, hass, bhyve, program, icon):
+    def __init__(self, hass, bhyve, program, device, icon):
         """Initialize the switch."""
-        name = "{} Program".format(program.get("name"))
+        device_name = device.get("name")
+        program_name = program.get("name")
+
+        name = f"{device_name} {program_name} Program"
 
         super().__init__(hass, bhyve, name, icon, DEVICE_CLASS_SWITCH)
 
@@ -194,7 +210,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
     @property
     def unique_id(self):
-        return "bhyve:program:{}".format(self._program.get("id"))
+        return "bhyve:program:{}".format(self._program_id)
 
     async def _set_state(self, is_on):
         self._program.update({"enabled": is_on})
@@ -254,7 +270,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     """Define a BHyve zone switch."""
 
-    def __init__(self, hass, bhyve, device, zone, programs, icon):
+    def __init__(self, hass, bhyve, device, zone, device_programs, icon):
         """Initialize the switch."""
         self._zone = zone
         self._zone_id = zone.get("station")
@@ -264,15 +280,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
 
-        # Filter out any programs which are not for this device
-        self._initial_programs = list(
-            filter(
-                lambda program: (program.get("device_id") == device.get("device_id")),
-                programs or []
-            )
-        )
-
-        self._initial_programs = programs
+        self._initial_programs = device_programs
 
         name = f"{self._zone_name} zone"
         _LOGGER.info("Creating switch: %s", name)
