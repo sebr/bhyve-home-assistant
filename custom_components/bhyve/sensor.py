@@ -35,7 +35,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
 
     def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
-        name = "Battery level {}".format(device.get("name"))
+        name = "{} battery level".format(device.get("name"))
         _LOGGER.info("Creating battery sensor: %s", name)
         super().__init__(
             hass, bhyve, device, name, "battery", DEVICE_CLASS_BATTERY,
