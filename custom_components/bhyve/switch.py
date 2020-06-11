@@ -84,16 +84,22 @@ START_WATERING_SCHEMA = SERVICE_BASE_SCHEMA.extend({
     vol.Required(ATTR_MINUTES): cv.positive_int,
 })
 
+SET_PRESET_RUNTIME_SCHEMA = SERVICE_BASE_SCHEMA.extend({
+    vol.Required(ATTR_MINUTES): cv.positive_int,
+})
+
 SERVICE_ENABLE_RAIN_DELAY = "enable_rain_delay"
 SERVICE_DISABLE_RAIN_DELAY = "disable_rain_delay"
 SERVICE_START_WATERING = "start_watering"
 SERVICE_STOP_WATERING = "stop_watering"
+SERVICE_SET_MANUAL_PRESET_RUNTIME = "set_manual_preset_runtime"
 
 SERVICE_TO_METHOD = {
     SERVICE_ENABLE_RAIN_DELAY: {"method": "enable_rain_delay", "schema": ENABLE_RAIN_DELAY_SCHEMA},
     SERVICE_DISABLE_RAIN_DELAY: {"method": "disable_rain_delay", "schema": SERVICE_BASE_SCHEMA},
     SERVICE_START_WATERING: {"method": "start_watering", "schema": START_WATERING_SCHEMA},
     SERVICE_STOP_WATERING: {"method": "stop_watering", "schema": SERVICE_BASE_SCHEMA},
+    SERVICE_SET_MANUAL_PRESET_RUNTIME: {"method": "set_manual_preset_runtime", "schema": SET_PRESET_RUNTIME_SCHEMA},
 }
 
 

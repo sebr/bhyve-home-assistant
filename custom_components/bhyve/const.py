@@ -14,7 +14,7 @@ EVENT_CHANGE_MODE = "change_mode"
 EVENT_DEVICE_IDLE = "device_idle"
 EVENT_PROGRAM_CHANGED = "program_changed"
 EVENT_RAIN_DELAY = "rain_delay"
-EVENT_SET_MANUAL_PRESET_TIME= "set_manual_preset_runtime"
+EVENT_SET_MANUAL_PRESET_TIME = "set_manual_preset_runtime"
 EVENT_WATERING_COMPLETE = "watering_complete"
 EVENT_WATERING_IN_PROGRESS = "watering_in_progress_notification"
 

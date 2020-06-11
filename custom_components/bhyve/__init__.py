@@ -30,6 +30,7 @@ from .const import (
     DOMAIN,
     EVENT_PROGRAM_CHANGED,
     EVENT_RAIN_DELAY,
+    EVENT_SET_MANUAL_PRESET_TIME,
     MANUFACTURER,
     SIGNAL_UPDATE_DEVICE,
     SIGNAL_UPDATE_PROGRAM,
@@ -306,6 +307,16 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
         if self._async_unsub_dispatcher_connect:
             self._async_unsub_dispatcher_connect()
 
+    async def set_manual_preset_runtime(self, minutes:int):
+        # {event: "set_manual_preset_runtime", device_id: "abc", seconds: 900}
+        payload = {
+            "event": EVENT_SET_MANUAL_PRESET_TIME,
+            "device_id": self._device_id,
+            "seconds": minutes * 60,
+        }
+        _LOGGER.info("Setting manual preset runtime: {}".format(payload))
+        await self._bhyve.send_message(payload)
+
     async def enable_rain_delay(self, hours:int = 24):
         await self._set_rain_delay(hours)
 
@@ -314,7 +325,7 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
 
     async def _set_rain_delay(self, hours):
         try:
-            # {event: "rain_delay", device_id: "5ae3c7884f0c72d7d626ba06", delay: 48}
+            # {event: "rain_delay", device_id: "abc", delay: 48}
             payload = {
                 "event": EVENT_RAIN_DELAY,
                 "device_id": self._device_id,

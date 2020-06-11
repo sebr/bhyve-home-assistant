@@ -33,3 +33,13 @@ stop_watering:
     entity_id:
       description: Zone
       example: 'switch.backyard_zone'
+
+set_manual_preset_runtime:
+  description: Set the manual preset runtime for a device entity
+  fields:
+    entity_id:
+      description: Zone
+      example: 'switch.backyard_zone'
+    minutes:
+      description: Number of minutes to set the preset runtime
+      example: 15
