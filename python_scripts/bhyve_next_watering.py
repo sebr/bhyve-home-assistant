@@ -5,20 +5,21 @@ zone_entity_id = data.get("entity_id")
 zone = hass.states.get(zone_entity_id)
 
 device_name = zone.attributes["device_name"]
+zone_name = zone.attributes["zone_name"]
 
-logger.info("updating next_watering for zone: ({}: {})".format(device_name, zone))
+logger.info("updating next_watering for zone: ({}: {})".format(zone_name, zone))
 
-next_watering_entity = f"sensor.next_watering_{device_name}"
+next_watering_entity = f"sensor.{zone_name}_next_watering"
 next_watering_attrs = {
-    "friendly_name": f"{device_name} next watering"
+    "friendly_name": f"{zone_name} next watering"
 }
 
-rain_delay_finishing_entity = f"sensor.rain_delay_finishing_{device_name}"
+rain_delay_finishing_entity = f"sensor.{device_name}_rain_delay_finishing"
 rain_delay_finishing_attrs = {
     "friendly_name": f"{device_name} rain delay finishing"
 }
 
-rain_delay = hass.states.get(f"switch.rain_delay_{device_name}")
+rain_delay = hass.states.get(f"switch.{device_name}_rain_delay")
 
 if zone.state == "unavailable":
     hass.states.set(next_watering_entity, "Unavailable", next_watering_attrs)
