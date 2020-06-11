@@ -220,7 +220,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
                 )
             )
             event = data.get("event")
-            if event == "program_changed":
+            if event == EVENT_PROGRAM_CHANGED:
                 self._ws_unprocessed_events.append(data)
                 self.async_schedule_update_ha_state(True)
 
@@ -243,13 +243,13 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
         if event is None:
             _LOGGER.warning("No event on ws data {}".format(data))
             return
-        elif event == "program_changed":
+        elif event == EVENT_PROGRAM_CHANGED:
             program = data.get("program")
             if program is not None:
                 self._program = program
 
     def _should_handle_event(self, event_name):
-        return event_name in ["program_changed"]
+        return event_name in [EVENT_PROGRAM_CHANGED]
 
 class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     """Define a BHyve zone switch."""

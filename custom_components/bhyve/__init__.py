@@ -28,6 +28,7 @@ from .const import (
     CONF_PACKET_DUMP,
     DATA_BHYVE,
     DOMAIN,
+    EVENT_PROGRAM_CHANGED,
     EVENT_RAIN_DELAY,
     MANUFACTURER,
     SIGNAL_UPDATE_DEVICE,
@@ -87,7 +88,7 @@ async def async_setup(hass, config):
         device_id = None
         program_id = None
 
-        if event == "program_changed":
+        if event == EVENT_PROGRAM_CHANGED:
             device_id = data.get("program", {}).get("device_id")
             program_id = data.get("program", {}).get("id")
         else:
