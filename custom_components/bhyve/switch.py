@@ -61,6 +61,7 @@ ATTR_STARTED_WATERING_AT = "started_watering_station_at"
 ATTR_SMART_WATERING_PLAN = "watering_program"
 
 # Service Attributes
+ATTR_MINUTES = "minutes"
 ATTR_HOURS = "hours"
 
 # Rain Delay Attributes
@@ -71,23 +72,28 @@ ATTR_STARTED_AT = "started_at"
 
 ATTR_PROGRAM = "program_{}"
 
-ENABLE_RAIN_DELAY_SCHEMA = vol.Schema({
+SERVICE_BASE_SCHEMA = vol.Schema({
     vol.Required(ATTR_ENTITY_ID): cv.comp_entity_ids,
+})
+
+ENABLE_RAIN_DELAY_SCHEMA = SERVICE_BASE_SCHEMA.extend({
     vol.Required(ATTR_HOURS): cv.positive_int,
 })
 
-DISABLE_RAIN_DELAY_SCHEMA = vol.Schema({
-    vol.Required(ATTR_ENTITY_ID): cv.comp_entity_ids,
+START_WATERING_SCHEMA = SERVICE_BASE_SCHEMA.extend({
+    vol.Required(ATTR_MINUTES): cv.positive_int,
 })
 
 SERVICE_ENABLE_RAIN_DELAY = "enable_rain_delay"
 SERVICE_DISABLE_RAIN_DELAY = "disable_rain_delay"
+SERVICE_START_WATERING = "start_watering"
+SERVICE_STOP_WATERING = "stop_watering"
 
 SERVICE_TO_METHOD = {
     SERVICE_ENABLE_RAIN_DELAY: {"method": "enable_rain_delay", "schema": ENABLE_RAIN_DELAY_SCHEMA},
-    SERVICE_DISABLE_RAIN_DELAY: {"method": "disable_rain_delay", "schema": DISABLE_RAIN_DELAY_SCHEMA},
-    # SERVICE_SET_TIMER: {"method": "async_increase_timer", "schema": BS_SCHEMA},
-    # SERVICE_CLEAR_TIMER: {"method": "async_clear_timer", "schema": BS_SCHEMA},
+    SERVICE_DISABLE_RAIN_DELAY: {"method": "disable_rain_delay", "schema": SERVICE_BASE_SCHEMA},
+    SERVICE_START_WATERING: {"method": "start_watering", "schema": START_WATERING_SCHEMA},
+    SERVICE_STOP_WATERING: {"method": "stop_watering", "schema": SERVICE_BASE_SCHEMA},
 }
 
 
@@ -96,11 +102,8 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     bhyve = hass.data[DATA_BHYVE]
 
     switches = []
-    _LOGGER.debug("Getting devices")
     devices = await bhyve.devices
-    _LOGGER.debug("Getting programs")
     programs = await bhyve.timer_programs
-    _LOGGER.debug("Done")
 
     for device in devices:
         if device.get("type") == DEVICE_SPRINKLER:
@@ -471,19 +474,26 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         """Return the status of the sensor."""
         return self._is_on
 
-    async def async_turn_on(self, **kwargs):
-        """Turn the switch on."""
+    async def start_watering(self, minutes):
         station_payload = [
-            {"station": self._zone_id, "run_time": self._manual_preset_runtime / 60}
+            {"station": self._zone_id, "run_time": minutes}
         ]
         self._is_on = True
         await self._send_station_message(station_payload)
 
-    async def async_turn_off(self, **kwargs):
-        """Turn the switch off."""
+    async def stop_watering(self):
         station_payload = []
         self._is_on = False
         await self._send_station_message(station_payload)
+
+    async def async_turn_on(self, **kwargs):
+        """Turn the switch on."""
+        run_time = self._manual_preset_runtime / 60
+        await self.start_watering(run_time)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn the switch off."""
+        await self.stop_watering()
 
 class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
     """Define a BHyve rain delay switch."""

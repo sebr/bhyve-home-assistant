@@ -16,3 +16,20 @@ disable_rain_delay:
     entity_id:
       description: Zone
       example: 'switch.backyard_zone'
+
+start_watering:
+  description: Start watering a zone
+  fields:
+    entity_id:
+      description: Zone
+      example: 'switch.backyard_zone'
+    minutes:
+      description: Number of minutes to water the zone
+      example: 15
+
+stop_watering:
+  description: Stop watering a zone
+  fields:
+    entity_id:
+      description: Zone
+      example: 'switch.backyard_zone'
