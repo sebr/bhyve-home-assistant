@@ -127,7 +127,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
             for zone in device.get("zones"):
                 switches.append(
-                    BHyveZoneSwitch(hass, bhyve, device, zone, programs, "water-pump")
+                    BHyveZoneSwitch(hass, bhyve, device, zone, device_programs, "water-pump")
                 )
                 switches.append(
                     BHyveRainDelaySwitch(hass, bhyve, device, "weather-pouring")
