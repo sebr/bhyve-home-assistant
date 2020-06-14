@@ -299,6 +299,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             "device_name": self._device_name,
             "device_id": self._device_id,
             "zone_name": self._zone_name,
+            ATTR_SMART_WATERING_ENABLED: False,
         }
         self._available = device.get("is_connected", False)
 
@@ -322,10 +323,6 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             )
             self._is_on = is_watering
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
-
-            smart_watering_enabled = zone.get("smart_watering_enabled")
-            if smart_watering_enabled is not None:
-                self._attrs[ATTR_SMART_WATERING_ENABLED] = smart_watering_enabled
 
             sprinkler_type = zone.get("sprinkler_type")
             if sprinkler_type is not None:
@@ -375,6 +372,9 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             "name": program_name,
             "is_smart_program": is_smart_program,
         }
+
+        if is_smart_program:
+            self._attrs[ATTR_SMART_WATERING_ENABLED] = program_enabled
 
         if not program_enabled or not active_program_run_times:
             _LOGGER.info(
