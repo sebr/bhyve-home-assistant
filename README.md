@@ -59,8 +59,8 @@ The following attributes are set on zone switch entities:
 | `sprinkler_type`              | `string`       | The configured type of sprinker.                                           |
 | `image_url`                   | `string`       | The url to zone image.                                                     |
 | `started_watering_station_at` | `string`       | The timestamp the zone started watering.                                   |
-| `watering_program`            | `list[string]` | List of timestamps for future/scheduled watering times.<sup>†</sup>        |
 | `program_x`                   | `object`       | Provides details on any configured watering programs for the given switch. |
+| `program_e[watering_program]` | `list[string]` | List of timestamps for future/scheduled watering times.<sup>†</sup>        |
 
 <sup>†</sup> Only applicable if a Smart Watering program is enabled. Any rain delays or other custom programs must be considered separately.
 

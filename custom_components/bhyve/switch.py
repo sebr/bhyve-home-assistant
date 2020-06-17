@@ -355,6 +355,10 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         program_name = program.get("name", "Unknown")
         program_id = program.get("program")
         program_enabled = program.get("enabled", False)
+
+        if program_id is None:
+            return
+
         program_attr = ATTR_PROGRAM.format(program_id)
 
         # Filter out any run times which are not for this switch
@@ -382,8 +386,6 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                     self._zone_name, program_name, program_id
                 )
             )
-            if is_smart_program == True:
-                self._attrs[ATTR_SMART_WATERING_PLAN] = None
 
             return
 
@@ -411,7 +413,11 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                             upcoming_run_times.append(
                                 plan_date + timedelta(hours=t.hour, minutes=t.minute)
                             )
-            self._attrs[ATTR_SMART_WATERING_PLAN] = upcoming_run_times
+            self._attrs[program_attr].update(
+                {
+                    ATTR_SMART_WATERING_PLAN: upcoming_run_times
+                }
+            )
         else:
             self._attrs[program_attr].update(
                 {
