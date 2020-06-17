@@ -1,4 +1,5 @@
 """Support for Orbit BHyve irrigation devices."""
+import json
 import logging
 import os
 import pprint
@@ -122,8 +123,8 @@ async def async_setup(hass, config):
         ]
         programs = await bhyve.timer_programs
         
-        _LOGGER.debug("Devices: {}".format(devices))
-        _LOGGER.debug("Programs: {}".format(programs))
+        _LOGGER.debug("Devices: {}".format(json.dumps(devices)))
+        _LOGGER.debug("Programs: {}".format(json.dumps(programs)))
 
         hass.data[DATA_BHYVE] = bhyve
     except WebsocketError as err:
