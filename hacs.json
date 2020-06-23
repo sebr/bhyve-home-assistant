@@ -1,5 +1,5 @@
 {
   "name": "Orbit BHyve",
   "domains": ["sensor", "switch"],
-  "render_readme": true
+  "iot_class": "Cloud Push"
 }
