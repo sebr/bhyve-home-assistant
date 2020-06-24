@@ -33,34 +33,19 @@ switch:
 
 ## Sensor Entities
 
-### Battery Sensor
+### Device Battery Sensor
 
 A **battery** `sensor` entity is created for any device which has a battery level to report.
 
-### Zone State sensor
+### Device State sensor
 
-A **zone state** `sensor` entity is created for each zone. This reports the state of the zone, for example `auto` or `off`. A zone may be switched to `off` either manually through the BHyve app, or may be automatically set when battery levels are too low to operate the device correctly.
+A **device state** `sensor` entity is created for each device. This reports the state of the device, for example `auto` or `off`. A device may be switched to `off` either manually through the BHyve app, or may be automatically set when battery levels are too low to operate the device correctly.
 
 ### Zone Watering History sensor
 
 A **zone history** `sensor` entity is created for each zone. This reports the history of zone watering.
 
 The following attrinutes are set on zone history sensor entities:
-
-budget
-100
-program
-manual
-program name
-manual
-run time
-3
-status
-complete
-consumption gallons
-7
-consumption litres
-26.5
 
 | Attribute             | Type     | Notes                                                       |
 | --------------------- | -------- | ----------------------------------------------------------- |
