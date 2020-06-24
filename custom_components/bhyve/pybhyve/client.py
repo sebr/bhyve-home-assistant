@@ -108,7 +108,7 @@ class Client:
         if force_update:
             _LOGGER.info(f"Forcing refresh of device history {device_id}")
         elif now - self._last_poll_device_histories < API_POLL_PERIOD:
-            _LOGGER.info(f"Ignoring refresh of device history {device_id}")
+            _LOGGER.debug(f"Ignoring refresh of device history {device_id}")
             return
 
         device_history = await self._request(
