@@ -34,9 +34,9 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     for device in devices:
         if device.get("type") == DEVICE_SPRINKLER:
             sensors.append(BHyveBatterySensor(hass, bhyve, device))
+            sensors.append(BHyveStateSensor(hass, bhyve, device))
             for zone in device.get("zones"):
                 sensors.append(BHyveZoneHistorySensor(hass, bhyve, device, zone))
-                sensors.append(BHyveStateSensor(hass, bhyve, device, zone))
 
     async_add_entities(sensors, True)
 
@@ -92,7 +92,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
     @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_type}:{self._device_name}:battery"
+        return f"{self._mac_address}:{self._device_id}:battery"
 
     def _should_handle_event(self, event_name):
         return event_name in [EVENT_CHANGE_MODE]
@@ -135,7 +135,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
     @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_type}:{self._device_name}:history"
+        return f"{self._mac_address}:{self._device_id}:{self._zone_id}:history"
 
     def _should_handle_event(self, event_name):
         return event_name in [EVENT_DEVICE_IDLE]
@@ -181,9 +181,9 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
 class BHyveStateSensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
-    def __init__(self, hass, bhyve, device, zone):
+    def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
-        name = "{0} zone state".format(zone.get("name", "Unknown"))
+        name = "{0} state".format(device.get("name"))
         _LOGGER.info("Creating state sensor: %s", name)
         super().__init__(hass, bhyve, device, name, "information")
 
@@ -203,7 +203,7 @@ class BHyveStateSensor(BHyveDeviceEntity):
     @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_type}:{self._device_name}:state"
+        return f"{self._mac_address}:{self._device_id}:state"
 
     def _on_ws_data(self, data):
         """

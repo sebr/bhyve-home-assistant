@@ -489,8 +489,8 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
     @property
     def unique_id(self):
-        """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_type}:zone:{self._zone_id}"
+        """Return a unique, unchanging string that represents this switch."""
+        return f"{self._mac_address}:{self._device_id}:{self._zone_id}:switch"
 
     @property
     def is_on(self):
@@ -594,7 +594,7 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
     @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_type}:rain_delay:{self._device_id}"
+        return f"{self._mac_address}:{self._device_id}:{self._zone_id}:rain_delay"
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
