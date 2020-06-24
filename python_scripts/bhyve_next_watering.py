@@ -36,10 +36,41 @@ else:
     else:
         hass.states.set(rain_delay_finishing_entity, None, rain_delay_finishing_attrs)
 
-    for timestamp in (zone.attributes.get('watering_program', []) or []):
-        watering_time = dt_util.parse_datetime(str(timestamp))
-        if watering_time > now and (delay_finishes_at is None or watering_time > delay_finishes_at):
-            next_watering = watering_time
-            break
+    for program_id in ['a', 'b', 'c', 'e']:
+        program = zone.attributes.get(f"program_{program_id}")
+        logger.info("program: %s", program)
+        if program is None or program.get("enabled", False) is False:
+            continue
+
+        if program.get("is_smart_program"):
+            for timestamp in program.get('watering_program', []):
+                watering_time = dt_util.parse_datetime(str(timestamp))
+                if watering_time > now and (delay_finishes_at is None or watering_time > delay_finishes_at):
+                    next_watering = watering_time
+                    break
+        else:
+            """ find the next manual watering time """
+            """
+                Orbit day: `0` is Sunday, `1` is Monday
+                Python day: `0` is Monday, `2` is Tuesday
+            """
+
+            """
+                ************
+                    TODO
+                ************
+            """
+
+            logger.info("Checking manual program: %s", program)
+            configured_days = program.get("frequency", {}).get("days")
+            start_times = program.get("start_times")
+            if configured_days is None:
+                continue
+
+            # now_weekday = now.weekday()
+
+            # next_watering_day = (
+            #         filter(lambda day: (day > now_weekday), configured_days)
+            #     )[0]# else configured_days[0]
 
     hass.states.set(next_watering_entity, next_watering, next_watering_attrs)
