@@ -10,6 +10,7 @@ from .const import (
     API_HOST,
     API_POLL_PERIOD,
     DEVICES_PATH,
+    DEVICE_HISTORY_PATH,
     TIMER_PROGRAMS_PATH,
     LOGIN_PATH,
     WS_HOST,
@@ -42,6 +43,9 @@ class Client:
 
         self._timer_programs = []
         self._last_poll_programs = 0
+
+        self._device_histories = dict()
+        self._last_poll_device_histories = 0
 
     async def _request(
         self, method: str, endpoint: str, params: dict = None, json: dict = None
@@ -76,8 +80,9 @@ class Client:
     async def _refresh_devices(self, force_update=False):
         now = time.time()
         if force_update:
-            _LOGGER.debug("Forcing device refresh")
+            _LOGGER.info("Forcing device refresh")
         elif now - self._last_poll_devices < API_POLL_PERIOD:
+            _LOGGER.debug("Ignoring device refresh")
             return
 
         self._devices = await self._request(
@@ -97,6 +102,28 @@ class Client:
             "get", TIMER_PROGRAMS_PATH, params={"t": str(time.time())}
         )
         self._last_poll_programs = now
+
+    async def _refresh_device_history(self, device_id, force_update=False):
+        now = time.time()
+        if force_update:
+            _LOGGER.info(f"Forcing refresh of device history {device_id}")
+        elif now - self._last_poll_device_histories < API_POLL_PERIOD:
+            _LOGGER.info(f"Ignoring refresh of device history {device_id}")
+            return
+
+        device_history = await self._request(
+            "get", DEVICE_HISTORY_PATH.format(device_id), params={
+                "t": str(time.time()),
+                "page": str(1),
+                "per-page": str(10),
+            }
+        )
+
+        self._device_histories.update({
+            device_id: device_history
+        })
+
+        self._last_poll_device_histories = now
 
     async def _async_ws_handler(self, data):
         """Process incoming websocket message."""
@@ -155,6 +182,11 @@ class Client:
             if device.get("id") == device_id:
                 return device
         return None
+
+    async def get_device_history(self, device_id, force_update=False):
+        """Get device watering history by id."""
+        await self._refresh_device_history(device_id, force_update=force_update)
+        return self._device_histories.get(device_id)
 
     async def update_program(self, program_id, program):
         """Update the state of a program"""

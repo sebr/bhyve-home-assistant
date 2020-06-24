@@ -11,9 +11,18 @@ from .const import (
     EVENT_CHANGE_MODE,
 )
 from .pybhyve.errors import BHyveError
+from .util import orbit_time_to_local_time
 
 _LOGGER = logging.getLogger(__name__)
 
+ATTR_BUDGET = "budget"
+ATTR_IRRIGATION = "irrigation"
+ATTR_PROGRAM = "program"
+ATTR_PROGRAM_NAME = "program_name"
+ATTR_RUN_TIME = "run_time"
+ATTR_STATUS = "status"
+ATTR_CONSUMPTION_GALLONS = "consumption_gallons"
+ATTR_CONSUMPTION_LITRES = "consumption_litres"
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
     """Set up BHyve sensors based on a config entry."""
@@ -25,6 +34,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
         if device.get("type") == DEVICE_SPRINKLER:
             sensors.append(BHyveBatterySensor(hass, bhyve, device))
             for zone in device.get("zones"):
+                sensors.append(BHyveZoneHistorySensor(hass, bhyve, device, zone))
                 sensors.append(BHyveStateSensor(hass, bhyve, device, zone))
 
     async_add_entities(sensors, True)
@@ -92,6 +102,80 @@ class BHyveBatterySensor(BHyveDeviceEntity):
 
         await self._refetch_device()
 
+class BHyveZoneHistorySensor(BHyveDeviceEntity):
+    """Define a BHyve sensor."""
+
+    def __init__(self, hass, bhyve, device, zone):
+        """Initialize the sensor."""
+        self._zone = zone
+        self._zone_id = zone.get("station")
+
+        name = "{0} zone history".format(zone.get("name", "Unknown"))
+        _LOGGER.info("Creating history sensor: %s", name)
+
+        super().__init__(
+            hass, bhyve, device, name, "history",
+        )
+
+    def _setup(self, device):
+        self._state = None
+        self._attrs = {}
+        self._available = device.get("is_connected", False)
+
+    @property
+    def state(self):
+        """Return the state of the entity"""
+        return self._state
+
+    @property
+    def should_poll(self):
+        """Enable polling."""
+        return True
+
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_type}:{self._device_name}:history"
+
+    def _should_handle_event(self, event_name):
+        return False
+
+    async def async_update(self):
+        """Retrieve latest state."""
+        self._ws_unprocessed_events[:] = []  # We don't care about these
+
+        try:
+            history = await self._fetch_device_history() or []
+            self._history = history
+
+            for history_item in history:
+                zone_irrigation = list(
+                    filter(
+                        lambda i: i.get("station") == self._zone_id,
+                        history_item.get(ATTR_IRRIGATION, [])
+                    )
+                )
+                if zone_irrigation:
+                    latest_irrigation = zone_irrigation[0]
+
+                    gallons = latest_irrigation.get("water_volume_gal")
+                    litres = gallons * 3.785
+
+                    self._state = orbit_time_to_local_time(latest_irrigation.get("start_time"))
+                    self._attrs = {
+                        ATTR_BUDGET: latest_irrigation.get(ATTR_BUDGET),
+                        ATTR_PROGRAM: latest_irrigation.get(ATTR_PROGRAM),
+                        ATTR_PROGRAM_NAME: latest_irrigation.get(ATTR_PROGRAM_NAME),
+                        ATTR_RUN_TIME: latest_irrigation.get(ATTR_RUN_TIME),
+                        ATTR_STATUS: latest_irrigation.get(ATTR_STATUS),
+                        ATTR_CONSUMPTION_GALLONS: gallons,
+                        ATTR_CONSUMPTION_LITRES: litres,
+                    }
+                    break
+
+        except BHyveError as err:
+            self._available = False
+            raise (err)
 
 class BHyveStateSensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
