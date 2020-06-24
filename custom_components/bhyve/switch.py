@@ -594,7 +594,7 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
     @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_id}:{self._zone_id}:rain_delay"
+        return f"{self._mac_address}:{self._device_id}:rain_delay"
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
