@@ -134,10 +134,10 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                 )
 
     for program in programs:
-        _LOGGER.info("Creating switch: Program %s", program.get("name"))
         program_device = device_by_id.get(program.get("device_id"))
         program_id = program.get("program")
         if program_id is not None:
+            _LOGGER.info("Creating switch: Program %s", program.get("name"))
             switches.append(BHyveProgramSwitch(hass, bhyve, program, program_device, "bulletin-board"))
 
     async_add_entities(switches, True)

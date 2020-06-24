@@ -8,7 +8,7 @@ If this integration has been useful to you, please consider chipping in and buyi
 
 ## Supported Entities
 
-- `sensor` for measuring battery levels of `sprinkler_timer` devices as well as the device on/off state (not to be confused with zone on/off switches)
+- `sensor` for measuring battery levels and watering history of `sprinkler_timer` devices as well as the device on/off state (not to be confused with zone on/off switches)
 - `switch` for turning a zone on/off, enabling/disabling rain delays and toggling pre-configured programs
 
 ## Installation
@@ -40,6 +40,37 @@ A **battery** `sensor` entity is created for any device which has a battery leve
 ### Zone State sensor
 
 A **zone state** `sensor` entity is created for each zone. This reports the state of the zone, for example `auto` or `off`. A zone may be switched to `off` either manually through the BHyve app, or may be automatically set when battery levels are too low to operate the device correctly.
+
+### Zone Watering History sensor
+
+A **zone history** `sensor` entity is created for each zone. This reports the history of zone watering.
+
+The following attrinutes are set on zone history sensor entities:
+
+budget
+100
+program
+manual
+program name
+manual
+run time
+3
+status
+complete
+consumption gallons
+7
+consumption litres
+26.5
+
+| Attribute             | Type     | Notes                                                       |
+| --------------------- | -------- | ----------------------------------------------------------- |
+| `budget`              | `number` | The watering budget used.                                   |
+| `program`             | `string` | The program letter which triggered the watering event.      |
+| `program_name`        | `string` | The name of the program which triggered the watering event. |
+| `run_time`            | `number` | The number of minutes the watering was active.              |
+| `status`              | `string` | The watering status.                                        |
+| `consumption_gallons` | `number` | The amount of water consumed, in gallons.                   |
+| `consumption_litres`  | `number` | The amount of water consumed, in litres.                    |
 
 ## Switch Entities
 
