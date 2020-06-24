@@ -1,3 +1,9 @@
+# 1.1.0
+
+## New Features
+
+- Sensor entities for zone history, including water consumption stats
+
 # 1.0.0
 
 ## New Features
