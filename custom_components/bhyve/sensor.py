@@ -9,6 +9,7 @@ from .const import (
     DATA_BHYVE,
     DEVICE_SPRINKLER,
     EVENT_CHANGE_MODE,
+    EVENT_DEVICE_IDLE,
 )
 from .pybhyve.errors import BHyveError
 from .util import orbit_time_to_local_time
@@ -127,7 +128,6 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
         """Return the state of the entity"""
         return self._state
 
-    @property
     def should_poll(self):
         """Enable polling."""
         return True
@@ -138,14 +138,15 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
         return f"{self._mac_address}:{self._device_type}:{self._device_name}:history"
 
     def _should_handle_event(self, event_name):
-        return False
+        return event_name in [EVENT_DEVICE_IDLE]
 
     async def async_update(self):
         """Retrieve latest state."""
+        force_update = True if list(self._ws_unprocessed_events) else False
         self._ws_unprocessed_events[:] = []  # We don't care about these
 
         try:
-            history = await self._fetch_device_history() or []
+            history = await self._fetch_device_history(force_update=force_update) or []
             self._history = history
 
             for history_item in history:
@@ -156,10 +157,10 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
                     )
                 )
                 if zone_irrigation:
-                    latest_irrigation = zone_irrigation[0]
+                    latest_irrigation = zone_irrigation[-1] # This is a bit crude - assumes the list is ordered by time.
 
                     gallons = latest_irrigation.get("water_volume_gal")
-                    litres = gallons * 3.785
+                    litres = round(gallons * 3.785, 2)
 
                     self._state = orbit_time_to_local_time(latest_irrigation.get("start_time"))
                     self._attrs = {
