@@ -1,3 +1,10 @@
+# 2.0.1
+
+## Fixes
+
+- Only create one rain delay switch per device
+- Correctly set watering history sensor when no consumption data returned
+
 # 2.0.0
 
 ## New Features
