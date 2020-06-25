@@ -160,7 +160,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
                     latest_irrigation = zone_irrigation[-1] # This is a bit crude - assumes the list is ordered by time.
 
                     gallons = latest_irrigation.get("water_volume_gal")
-                    litres = round(gallons * 3.785, 2)
+                    litres = round(gallons * 3.785, 2) if gallons else None
 
                     self._state = orbit_time_to_local_time(latest_irrigation.get("start_time"))
                     self._attrs = {
