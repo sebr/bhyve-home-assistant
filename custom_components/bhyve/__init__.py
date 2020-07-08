@@ -117,12 +117,9 @@ async def async_setup(hass, config):
         )
 
         await bhyve.login()
-        devices = [
-            anonymize(device)
-            for device in await bhyve.devices
-        ]
+        devices = [anonymize(device) for device in await bhyve.devices]
         programs = await bhyve.timer_programs
-        
+
         _LOGGER.debug("Devices: {}".format(json.dumps(devices)))
         _LOGGER.debug("Programs: {}".format(json.dumps(programs)))
 
@@ -134,6 +131,7 @@ async def async_setup(hass, config):
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, bhyve.stop())
 
     return True
+
 
 def get_entity_from_domain(hass, domains, entity_id):
     domains = domains if isinstance(domains, list) else [domains]
@@ -286,8 +284,9 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
     @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        # return f"{self._mac_address}:{self._device_type}:{self._device_id}"
-        raise HomeAssistantError("{} does not define a unique_id".format(self.__class__.__name__))
+        raise HomeAssistantError(
+            "{} does not define a unique_id".format(self.__class__.__name__)
+        )
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -295,17 +294,17 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
         @callback
         def update(device_id, data):
             """Update the state."""
-            _LOGGER.info(
-                "Callback update: {} - {} - {}".format(
-                    self.name, self._device_id, str(data)[:160]
-                )
-            )
             event = data.get("event")
             if event == "device_disconnected":
                 self._available = False
             elif event == "device_connected":
                 self._available = True
             if self._should_handle_event(event):
+                _LOGGER.info(
+                    "Callback update: {} - {} - {}".format(
+                        self.name, self._device_id, str(data)[:160]
+                    )
+                )
                 self._ws_unprocessed_events.append(data)
                 self.async_schedule_update_ha_state(True)
 
@@ -318,7 +317,7 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
         if self._async_unsub_dispatcher_connect:
             self._async_unsub_dispatcher_connect()
 
-    async def set_manual_preset_runtime(self, minutes:int):
+    async def set_manual_preset_runtime(self, minutes: int):
         # {event: "set_manual_preset_runtime", device_id: "abc", seconds: 900}
         payload = {
             "event": EVENT_SET_MANUAL_PRESET_TIME,
@@ -328,7 +327,7 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
         _LOGGER.info("Setting manual preset runtime: {}".format(payload))
         await self._bhyve.send_message(payload)
 
-    async def enable_rain_delay(self, hours:int = 24):
+    async def enable_rain_delay(self, hours: int = 24):
         await self._set_rain_delay(hours)
 
     async def disable_rain_delay(self):
