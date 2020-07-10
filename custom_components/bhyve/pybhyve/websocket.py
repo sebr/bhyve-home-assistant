@@ -14,12 +14,14 @@ STATE_STOPPED = "stopped"
 
 RECONNECT_DELAY = 5
 
-
+# pylint: disable=too-many-instance-attributes
 class OrbitWebsocket:
-    """Websocket transport, session handling, message generation."""
+    """
+        Websocket transport, session handling, message generation.
+        Inspired by https://github.com/Kane610/deconz/blob/master/pydeconz/websocket.py
+    """
 
-    """https://github.com/Kane610/deconz/blob/master/pydeconz/websocket.py"""
-
+    # pylint: disable=too-many-arguments
     def __init__(self, token, loop, session, url, async_callback):
         """Create resources for websocket communication."""
         self._token = token
@@ -27,7 +29,6 @@ class OrbitWebsocket:
         self._session = session
         self._url = url
         self._async_callback = async_callback
-        self._data = None
         self._state = None
 
         self._heartbeat_cb = None
@@ -57,20 +58,16 @@ class OrbitWebsocket:
         self._reset_heartbeat()
 
     @property
-    def data(self):
-        return self._data
-
-    @property
     def state(self):
-        """"""
+        """ Returns the state of the websocket. """
         return self._state
 
     @state.setter
     def state(self, value):
-        """"""
         self._state = value
 
     def start(self):
+        """ Start the websocket. """
         if self.state != STATE_RUNNING:
             self.state = STATE_STARTING
         self._loop.create_task(self.running())
@@ -102,36 +99,44 @@ class OrbitWebsocket:
                         self._reset_heartbeat()
                         _LOGGER.debug("msg received {}".format(str(msg)[:80]))
 
-                        if msg.type == WSMsgType.TEXT:
+                        if self.state == STATE_STOPPED:
+                            break
+
+                        elif msg.type == WSMsgType.TEXT:
                             ensure_future(self._async_callback(json.loads(msg.data)))
+
                         elif msg.type == WSMsgType.PING:
                             self._ws.pong()
-                        elif msg.type == WSMsgType.PONG:
-                            _LOGGER.debug("Pong received")
-                        else:
-                            if msg.type == WSMsgType.CLOSE:
-                                await self._ws.close()
-                            elif msg.type == WSMsgType.ERROR:
-                                _LOGGER.info(
-                                    "Error during receive %s" % self._ws.exception()
-                                )
-                            elif msg.type == WSMsgType.CLOSED:
-                                pass
 
+                        # elif msg.type == WSMsgType.CLOSE:
+                        #     await self._ws.close()
+                        #     break
+
+                        elif msg.type == WSMsgType.CLOSED:
+                            _LOGGER.error("websocket connection closed")
+                            break
+
+                        elif msg.type == WSMsgType.ERROR:
+                            _LOGGER.error("websocket error %s", self._ws.exception())
                             break
 
                     if self._ws.closed:
-                        _LOGGER.info("Websocket closed? {}".format(self._ws.closed))
+                        _LOGGER.info("Websocket closed? %s", self._ws.closed)
 
                     if self._ws.exception():
-                        _LOGGER.warning(
-                            "Websocket exception: {}".format(self._ws.exception())
-                        )
+                        _LOGGER.warning("Websocket exception: %s", self._ws.exception())
 
+        except aiohttp.ClientConnectorError:
+            _LOGGER.error("Client connection error")
+            if self.state != STATE_STOPPED:
+                self.retry()
+
+        # pylint: disable=broad-except
         except Exception as err:
             _LOGGER.error("Unexpected error %s", err)
             if self.state != STATE_STOPPED:
                 self.retry()
+
         else:
             if self.state != STATE_STOPPED:
                 _LOGGER.info("Reconnecting websocket; state: %s", self.state)
@@ -140,6 +145,7 @@ class OrbitWebsocket:
     async def stop(self):
         """Close websocket connection."""
         self.state = STATE_STOPPED
+        _LOGGER.info("Closing websocket connection")
         await self._ws.close()
 
     def retry(self):
@@ -147,8 +153,11 @@ class OrbitWebsocket:
         if self.state != STATE_STARTING:
             self.state = STATE_STARTING
             self._loop.call_later(RECONNECT_DELAY, self.start)
-            _LOGGER.debug("Reconnecting to Orbit in %i.", RECONNECT_DELAY)
+            _LOGGER.info("Reconnecting to Orbit in %i.", RECONNECT_DELAY)
 
     async def send(self, payload):
+        """Send a websocket message."""
         if not self._ws.closed:
             await self._ws.send_str(json.dumps(payload))
+        else:
+            _LOGGER.warning("Tried to send message whilst websocket closed")
