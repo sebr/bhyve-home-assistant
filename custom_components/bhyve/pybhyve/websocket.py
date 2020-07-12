@@ -24,7 +24,7 @@ class OrbitWebsocket:
     # pylint: disable=too-many-arguments
     def __init__(self, token, loop, session, url, async_callback):
         """Create resources for websocket communication."""
-        self._token = token
+        self._token: str = token
         self._loop = loop
         self._session = session
         self._url = url

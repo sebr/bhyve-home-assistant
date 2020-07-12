@@ -25,6 +25,7 @@ ATTR_STATUS = "status"
 ATTR_CONSUMPTION_GALLONS = "consumption_gallons"
 ATTR_CONSUMPTION_LITRES = "consumption_litres"
 
+
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
     """Set up BHyve sensors based on a config entry."""
     bhyve = hass.data[DATA_BHYVE]
@@ -103,6 +104,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
 
         await self._refetch_device()
 
+
 class BHyveZoneHistorySensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
@@ -153,16 +155,19 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
                 zone_irrigation = list(
                     filter(
                         lambda i: i.get("station") == self._zone_id,
-                        history_item.get(ATTR_IRRIGATION, [])
+                        history_item.get(ATTR_IRRIGATION, []),
                     )
                 )
                 if zone_irrigation:
-                    latest_irrigation = zone_irrigation[-1] # This is a bit crude - assumes the list is ordered by time.
+                    # This is a bit crude - assumes the list is ordered by time.
+                    latest_irrigation = zone_irrigation[-1]
 
                     gallons = latest_irrigation.get("water_volume_gal")
                     litres = round(gallons * 3.785, 2) if gallons else None
 
-                    self._state = orbit_time_to_local_time(latest_irrigation.get("start_time"))
+                    self._state = orbit_time_to_local_time(
+                        latest_irrigation.get("start_time")
+                    )
                     self._attrs = {
                         ATTR_BUDGET: latest_irrigation.get(ATTR_BUDGET),
                         ATTR_PROGRAM: latest_irrigation.get(ATTR_PROGRAM),
@@ -177,6 +182,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
         except BHyveError as err:
             self._available = False
             raise (err)
+
 
 class BHyveStateSensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""

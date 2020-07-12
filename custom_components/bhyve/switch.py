@@ -72,21 +72,19 @@ ATTR_STARTED_AT = "started_at"
 
 ATTR_PROGRAM = "program_{}"
 
-SERVICE_BASE_SCHEMA = vol.Schema({
-    vol.Required(ATTR_ENTITY_ID): cv.comp_entity_ids,
-})
+SERVICE_BASE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.comp_entity_ids,})
 
-ENABLE_RAIN_DELAY_SCHEMA = SERVICE_BASE_SCHEMA.extend({
-    vol.Required(ATTR_HOURS): cv.positive_int,
-})
+ENABLE_RAIN_DELAY_SCHEMA = SERVICE_BASE_SCHEMA.extend(
+    {vol.Required(ATTR_HOURS): cv.positive_int,}
+)
 
-START_WATERING_SCHEMA = SERVICE_BASE_SCHEMA.extend({
-    vol.Required(ATTR_MINUTES): cv.positive_int,
-})
+START_WATERING_SCHEMA = SERVICE_BASE_SCHEMA.extend(
+    {vol.Required(ATTR_MINUTES): cv.positive_int,}
+)
 
-SET_PRESET_RUNTIME_SCHEMA = SERVICE_BASE_SCHEMA.extend({
-    vol.Required(ATTR_MINUTES): cv.positive_int,
-})
+SET_PRESET_RUNTIME_SCHEMA = SERVICE_BASE_SCHEMA.extend(
+    {vol.Required(ATTR_MINUTES): cv.positive_int,}
+)
 
 SERVICE_ENABLE_RAIN_DELAY = "enable_rain_delay"
 SERVICE_DISABLE_RAIN_DELAY = "disable_rain_delay"
@@ -95,11 +93,23 @@ SERVICE_STOP_WATERING = "stop_watering"
 SERVICE_SET_MANUAL_PRESET_RUNTIME = "set_manual_preset_runtime"
 
 SERVICE_TO_METHOD = {
-    SERVICE_ENABLE_RAIN_DELAY: {"method": "enable_rain_delay", "schema": ENABLE_RAIN_DELAY_SCHEMA},
-    SERVICE_DISABLE_RAIN_DELAY: {"method": "disable_rain_delay", "schema": SERVICE_BASE_SCHEMA},
-    SERVICE_START_WATERING: {"method": "start_watering", "schema": START_WATERING_SCHEMA},
+    SERVICE_ENABLE_RAIN_DELAY: {
+        "method": "enable_rain_delay",
+        "schema": ENABLE_RAIN_DELAY_SCHEMA,
+    },
+    SERVICE_DISABLE_RAIN_DELAY: {
+        "method": "disable_rain_delay",
+        "schema": SERVICE_BASE_SCHEMA,
+    },
+    SERVICE_START_WATERING: {
+        "method": "start_watering",
+        "schema": START_WATERING_SCHEMA,
+    },
     SERVICE_STOP_WATERING: {"method": "stop_watering", "schema": SERVICE_BASE_SCHEMA},
-    SERVICE_SET_MANUAL_PRESET_RUNTIME: {"method": "set_manual_preset_runtime", "schema": SET_PRESET_RUNTIME_SCHEMA},
+    SERVICE_SET_MANUAL_PRESET_RUNTIME: {
+        "method": "set_manual_preset_runtime",
+        "schema": SET_PRESET_RUNTIME_SCHEMA,
+    },
 }
 
 
@@ -120,9 +130,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
             # Filter out any programs which are not for this device
             device_programs = [
-                program
-                for program in programs
-                if program.get("device_id") == device_id
+                program for program in programs if program.get("device_id") == device_id
             ]
 
             switches.append(
@@ -131,7 +139,9 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
             for zone in device.get("zones"):
                 switches.append(
-                    BHyveZoneSwitch(hass, bhyve, device, zone, device_programs, "water-pump")
+                    BHyveZoneSwitch(
+                        hass, bhyve, device, zone, device_programs, "water-pump"
+                    )
                 )
 
     for program in programs:
@@ -139,7 +149,11 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
         program_id = program.get("program")
         if program_id is not None:
             _LOGGER.info("Creating switch: Program %s", program.get("name"))
-            switches.append(BHyveProgramSwitch(hass, bhyve, program, program_device, "bulletin-board"))
+            switches.append(
+                BHyveProgramSwitch(
+                    hass, bhyve, program, program_device, "bulletin-board"
+                )
+            )
 
     async_add_entities(switches, True)
 
@@ -157,10 +171,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
         entity_ids = service.data.get(ATTR_ENTITY_ID)
         component = hass.data.get(SWITCH_DOMAIN)
         if entity_ids:
-            target_switches = [
-                component.get_entity(entity)
-                for entity in entity_ids
-            ]
+            target_switches = [component.get_entity(entity) for entity in entity_ids]
         else:
             return
 
@@ -178,6 +189,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
         hass.services.async_register(
             DOMAIN, service, async_service_handler, schema=schema
         )
+
 
 class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     """Define a BHyve program switch."""
@@ -275,6 +287,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
     def _should_handle_event(self, event_name):
         return event_name in [EVENT_PROGRAM_CHANGED]
+
 
 class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     """Define a BHyve zone switch."""
@@ -417,9 +430,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                                 plan_date + timedelta(hours=t.hour, minutes=t.minute)
                             )
             self._attrs[program_attr].update(
-                {
-                    ATTR_SMART_WATERING_PLAN: upcoming_run_times
-                }
+                {ATTR_SMART_WATERING_PLAN: upcoming_run_times}
             )
         else:
             self._attrs[program_attr].update(
@@ -495,9 +506,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         return self._is_on
 
     async def start_watering(self, minutes):
-        station_payload = [
-            {"station": self._zone_id, "run_time": minutes}
-        ]
+        station_payload = [{"station": self._zone_id, "run_time": minutes}]
         self._is_on = True
         await self._send_station_message(station_payload)
 
@@ -514,6 +523,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         await self.stop_watering()
+
 
 class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
     """Define a BHyve rain delay switch."""
