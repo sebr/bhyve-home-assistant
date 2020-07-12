@@ -441,6 +441,15 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                 }
             )
 
+    def _should_handle_event(self, event_name):
+        return event_name in [
+            EVENT_DEVICE_IDLE,
+            EVENT_WATERING_COMPLETE,
+            EVENT_WATERING_IN_PROGRESS,
+            EVENT_SET_MANUAL_PRESET_TIME,
+            EVENT_PROGRAM_CHANGED,
+        ]
+
     def _on_ws_data(self, data):
         """
             {'event': 'watering_in_progress_notification', 'program': 'e', 'current_station': 1, 'run_time': 14, 'started_watering_station_at': '2020-01-09T20:29:59.000Z', 'rain_sensor_hold': False, 'device_id': 'id', 'timestamp': '2020-01-09T20:29:59.000Z'}
@@ -449,10 +458,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             {'event': 'program_changed' }
         """
         event = data.get("event")
-        if event is None:
-            _LOGGER.warning("No event on ws data {}".format(data))
-            return
-        elif event == EVENT_DEVICE_IDLE or event == EVENT_WATERING_COMPLETE:
+        if event == EVENT_DEVICE_IDLE or event == EVENT_WATERING_COMPLETE:
             self._is_on = False
             self._set_watering_started(None)
         elif event == EVENT_WATERING_IN_PROGRESS:
