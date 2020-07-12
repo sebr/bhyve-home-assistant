@@ -143,10 +143,10 @@ _Note: HACS does not install the script automatically and they must be added man
 
 Calculates:
 
-1. When the next scheduled watering is for a device by considering all enabled watering programs
-2. When an active rain delay will finish, or `None` if there is no active delay
+1. When the next scheduled watering is for a zone by considering all enabled watering programs
+2. When a device's active rain delay will finish, or `None` if there is no active delay
 
-This script creates or updates entities named `sensor.next_watering_{device_name}` and `sensor.rain_delay_finishing_{device_name}`.
+This script creates or updates entities named `sensor.{zone_name}_next_watering` and `sensor.{device_name}_rain_delay_finishing`.
 
 Usage:
 
@@ -156,7 +156,9 @@ data:
   entity_id: switch.backyard_zone
 ```
 
-Required argument is the switch entity_id for the device.
+| Argument    | Type     | Required | Notes                            |
+| ----------- | -------- | -------- | -------------------------------- |
+| `entity_id` | `string` | `True`   | The entity id for a zone switch. |
 
 ### Automation
 
