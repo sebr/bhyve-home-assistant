@@ -432,7 +432,6 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
     def _on_ws_data(self, data):
         """
-            {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
             {'event': 'watering_in_progress_notification', 'program': 'e', 'current_station': 1, 'run_time': 14, 'started_watering_station_at': '2020-01-09T20:29:59.000Z', 'rain_sensor_hold': False, 'device_id': 'id', 'timestamp': '2020-01-09T20:29:59.000Z'}
             {'event': 'device_idle', 'device_id': 'id', 'timestamp': '2020-01-10T12:32:06.000Z'}
             {'event': 'set_manual_preset_runtime', 'device_id': 'id', 'seconds': 480, 'timestamp': '2020-01-18T17:00:35.000Z'}
@@ -451,9 +450,6 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                 self._is_on = True
                 started_watering_at = data.get("started_watering_station_at")
                 self._set_watering_started(started_watering_at)
-        elif event == EVENT_CHANGE_MODE:
-            program = data.get("program")
-            self._is_on = program == PROGRAM_SMART_WATERING or program == PROGRAM_MANUAL
         elif event == EVENT_SET_MANUAL_PRESET_TIME:
             self._manual_preset_runtime = data.get("seconds")
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
