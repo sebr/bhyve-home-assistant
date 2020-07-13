@@ -6,6 +6,12 @@ If this integration has been useful to you, please consider chipping in and buyi
 
 <a href="https://www.buymeacoffee.com/sebr" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee"></a>
 
+## Supported Devices
+
+This integration works with the [BHyve Hose Faucet Timer](https://www.amazon.com/Orbit-B-hyve-21004-Faucet-Compatible/dp/B0758NR8DJ). The Wifi hub is required to provide the faucet timer with internet connectivity. Bluetooth connectivity with the timer is not supported.
+
+The [BHyve sprinkler controller](https://www.amazon.com/gp/product/B01D15HOTU/) may also be compatible with this integration, however it has not been verified. Testing, feedback or code contributions would be appreciated.
+
 ## Supported Entities
 
 - `sensor` for measuring battery levels and watering history of `sprinkler_timer` devices as well as the device on/off state (not to be confused with zone on/off switches)
