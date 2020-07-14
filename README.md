@@ -8,9 +8,10 @@ If this integration has been useful to you, please consider chipping in and buyi
 
 ## Supported Devices
 
-This integration works with the [BHyve Hose Faucet Timer](https://www.amazon.com/Orbit-B-hyve-21004-Faucet-Compatible/dp/B0758NR8DJ). The Wifi hub is required to provide the faucet timer with internet connectivity. Bluetooth connectivity with the timer is not supported.
+This integration works with:
 
-The [BHyve sprinkler controller](https://www.amazon.com/gp/product/B01D15HOTU/) may also be compatible with this integration, however it has not been verified. Testing, feedback or code contributions would be appreciated.
+- the [BHyve Hose Faucet Timer](https://www.amazon.com/Orbit-B-hyve-21004-Faucet-Compatible/dp/B0758NR8DJ). The Wifi hub is required to provide the faucet timer with internet connectivity. Bluetooth connectivity with the timer is not supported.
+- the [BHyve Sprinkler Controller](https://www.amazon.com/gp/product/B01D15HOIQ). Compatibility has been reported by members of the community.
 
 ## Supported Entities
 
