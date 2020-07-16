@@ -3,10 +3,23 @@ now = dt_util.now()
 
 zone_entity_id = data.get("entity_id")
 
+if not zone_entity_id:
+    raise Exception("entity_id is required to execute this script")
+
 zone = hass.states.get(zone_entity_id)
 
-device_name = zone.attributes["device_name"]
-zone_name = zone.attributes["zone_name"]
+if not zone:
+    raise Exception("Entity with id {} does not exist".format(zone_entity_id))
+
+device_name = zone.attributes.get("device_name")
+zone_name = zone.attributes.get("zone_name")
+
+if not device_name:
+    raise Exception(
+        "Could not find zone's device name on entity {}. Is this a BHyve zone switch entity?".format(
+            zone_entity_id
+        )
+    )
 
 logger.info("updating next_watering for zone: ({}: {})".format(zone_name, zone))
 
