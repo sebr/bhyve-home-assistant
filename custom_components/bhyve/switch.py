@@ -128,6 +128,13 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
         device_by_id[device_id] = device
         if device.get("type") == DEVICE_SPRINKLER:
 
+            if not device.get("status"):
+                _LOGGER.warn(
+                    "Unable to configure device %s: the 'status' attribute is missing. Has it been paired with the wifi hub?",
+                    device.get("name"),
+                )
+                continue
+
             # Filter out any programs which are not for this device
             device_programs = [
                 program for program in programs if program.get("device_id") == device_id
