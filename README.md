@@ -194,10 +194,5 @@ logger:
   logs:
     custom_components.bhyve: debug
     pybhyve: debug
-
-bhyve:
-  username: !secret bhyve_username
-  password: !secret bhyve_password
-  packet_dump: true # Save all websocket event data to a file
-  conf_dir: "" # Storage directory for packet dump file. Usually not needed, defaults to hass_config_dir/.bhyve
 ```
+
