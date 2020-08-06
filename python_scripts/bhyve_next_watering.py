@@ -1,4 +1,36 @@
 # pylint: disable=undefined-variable
+
+
+def next_weekday(day, weekday: int, start_time: datetime):
+    days_ahead = weekday - day.weekday()
+    if days_ahead < 0:  # Target day already happened this week
+        days_ahead += 7
+    d = day + datetime.timedelta(days=days_ahead)
+    return d.replace(hour=start_time.hour, minute=start_time.minute)
+
+
+"""
+    Orbit day: `0` is Sunday, `1` is Monday
+    Python day: `0` is Monday, `2` is Tuesday
+"""
+
+
+def get_next_times(today, program):
+    configured_days = program.get("frequency", {}).get("days")
+    start_times = program.get("start_times")
+
+    next_watering_dates = list()
+    for day in configured_days:
+        day = day - 1 if day > 0 else 6
+        for start_time in start_times:
+            time = datetime.datetime.strptime(start_time, "%H:%M")
+            next_day = next_weekday(today, day, time)
+            _LOGGER.info(f"{today}, {next_day}")
+            if next_day > today:
+                next_watering_dates.append(next_day)
+    return next_watering_dates
+
+
 now = dt_util.now()
 
 zone_entity_id = data.get("entity_id")
@@ -87,7 +119,7 @@ else:
             if configured_days is None:
                 continue
 
-            # now_weekday = now.weekday()
+            next_watering_dates = get_next_times(today, program)
 
             # next_watering_day = (
             #         filter(lambda day: (day > now_weekday), configured_days)
