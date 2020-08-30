@@ -111,8 +111,7 @@ class OrbitWebsocket:
 
                         elif msg.type == WSMsgType.CLOSE:
                             _LOGGER.debug("Websocket received CLOSE message, ignoring")
-                            # await self._ws.close()
-                        #     break
+                            break
 
                         elif msg.type == WSMsgType.CLOSED:
                             _LOGGER.error("websocket connection closed")
@@ -126,27 +125,26 @@ class OrbitWebsocket:
 
                     if self._ws.closed:
                         _LOGGER.info("Websocket closed? %s", self._ws.closed)
+                        self.state = STATE_STOPPED
 
                     if self._ws.exception():
                         _LOGGER.warning(
                             "Websocket exception: %s", self._ws.exception() or "Unknown"
                         )
+                        self.state = STATE_STOPPED
 
         except aiohttp.ClientConnectorError:
             _LOGGER.error("Client connection error; state: %s", self.state)
-            if self.state != STATE_STOPPED:
-                self.retry()
+            self.retry()
 
         # pylint: disable=broad-except
         except Exception as err:
             _LOGGER.error("Unexpected error %s", err)
-            if self.state != STATE_STOPPED:
-                self.retry()
+            self.retry()
 
         else:
-            if self.state != STATE_STOPPED:
-                _LOGGER.info("Reconnecting websocket; state: %s", self.state)
-                self.retry()
+            _LOGGER.info("Reconnecting websocket; state: %s", self.state)
+            self.retry()
 
     async def stop(self):
         """Close websocket connection."""
@@ -170,4 +168,6 @@ class OrbitWebsocket:
         if not self._ws.closed:
             await self._ws.send_str(json.dumps(payload))
         else:
-            _LOGGER.warning("Tried to send message whilst websocket closed; state: %s", self.state)
+            _LOGGER.warning(
+                "Tried to send message whilst websocket closed; state: %s", self.state
+            )
