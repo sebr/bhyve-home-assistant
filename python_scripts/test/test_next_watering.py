@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-_LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def next_weekday(day, weekday: int, start_time: datetime):
@@ -28,7 +28,7 @@ def get_next_times(today, program):
         for start_time in start_times:
             time = datetime.datetime.strptime(start_time, "%H:%M")
             next_day = next_weekday(today, day, time)
-            _LOGGER.info(f"{today}, {next_day}")
+            logger.info(f"{today}, {next_day}")
             if next_day > today:
                 next_watering_dates.append(next_day)
     return next_watering_dates
