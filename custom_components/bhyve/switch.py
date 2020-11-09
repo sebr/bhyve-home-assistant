@@ -292,7 +292,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
             if program is not None:
                 self._program = program
 
-    def _should_handle_event(self, event_name):
+    def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_PROGRAM_CHANGED]
 
 
@@ -448,7 +448,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                 }
             )
 
-    def _should_handle_event(self, event_name):
+    def _should_handle_event(self, event_name, data):
         return event_name in [
             EVENT_DEVICE_IDLE,
             EVENT_WATERING_COMPLETE,
@@ -576,7 +576,7 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
             # The REST API returns more data about a rain delay (eg cause/weather_type)
             self._update_device_soon()
 
-    def _should_handle_event(self, event_name):
+    def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_RAIN_DELAY]
 
     def _update_device_soon(self):

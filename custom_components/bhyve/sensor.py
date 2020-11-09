@@ -95,7 +95,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:battery"
 
-    def _should_handle_event(self, event_name):
+    def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_CHANGE_MODE]
 
     async def async_update(self):
@@ -139,7 +139,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:{self._zone_id}:history"
 
-    def _should_handle_event(self, event_name):
+    def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_DEVICE_IDLE]
 
     async def async_update(self):
@@ -219,5 +219,5 @@ class BHyveStateSensor(BHyveDeviceEntity):
         if event == EVENT_CHANGE_MODE:
             self._state = data.get("mode")
 
-    def _should_handle_event(self, event_name):
+    def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_CHANGE_MODE]
