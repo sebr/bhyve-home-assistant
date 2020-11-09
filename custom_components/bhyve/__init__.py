@@ -301,8 +301,8 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
                 self._available = True
             if self._should_handle_event(event):
                 _LOGGER.info(
-                    "Callback update: {} - {} - {}".format(
-                        self.name, self._device_id, str(data)[:160]
+                    "Message received: {} - {} - {}".format(
+                        self.name, self._device_id, str(data)
                     )
                 )
                 self._ws_unprocessed_events.append(data)

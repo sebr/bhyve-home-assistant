@@ -260,7 +260,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
             """Update the state."""
             _LOGGER.info(
                 "Program update: {} - {} - {}".format(
-                    self.name, self._program_id, str(data)[:160]
+                    self.name, self._program_id, str(data)
                 )
             )
             event = data.get("event")
