@@ -23,12 +23,12 @@ if not device_name:
 
 logger.info("updating next_watering for zone: ({}: {})".format(zone_name, zone))
 
-next_watering_entity = f"sensor.{zone_name}_next_watering".replace(" ", "_").lower()
+next_watering_entity = f"sensor.{zone_name}_next_watering".replace(" ", "_").replace("-", "_").lower()
 next_watering_attrs = {"friendly_name": f"{zone_name} next watering"}
 
 rain_delay_finishing_entity = f"sensor.{device_name}_rain_delay_finishing".replace(
     " ", "_"
-).lower()
+).replace("-", "_").lower()
 rain_delay_finishing_attrs = {"friendly_name": f"{device_name} rain delay finishing"}
 
 rain_delay = hass.states.get(f"switch.{device_name}_rain_delay")
