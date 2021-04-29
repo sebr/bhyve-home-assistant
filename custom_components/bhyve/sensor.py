@@ -34,10 +34,12 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     devices = await bhyve.devices
     for device in devices:
         if device.get("type") == DEVICE_SPRINKLER:
-            sensors.append(BHyveBatterySensor(hass, bhyve, device))
             sensors.append(BHyveStateSensor(hass, bhyve, device))
             for zone in device.get("zones"):
                 sensors.append(BHyveZoneHistorySensor(hass, bhyve, device, zone))
+
+            if device.get("battery", None) is not None:
+                sensors.append(BHyveBatterySensor(hass, bhyve, device))
 
     async_add_entities(sensors, True)
 
