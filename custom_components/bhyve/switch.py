@@ -48,7 +48,7 @@ from .util import orbit_time_to_local_time
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_MANUAL_RUNTIME = timedelta(minutes=10)
+DEFAULT_MANUAL_RUNTIME = timedelta(minutes=5)
 
 PROGRAM_SMART_WATERING = "e"
 PROGRAM_MANUAL = "manual"
@@ -531,6 +531,10 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
         run_time = self._manual_preset_runtime / 60
+        if run_time == 0:
+            _LOGGER.warning("Switch %s manual preset runtime is 0, watering has defaulted to %s minutes. Set the manual run time on your device or please specify number of minutes using the bhyve.start_watering service", self._device_name, DEFAULT_MANUAL_RUNTIME.minutes)
+            run_time = 5
+
         await self.start_watering(run_time)
 
     async def async_turn_off(self, **kwargs):
