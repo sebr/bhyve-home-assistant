@@ -259,9 +259,9 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
             self._setup(device)
 
         except BHyveError as err:
-            _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
-            self._available = False
-            raise (err)
+            _LOGGER.warning(
+                f"Unable to retreive data for {self.name}: {err}"
+            )
 
     async def _fetch_device_history(self, force_update=False):
         try:
