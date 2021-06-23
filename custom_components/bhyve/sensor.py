@@ -182,8 +182,10 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
                     break
 
         except BHyveError as err:
-            self._available = False
-            raise (err)
+            _LOGGER.warning(
+                f"Unable to retreive data for {self._name}: {err}"
+            )
+
 
 
 class BHyveStateSensor(BHyveDeviceEntity):

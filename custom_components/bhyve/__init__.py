@@ -268,7 +268,6 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
             return await self._bhyve.get_device_history(self._device_id, force_update)
 
         except BHyveError as err:
-            _LOGGER.warning("Failed to connect to BHyve servers. %s", err)
             raise (err)
 
     @property
