@@ -14,6 +14,7 @@ This integration works with:
 - [Orbit 57946 B-hyve Smart Indoor/Outdoor 6-Station WiFi Sprinkler System Controller](https://www.amazon.com/gp/product/B01D15HOIQ). Compatibility has been reported by members of the community.
 - [Orbit 57925 B-hyve Smart 8-Zone Indoor-Mount Sprinkler Controller](https://www.amazon.com/dp/B07DJ628XH). Compatibility has been reported by members of the community.
 - [Orbit 57995 B-Hyve XR](https://www.amazon.com/Orbit-57995-16-Zone-Sprinkler-Controller/dp/B08J2C3FL5). Compatibility has been reported by members of the community.
+- [Orbit 94546 - 6 Station B-Hyve](https://www.amazon.de/-/en/Orbit-94546-B-HyveTM-Irrigation-Computer/dp/B0716CLDT6/ref=sr_1_1?dchild=1&keywords=94546&qid=1627236413&sr=8-1)
 
 ## Supported Entities
 
