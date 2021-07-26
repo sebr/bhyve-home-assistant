@@ -21,10 +21,7 @@ except ImportError:
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.dispatcher import (
-    async_dispatcher_send,
-    async_dispatcher_connect,
-)
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt
 
@@ -106,10 +103,11 @@ SERVICE_TO_METHOD = {
         "schema": START_WATERING_SCHEMA,
     },
     SERVICE_STOP_WATERING: {"method": "stop_watering", "schema": SERVICE_BASE_SCHEMA},
-    SERVICE_SET_MANUAL_PRESET_RUNTIME: {
-        "method": "set_manual_preset_runtime",
-        "schema": SET_PRESET_RUNTIME_SCHEMA,
-    },
+    # Does not currently work ¯\_(ツ)_/¯
+    # SERVICE_SET_MANUAL_PRESET_RUNTIME: {
+    #     "method": "set_manual_preset_runtime",
+    #     "schema": SET_PRESET_RUNTIME_SCHEMA,
+    # },
 }
 
 
