@@ -54,7 +54,7 @@ A **device state** `sensor` entity is created for each device. This reports the 
 
 A **zone history** `sensor` entity is created for each zone. This reports the history of zone watering.
 
-The following attrinutes are set on zone history sensor entities:
+The following attributes are set on zone history sensor entities:
 
 | Attribute             | Type     | Notes                                                       |
 | --------------------- | -------- | ----------------------------------------------------------- |
