@@ -40,6 +40,8 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
             if device.get("battery", None) is not None:
                 sensors.append(BHyveBatterySensor(hass, bhyve, device))
+        if device.get("type") == DEVICE_FLOOD:
+            sensors.append(BHyveFloodSensor(hass, bhyve, device))
 
     async_add_entities(sensors, True)
 
@@ -225,3 +227,33 @@ class BHyveStateSensor(BHyveDeviceEntity):
 
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_CHANGE_MODE]
+    
+    
+class BHyveFloodSensor(BHyveDeviceEntity):
+    """Define a BHyve sensor."""
+
+    def __init__(self, hass, bhyve, device):
+        """Initialize the sensor."""
+        name = "{0} state".format(device.get("name"))
+        _LOGGER.info("Creating state sensor: %s", name)
+        super().__init__(hass, bhyve, device, name, "information")
+
+    def _setup(self, device):
+        self._attrs = {}
+        self._state = device.get("status", {}).get("flood_alarm_status")
+        self._available = device.get("is_connected", False)
+        _LOGGER.debug(
+            f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
+        )
+
+    @property
+    def state(self):
+        """Return the state of the entity"""
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_id}:state"
+
+
