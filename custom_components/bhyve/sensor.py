@@ -8,6 +8,7 @@ from . import BHyveDeviceEntity
 from .const import (
     DATA_BHYVE,
     DEVICE_SPRINKLER,
+    DEVICE_FLOOD,
     EVENT_CHANGE_MODE,
     EVENT_DEVICE_IDLE,
 )
