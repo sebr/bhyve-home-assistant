@@ -239,9 +239,13 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         super().__init__(hass, bhyve, device, name, "information")
 
     def _setup(self, device):
-        self._attrs = {}
+        self._icon = "mdi:water"
         self._state = device.get("status", {}).get("flood_alarm_status")
         self._available = device.get("is_connected", False)
+        self._attrs = {
+            "location": device.get("location_name"),
+            "shutoff": device.get("auto_shutoff"),
+        }
         _LOGGER.debug(
             f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
         )
