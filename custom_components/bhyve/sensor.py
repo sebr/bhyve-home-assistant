@@ -10,6 +10,7 @@ from .const import (
     DEVICE_SPRINKLER,
     DEVICE_FLOOD,
     EVENT_CHANGE_MODE,
+    EVENT_FS_ALARM,
     EVENT_DEVICE_IDLE,
 )
 from .pybhyve.errors import BHyveError
@@ -266,4 +267,14 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:state"
 
+    def _on_ws_data(self, data):
+        """
+            {'event': 'fs_alarm_change', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
+        """
+        _LOGGER.info("Received program data update {}".format(data))
+        event = data.get("event")
+        if event == EVENT_FS_ALARM:
+            self._state = data.get("data", {}).get("flood_alarm_status")
 
+    def _should_handle_event(self, event_name, data):
+        return event_name in [EVENT_FS_ALARM]
