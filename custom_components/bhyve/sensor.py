@@ -8,7 +8,9 @@ from . import BHyveDeviceEntity
 from .const import (
     DATA_BHYVE,
     DEVICE_SPRINKLER,
+    DEVICE_FLOOD,
     EVENT_CHANGE_MODE,
+    EVENT_FS_ALARM,
     EVENT_DEVICE_IDLE,
 )
 from .pybhyve.errors import BHyveError
@@ -40,6 +42,8 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
             if device.get("battery", None) is not None:
                 sensors.append(BHyveBatterySensor(hass, bhyve, device))
+        if device.get("type") == DEVICE_FLOOD:
+            sensors.append(BHyveFloodSensor(hass, bhyve, device))
 
     async_add_entities(sensors, True)
 
@@ -225,3 +229,52 @@ class BHyveStateSensor(BHyveDeviceEntity):
 
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_CHANGE_MODE]
+    
+    
+class BHyveFloodSensor(BHyveDeviceEntity):
+    """Define a BHyve sensor."""
+
+    def __init__(self, hass, bhyve, device):
+        """Initialize the sensor."""
+        name = "{0} state".format(device.get("name"))
+        _LOGGER.info("Creating state sensor: %s", name)
+        super().__init__(hass, bhyve, device, name, "information")
+
+    def _setup(self, device):
+        self._icon = "mdi:water"
+        self._device_class = "moisture"
+        self._state = device.get("status", {}).get("flood_alarm_status")
+        self._available = device.get("is_connected", False)
+        self._attrs = {
+            "location": device.get("location_name"),
+            "shutoff": device.get("auto_shutoff"),
+            "battery": device.get("battery", {}).get("percent"),
+            "rssi": device.get("status", {}).get("rssi"),
+            "temperature": device.get("status", {}).get("temp_f"),
+            "temperature_alarm": device.get("status", {}).get("temp_alarm_status"),
+        }
+        _LOGGER.debug(
+            f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
+        )
+
+    @property
+    def state(self):
+        """Return the state of the entity"""
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_id}:state"
+
+    def _on_ws_data(self, data):
+        """
+            {'event': 'fs_alarm_change', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
+        """
+        _LOGGER.info("Received program data update {}".format(data))
+        event = data.get("event")
+        if event == EVENT_FS_ALARM:
+            self._state = data.get("data", {}).get("flood_alarm_status")
+
+    def _should_handle_event(self, event_name, data):
+        return event_name in [EVENT_FS_ALARM]
