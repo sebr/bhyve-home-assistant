@@ -275,14 +275,9 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         event = data.get("event")
         if event == "fs_status_update":
             self._state = data.get("flood_alarm_status")
-            self._attrs = {
-               "location": device.get("location_name"),
-               "shutoff": device.get("auto_shutoff"),
-               "battery": device.get("battery", {}).get("percent"),
-               "rssi": data.get("rssi"),
-                "temperature": data.get("temp_f"),
-                "temperature_alarm": data.get("temp_alarm_status"),
-            }
+            self._attrs['rssi'] = data.get("rssi")
+            self._attrs['temperature'] = data.get("temp_f")
+            self._attrs['temperature_alarm'] = data.get("temp_alarm_status")
 
     def _should_handle_event(self, event_name, data):
         return event_name in ["fs_status_update"]
