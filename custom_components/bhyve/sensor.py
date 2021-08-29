@@ -269,12 +269,12 @@ class BHyveFloodSensor(BHyveDeviceEntity):
 
     def _on_ws_data(self, data):
         """
-            {'event': 'fs_alarm_change', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
+            {"last_flood_alarm_at":"2021-08-29T16:32:35.585Z","rssi":-60,"onboard_complete":true,"temp_f":75.2,"provisioned":true,"phy":"le_1m_1000","event":"fs_status_update","temp_alarm_status":"ok","status_updated_at":"2021-08-29T16:33:17.089Z","identify_enabled":false,"device_id":"612ad9134f0c6c9c9faddbba","timestamp":"2021-08-29T16:33:17.089Z","flood_alarm_status":"ok","last_temp_alarm_at":null}
         """
         _LOGGER.info("Received program data update {}".format(data))
         event = data.get("event")
-        if event == "alarm_change":
-            self._state = data.get("data", {}).get("flood_alarm_status")
+        if event == "fs_status_update":
+            self._state = data.get("flood_alarm_status")
 
     def _should_handle_event(self, event_name, data):
-        return event_name in ["fs_alarm_change"]
+        return event_name in ["fs_status_update"]
