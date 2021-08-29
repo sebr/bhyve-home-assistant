@@ -236,7 +236,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
 
     def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
-        name = "orbit fs {0}".format(device.get("name"))
+        name = "{0} flood sensor".format(device.get("name"))
         _LOGGER.info("Creating state sensor: %s", name)
         super().__init__(hass, bhyve, device, name, "information")
 
