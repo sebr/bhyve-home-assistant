@@ -166,7 +166,6 @@ class OrbitWebsocket:
     async def send(self, payload):
         """Send a websocket message."""
         if not self._ws.closed:
-            _LOGGER.warn("orbit event: %s", payload)
             await self._ws.send_str(json.dumps(payload))
         else:
             _LOGGER.warning(
