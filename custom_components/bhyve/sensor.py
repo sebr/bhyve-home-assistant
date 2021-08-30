@@ -291,6 +291,7 @@ class BHyveTempSensor(BHyveDeviceEntity):
 
     def _setup(self, device):
         self._device_class = DEVICE_CLASS_TEMPERATURE
+        self._icon = "hass:thermometer"
         self._unit = "°F"
         self._state_class = "measurement"
         self._state = device.get("status", {}).get("temp_f")
