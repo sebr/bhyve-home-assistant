@@ -1,7 +1,7 @@
 """Support for Orbit BHyve sensors."""
 import logging
 
-from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY
+from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY, DEVICE_CLASS_TEMPERATURE
 from homeassistant.helpers.icon import icon_for_battery_level
 
 from . import BHyveDeviceEntity
@@ -42,7 +42,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
             if device.get("battery", None) is not None:
                 sensors.append(BHyveBatterySensor(hass, bhyve, device))
-        if device.get("type") == "flood_sensor":
+        if device.get("type") == DEVICE_FLOOD:
             sensors.append(BHyveFloodSensor(hass, bhyve, device))
             sensors.append(BHyveTempSensor(hass, bhyve, device))
             sensors.append(BHyveBatterySensor(hass, bhyve, device))
@@ -272,12 +272,12 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         """
         _LOGGER.info("Received program data update {}".format(data))
         event = data.get("event")
-        if event == "fs_status_update":
+        if event == EVENT_FS_ALARM:
             self._state = "Wet" if data.get("flood_alarm_status") == "alarm" else "Dry"
             self._attrs['rssi'] = data.get("rssi")
 
     def _should_handle_event(self, event_name, data):
-        return event_name in ["fs_status_update"]
+        return event_name in [EVENT_FS_ALARM]
 
     
 class BHyveTempSensor(BHyveDeviceEntity):
@@ -290,7 +290,7 @@ class BHyveTempSensor(BHyveDeviceEntity):
         super().__init__(hass, bhyve, device, name, "information")
 
     def _setup(self, device):
-        self._device_class = "temperature"
+        self._device_class = DEVICE_CLASS_TEMPERATURE
         self._state = device.get("status", {}).get("temp_f")
         self._available = device.get("is_connected", False)
         self._attrs = {
@@ -318,10 +318,10 @@ class BHyveTempSensor(BHyveDeviceEntity):
         """
         _LOGGER.info("Received program data update {}".format(data))
         event = data.get("event")
-        if event == "fs_status_update":
+        if event == EVENT_FS_ALARM:
             self._state = data.get("temp_f")
             self._attrs['rssi'] = data.get("rssi")
             self._attrs['temperature_alarm'] = data.get("temp_alarm_status")
 
     def _should_handle_event(self, event_name, data):
-        return event_name in ["fs_status_update"]
+        return event_name in [EVENT_FS_ALARM]
