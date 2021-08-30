@@ -290,7 +290,6 @@ class BHyveTempSensor(BHyveDeviceEntity):
         super().__init__(hass, bhyve, device, name, "information")
 
     def _setup(self, device):
-        self._icon = "mdi:temp"
         self._device_class = "temperature"
         self._state = device.get("status", {}).get("temp_f")
         self._available = device.get("is_connected", False)
