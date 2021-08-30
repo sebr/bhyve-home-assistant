@@ -44,6 +44,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                 sensors.append(BHyveBatterySensor(hass, bhyve, device))
         if device.get("type") == "flood_sensor":
             sensors.append(BHyveFloodSensor(hass, bhyve, device))
+            sensors.append(BHyveBatterySensor(hass, bhyve, device))
 
     async_add_entities(sensors, True)
 
@@ -277,6 +278,54 @@ class BHyveFloodSensor(BHyveDeviceEntity):
             self._state = "Wet" if data.get("flood_alarm_status") == "alarm" else "Dry"
             self._attrs['rssi'] = data.get("rssi")
             self._attrs['temperature'] = data.get("temp_f")
+            self._attrs['temperature_alarm'] = data.get("temp_alarm_status")
+
+    def _should_handle_event(self, event_name, data):
+        return event_name in ["fs_status_update"]
+
+    
+class BHyveTempSensor(BHyveDeviceEntity):
+    """Define a BHyve sensor."""
+
+    def __init__(self, hass, bhyve, device):
+        """Initialize the sensor."""
+        name = "{0} temp sensor".format(device.get("name"))
+        _LOGGER.info("Creating state sensor: %s", name)
+        super().__init__(hass, bhyve, device, name, "information")
+
+    def _setup(self, device):
+        self._icon = "mdi:temp"
+        self._device_class = "temperature"
+        self._state = device.get("status", {}).get("temp_f")
+        self._available = device.get("is_connected", False)
+        self._attrs = {
+            "location": device.get("location_name"),
+            "rssi": device.get("status", {}).get("rssi"),
+            "temperature_alarm": device.get("status", {}).get("temp_alarm_status"),
+        }
+        _LOGGER.debug(
+            f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
+        )
+
+    @property
+    def state(self):
+        """Return the state of the entity"""
+        return self._state
+
+    @property
+    def unique_id(self):
+        """Return a unique, unchanging string that represents this sensor."""
+        return f"{self._mac_address}:{self._device_id}:temp"
+
+    def _on_ws_data(self, data):
+        """
+            {"last_flood_alarm_at":"2021-08-29T16:32:35.585Z","rssi":-60,"onboard_complete":true,"temp_f":75.2,"provisioned":true,"phy":"le_1m_1000","event":"fs_status_update","temp_alarm_status":"ok","status_updated_at":"2021-08-29T16:33:17.089Z","identify_enabled":false,"device_id":"612ad9134f0c6c9c9faddbba","timestamp":"2021-08-29T16:33:17.089Z","flood_alarm_status":"ok","last_temp_alarm_at":null}
+        """
+        _LOGGER.info("Received program data update {}".format(data))
+        event = data.get("event")
+        if event == "fs_status_update":
+            self._state = data.get("temp_f")
+            self._attrs['rssi'] = data.get("rssi")
             self._attrs['temperature_alarm'] = data.get("temp_alarm_status")
 
     def _should_handle_event(self, event_name, data):
