@@ -44,6 +44,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                 sensors.append(BHyveBatterySensor(hass, bhyve, device))
         if device.get("type") == "flood_sensor":
             sensors.append(BHyveFloodSensor(hass, bhyve, device))
+            sensors.append(BHyveTempSensor(hass, bhyve, device))
             sensors.append(BHyveBatterySensor(hass, bhyve, device))
 
     async_add_entities(sensors, True)
@@ -249,10 +250,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         self._attrs = {
             "location": device.get("location_name"),
             "shutoff": device.get("auto_shutoff"),
-            "battery": device.get("battery", {}).get("percent"),
             "rssi": device.get("status", {}).get("rssi"),
-            "temperature": device.get("status", {}).get("temp_f"),
-            "temperature_alarm": device.get("status", {}).get("temp_alarm_status"),
         }
         _LOGGER.debug(
             f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
@@ -277,8 +275,6 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         if event == "fs_status_update":
             self._state = "Wet" if data.get("flood_alarm_status") == "alarm" else "Dry"
             self._attrs['rssi'] = data.get("rssi")
-            self._attrs['temperature'] = data.get("temp_f")
-            self._attrs['temperature_alarm'] = data.get("temp_alarm_status")
 
     def _should_handle_event(self, event_name, data):
         return event_name in ["fs_status_update"]
