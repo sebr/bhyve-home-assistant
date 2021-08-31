@@ -252,6 +252,11 @@ class BHyveTempSensor(BHyveDeviceEntity):
         _LOGGER.debug(
             f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
         )
+    
+    @property
+    def state(self):
+        """Return the state of the entity"""
+        return self._state
 
     @property
     def unique_id(self):
