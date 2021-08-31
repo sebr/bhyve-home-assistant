@@ -1,8 +1,6 @@
 """Support for Orbit BHyve sensors."""
 import logging
 
-from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY
-
 from . import BHyveDeviceEntity
 from .const import (
     DATA_BHYVE,
@@ -14,15 +12,6 @@ from .pybhyve.errors import BHyveError
 from .util import orbit_time_to_local_time
 
 _LOGGER = logging.getLogger(__name__)
-
-ATTR_BUDGET = "budget"
-ATTR_IRRIGATION = "irrigation"
-ATTR_PROGRAM = "program"
-ATTR_PROGRAM_NAME = "program_name"
-ATTR_RUN_TIME = "run_time"
-ATTR_STATUS = "status"
-ATTR_CONSUMPTION_GALLONS = "consumption_gallons"
-ATTR_CONSUMPTION_LITRES = "consumption_litres"
 
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
