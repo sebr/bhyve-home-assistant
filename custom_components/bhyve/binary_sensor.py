@@ -8,6 +8,10 @@ from .const import (
     EVENT_FS_ALARM,
     EVENT_DEVICE_IDLE,
 )
+from homeassistant.components.binary_sensor import (
+    DEVICE_CLASS_MOISTURE,
+    BinarySensorEntity,
+)
 from .pybhyve.errors import BHyveError
 from .util import orbit_time_to_local_time
 
@@ -38,8 +42,8 @@ class BHyveFloodSensor(BHyveDeviceEntity):
 
     def _setup(self, device):
         """self._icon = "mdi:water"""
-        """self._state = "Wet" if device.get("status", {}).get("flood_alarm_status") == "alarm" else "Dry"""
-        self._device_class = "moisture"
+        self._sensor_type = DEVICE_CLASS_MOISTURE
+        self._state = true if device.get("status", {}).get("flood_alarm_status") == "alarm" else false
         self._available = device.get("is_connected", False)
         self._attrs = {
             "location": device.get("location_name"),
@@ -49,14 +53,15 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         _LOGGER.debug(
             f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
         )
-"""
+
     @property
-    def state(self):
+    def is_on(self):
         return self._state
-"""    
+
     @property
-    def is_on(self) -> bool:
-        return self._state == "Wet"
+    def device_class(self):
+        """Return the class of this sensor."""
+        return self._sensor_type
 
     @property
     def unique_id(self):
