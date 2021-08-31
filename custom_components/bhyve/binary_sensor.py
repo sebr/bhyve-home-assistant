@@ -42,7 +42,6 @@ class BHyveFloodSensor(BHyveDeviceEntity):
 
     def _setup(self, device):
         """self._icon = "mdi:water"""
-        self._name = name
         self._sensor_type = DEVICE_CLASS_MOISTURE
         self._unique_id = f"{self._mac_address}:{self._device_id}:state"
         self._state = False
