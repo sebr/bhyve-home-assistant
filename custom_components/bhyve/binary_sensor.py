@@ -38,7 +38,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         """Initialize the sensor."""
         name = "{0} water sensor".format(device.get("name"))
         _LOGGER.info("Creating state sensor: %s", name)
-        super().__init__(hass, bhyve, device, name, DEVICE_CLASS_MOISTURE)
+        super().__init__(hass, bhyve, device, name, "water", DEVICE_CLASS_MOISTURE)
 
     def _setup(self, device):
         """self._icon = "mdi:water"""
@@ -68,16 +68,11 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         return self._sensor_type
 
     @property
-    def should_poll(self):
-        return False
-
-    @property
     def name(self):
         return self._name
 
     @property
     def is_on(self):
-        """Return true if the binary sensor is on."""
         return self._state
 
 
