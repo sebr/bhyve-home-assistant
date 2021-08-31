@@ -36,13 +36,15 @@ class BHyveFloodSensor(BHyveDeviceEntity):
 
     def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
-        name = "{0} water sensor".format(device.get("name"))
+        '''name = "{0} water sensor".format(device.get("name"))'''
         _LOGGER.info("Creating state sensor: %s", name)
-        super().__init__(hass, bhyve, device, name, "information")
+        '''super().__init__(hass, bhyve, device, name, "information")'''
 
-    def _setup(self, device):
+    '''def _setup(self, device):'''
         """self._icon = "mdi:water"""
+        self._name = "{0} water sensor".format(device.get("name"))
         self._sensor_type = DEVICE_CLASS_MOISTURE
+        self._unique_id = f"{self._mac_address}:{self._device_id}:state"
         self._state = True if device.get("status", {}).get("flood_alarm_status") == "alarm" else False
         self._available = device.get("is_connected", False)
         self._attrs = {
@@ -54,9 +56,11 @@ class BHyveFloodSensor(BHyveDeviceEntity):
             f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
         )
 
+
     @property
-    def is_on(self):
-        return self._state
+    def unique_id(self):
+        """Return the unique id."""
+        return self._unique_id
 
     @property
     def device_class(self):
@@ -64,9 +68,20 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         return self._sensor_type
 
     @property
-    def unique_id(self):
-        """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_id}:state"
+    def should_poll(self):
+        """No polling needed for a demo binary sensor."""
+        return False
+
+    @property
+    def name(self):
+        """Return the name of the binary sensor."""
+        return self._name
+
+    @property
+    def is_on(self):
+        """Return true if the binary sensor is on."""
+        return self._state
+
 
     def _on_ws_data(self, data):
         """
