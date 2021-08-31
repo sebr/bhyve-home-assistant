@@ -54,6 +54,10 @@ class BHyveFloodSensor(BHyveDeviceEntity):
     def state(self):
         """Return the state of the entity"""
         return self._state
+    
+    @property
+    def is_on(self) -> bool:
+        return self._state == "Wet"
 
     @property
     def unique_id(self):
