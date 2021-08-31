@@ -43,7 +43,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
     def _setup(self, device):
         """self._icon = "mdi:water"""
         self._sensor_type = DEVICE_CLASS_MOISTURE
-        self._state = true if device.get("status", {}).get("flood_alarm_status") == "alarm" else false
+        self._state = True if device.get("status", {}).get("flood_alarm_status") == "alarm" else False
         self._available = device.get("is_connected", False)
         self._attrs = {
             "location": device.get("location_name"),
