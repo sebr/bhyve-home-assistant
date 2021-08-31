@@ -35,13 +35,13 @@ class BHyveFloodSensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
     def __init__(self, hass, bhyve, device):
-        """Initialize the sensor."""
-        '''name = "{0} water sensor".format(device.get("name"))'''
         _LOGGER.info("Creating state sensor: %s", name)
-        '''super().__init__(hass, bhyve, device, name, "information")'''
+        """Initialize the sensor.
+        name = "{0} water sensor".format(device.get("name"))
+        super().__init__(hass, bhyve, device, name, "information")
 
-    '''def _setup(self, device):'''
-        """self._icon = "mdi:water"""
+        def _setup(self, device):
+        self._icon = "mdi:water"""
         self._name = "{0} water sensor".format(device.get("name"))
         self._sensor_type = DEVICE_CLASS_MOISTURE
         self._unique_id = f"{self._mac_address}:{self._device_id}:state"
