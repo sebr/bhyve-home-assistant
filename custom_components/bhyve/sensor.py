@@ -1,7 +1,7 @@
 """Support for Orbit BHyve sensors."""
 import logging
 
-from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY
+from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY, DEVICE_CLASS_TEMPERATURE
 from homeassistant.helpers.icon import icon_for_battery_level
 
 from . import BHyveDeviceEntity
@@ -42,8 +42,9 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
             if device.get("battery", None) is not None:
                 sensors.append(BHyveBatterySensor(hass, bhyve, device))
-        if device.get("type") == "flood_sensor":
-            sensors.append(BHyveFloodSensor(hass, bhyve, device))
+        if device.get("type") == DEVICE_FLOOD:
+            sensors.append(BHyveTempSensor(hass, bhyve, device))
+            sensors.append(BHyveBatterySensor(hass, bhyve, device))
 
     async_add_entities(sensors, True)
 
@@ -229,34 +230,29 @@ class BHyveStateSensor(BHyveDeviceEntity):
 
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_CHANGE_MODE]
-    
-    
-class BHyveFloodSensor(BHyveDeviceEntity):
+
+
+class BHyveTempSensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
     def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
-        name = "{0} water sensor".format(device.get("name"))
+        name = "{0} temp sensor".format(device.get("name"))
         _LOGGER.info("Creating state sensor: %s", name)
-        super().__init__(hass, bhyve, device, name, "information")
+        super().__init__(hass, bhyve, device, name, "thermometer", DEVICE_CLASS_TEMPERATURE)
 
     def _setup(self, device):
-        self._icon = "mdi:water"
-        self._device_class = "moisture"
-        self._state = "Wet" if device.get("status", {}).get("flood_alarm_status") == "alarm" else "Dry"
+        self._state = device.get("status", {}).get("temp_f")
         self._available = device.get("is_connected", False)
         self._attrs = {
             "location": device.get("location_name"),
-            "shutoff": device.get("auto_shutoff"),
-            "battery": device.get("battery", {}).get("percent"),
             "rssi": device.get("status", {}).get("rssi"),
-            "temperature": device.get("status", {}).get("temp_f"),
             "temperature_alarm": device.get("status", {}).get("temp_alarm_status"),
         }
         _LOGGER.debug(
             f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
         )
-
+    
     @property
     def state(self):
         """Return the state of the entity"""
@@ -265,7 +261,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
     @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_id}:state"
+        return f"{self._mac_address}:{self._device_id}:temp"
 
     def _on_ws_data(self, data):
         """
@@ -273,11 +269,10 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         """
         _LOGGER.info("Received program data update {}".format(data))
         event = data.get("event")
-        if event == "fs_status_update":
-            self._state = "Wet" if data.get("flood_alarm_status") == "alarm" else "Dry"
+        if event == EVENT_FS_ALARM:
+            self._state = data.get("temp_f")
             self._attrs['rssi'] = data.get("rssi")
-            self._attrs['temperature'] = data.get("temp_f")
             self._attrs['temperature_alarm'] = data.get("temp_alarm_status")
 
     def _should_handle_event(self, event_name, data):
-        return event_name in ["fs_status_update"]
+        return event_name in [EVENT_FS_ALARM]
