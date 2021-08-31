@@ -41,11 +41,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         super().__init__(hass, bhyve, device, name, "water", DEVICE_CLASS_MOISTURE)
 
     def _setup(self, device):
-        """
-        self._sensor_type = DEVICE_CLASS_MOISTURE
-        self._device_class = DEVICE_CLASS_MOISTURE
-        """
-        self._state = "Wet" if device.get("status", {}).get("flood_alarm_status") == "alarm" else "Dry"
+        self._is_on = True if device.get("status", {}).get("flood_alarm_status") == "alarm" else False
         self._available = device.get("is_connected", False)
         self._attrs = {
             "location": device.get("location_name"),
@@ -62,14 +58,8 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         return f"{self._mac_address}:{self._device_id}:state"
         
     @property
-    def state(self):
-        """Return the state of the entity"""
-        return self._state
-
-    @property
-    def is_on(self) -> bool:
-        return self._state == "Wet"
-
+    def is_on(self):
+        return self._is_on
 
     def _on_ws_data(self, data):
         """
@@ -78,7 +68,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         _LOGGER.info("Received program data update {}".format(data))
         event = data.get("event")
         if event == EVENT_FS_ALARM:
-            self._state = "Wet" if data.get("flood_alarm_status") == "alarm" else "Dry"
+            self._is_on = True if data.get("flood_alarm_status") == "alarm" else False
             self._attrs['rssi'] = data.get("rssi")
 
     def _should_handle_event(self, event_name, data):
