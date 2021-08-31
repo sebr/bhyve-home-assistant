@@ -42,6 +42,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
 
     def _setup(self, device):
         self._available = device.get("is_connected", False)
+        self._state = "on" if device.get("status", {}).get("flood_alarm_status") == "alarm" else "off"
         self._attrs = {
             "location": device.get("location_name"),
             "shutoff": device.get("auto_shutoff"),
@@ -54,7 +55,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
     @property
     def state(self):
         """Return the state of the entity"""
-        return "on" if device.get("status", {}).get("flood_alarm_status") == "alarm" else "off"
+        return self._state
     
     @property
     def unique_id(self):
@@ -63,7 +64,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         
     @property
     def is_on(self):
-        return self.state == "on"
+        return self._state == "on"
 
     def _on_ws_data(self, data):
         """
