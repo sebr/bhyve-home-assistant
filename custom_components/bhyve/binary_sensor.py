@@ -37,9 +37,9 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         super().__init__(hass, bhyve, device, name, "information")
 
     def _setup(self, device):
-        self._icon = "mdi:water"
+        """self._icon = "mdi:water"""
+        """self._state = "Wet" if device.get("status", {}).get("flood_alarm_status") == "alarm" else "Dry"""
         self._device_class = "moisture"
-        self._state = "Wet" if device.get("status", {}).get("flood_alarm_status") == "alarm" else "Dry"
         self._available = device.get("is_connected", False)
         self._attrs = {
             "location": device.get("location_name"),
@@ -49,12 +49,11 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         _LOGGER.debug(
             f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
         )
-
+"""
     @property
     def state(self):
-        """Return the state of the entity"""
         return self._state
-    
+"""    
     @property
     def is_on(self) -> bool:
         return self._state == "Wet"
