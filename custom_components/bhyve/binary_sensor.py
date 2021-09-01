@@ -53,7 +53,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         )
 
     def _parse_status(self, status):
-        return "on" if status.get("status", {}).get("flood_alarm_status") == "alarm" else "off"
+        return "on" if status.get("flood_alarm_status") == "alarm" else "off"
 
     @property
     def state(self):
@@ -76,7 +76,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         _LOGGER.info("Received program data update {}".format(data))
         event = data.get("event")
         if event == EVENT_FS_ALARM:
-            self._state = self._parse_status(device.get("status", {}))
+            self._state = self._parse_status(data)
             self._attrs['rssi'] = data.get("rssi")
 
     def _should_handle_event(self, event_name, data):
