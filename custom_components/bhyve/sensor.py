@@ -43,7 +43,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
             if device.get("battery", None) is not None:
                 sensors.append(BHyveBatterySensor(hass, bhyve, device))
         if device.get("type") == DEVICE_FLOOD:
-            sensors.append(BHyveTempSensor(hass, bhyve, device))
+            sensors.append(BHyveTemperatureSensor(hass, bhyve, device))
             sensors.append(BHyveBatterySensor(hass, bhyve, device))
 
     async_add_entities(sensors, True)
@@ -232,7 +232,7 @@ class BHyveStateSensor(BHyveDeviceEntity):
         return event_name in [EVENT_CHANGE_MODE]
 
 
-class BHyveTempSensor(BHyveDeviceEntity):
+class BHyveTemperatureSensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
     def __init__(self, hass, bhyve, device):
