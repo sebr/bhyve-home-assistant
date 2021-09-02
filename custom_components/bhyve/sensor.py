@@ -257,6 +257,10 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
     def state(self):
         """Return the state of the entity"""
         return self._state
+    
+    @property
+    def state_class(self):
+        return "measurement"
 
     @property
     def unique_id(self):
