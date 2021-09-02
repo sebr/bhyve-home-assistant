@@ -244,6 +244,7 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
     def _setup(self, device):
         self._state = device.get("status", {}).get("temp_f")
         self._available = device.get("is_connected", False)
+        self._unit = "°F"
         self._attrs = {
             "location": device.get("location_name"),
             "rssi": device.get("status", {}).get("rssi"),
@@ -259,8 +260,9 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
         return self._state
     
     @property
-    def state_class(self):
-        return "measurement"
+    def unit_of_measurement(self):
+        """Return the unit of measurement for the sensor."""
+        return self._unit
 
     @property
     def unique_id(self):
