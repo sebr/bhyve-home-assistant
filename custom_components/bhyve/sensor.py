@@ -267,7 +267,7 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
     @property
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_id}:temp2"
+        return f"{self._mac_address}:{self._device_id}:temp"
 
     def _on_ws_data(self, data):
         """
