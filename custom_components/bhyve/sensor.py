@@ -1,7 +1,7 @@
 """Support for Orbit BHyve sensors."""
 import logging
 
-from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY, DEVICE_CLASS_TEMPERATURE
+from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY, DEVICE_CLASS_TEMPERATURE, TEMP_FAHRENHEIT
 from homeassistant.helpers.icon import icon_for_battery_level
 
 from . import BHyveDeviceEntity
