@@ -254,12 +254,12 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
         )
     
     @property
-    def native_value(self):
-        return self._state
-    
-    @property
     def native_unit_of_measurement(self):
         return TEMP_FAHRENHEIT
+    
+    @property
+    def native_value(self):
+        return self._state
 
     @property
     def unique_id(self):
