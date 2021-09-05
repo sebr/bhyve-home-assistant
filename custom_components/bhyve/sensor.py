@@ -237,8 +237,8 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
 
     def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
-        name = "{0} temp sensor".format(device.get("name"))
-        _LOGGER.info("Creating state sensor: %s", name)
+        name = "{0} temperature sensor".format(device.get("name"))
+        _LOGGER.info("Creating temperature sensor: %s", name)
         super().__init__(hass, bhyve, device, name, "thermometer", DEVICE_CLASS_TEMPERATURE)
 
     def _setup(self, device):
@@ -250,7 +250,7 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
             "temperature_alarm": device.get("status", {}).get("temp_alarm_status"),
         }
         _LOGGER.debug(
-            f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
+            f"Temperature sensor {self._name} setup: State: {self._state} | Available: {self._available}"
         )
     
     @property
