@@ -1,7 +1,7 @@
 """Support for Orbit BHyve sensors."""
 import logging
 
-from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY, DEVICE_CLASS_TEMPERATURE
+from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY, DEVICE_CLASS_TEMPERATURE, TEMP_FAHRENHEIT
 from homeassistant.helpers.icon import icon_for_battery_level
 
 from . import BHyveDeviceEntity
@@ -237,8 +237,8 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
 
     def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
-        name = "{0} temp sensor".format(device.get("name"))
-        _LOGGER.info("Creating state sensor: %s", name)
+        name = "{0} temperature sensor".format(device.get("name"))
+        _LOGGER.info("Creating temperature sensor: %s", name)
         super().__init__(hass, bhyve, device, name, "thermometer", DEVICE_CLASS_TEMPERATURE)
 
     def _setup(self, device):
@@ -251,12 +251,15 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
             "temperature_alarm": device.get("status", {}).get("temp_alarm_status"),
         }
         _LOGGER.debug(
-            f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
+            f"Temperature sensor {self._name} setup: State: {self._state} | Available: {self._available}"
         )
     
     @property
-    def state(self):
-        """Return the state of the entity"""
+    def native_unit_of_measurement(self):
+        return TEMP_FAHRENHEIT
+    
+    @property
+    def native_value(self):
         return self._state
     
     @property
