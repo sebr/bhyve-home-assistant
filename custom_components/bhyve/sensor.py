@@ -12,7 +12,7 @@ from .const import (
     EVENT_DEVICE_IDLE,
 )
 from .pybhyve.errors import BHyveError
-from .util import orbit_time_to_local_time
+from .util import orbit_time_to_local_time, orbit_get_age
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ ATTR_RUN_TIME = "run_time"
 ATTR_STATUS = "status"
 ATTR_CONSUMPTION_GALLONS = "consumption_gallons"
 ATTR_CONSUMPTION_LITRES = "consumption_litres"
+ATTR_LAST_RUN = "last_run"
 
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
@@ -170,6 +171,8 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
                     self._state = orbit_time_to_local_time(
                         latest_irrigation.get("start_time")
                     )
+                    # Log when it was last run
+                    _LOGGER.info("Bhyve: Last Run time: %s", orbit_get_age(latest_irrigation.get("start_time")))
                     self._attrs = {
                         ATTR_BUDGET: latest_irrigation.get(ATTR_BUDGET),
                         ATTR_PROGRAM: latest_irrigation.get(ATTR_PROGRAM),
@@ -178,6 +181,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
                         ATTR_STATUS: latest_irrigation.get(ATTR_STATUS),
                         ATTR_CONSUMPTION_GALLONS: gallons,
                         ATTR_CONSUMPTION_LITRES: litres,
+                        ATTR_LAST_RUN: orbit_get_age(latest_irrigation.get("start_time")),
                     }
                     break
 
