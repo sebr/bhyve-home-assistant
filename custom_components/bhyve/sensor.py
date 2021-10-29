@@ -17,14 +17,14 @@ from .util import orbit_time_to_local_time
 _LOGGER = logging.getLogger(__name__)
 
 ATTR_BUDGET = "budget"
+ATTR_CONSUMPTION_GALLONS = "consumption_gallons"
+ATTR_CONSUMPTION_LITRES = "consumption_litres"
 ATTR_IRRIGATION = "irrigation"
 ATTR_PROGRAM = "program"
 ATTR_PROGRAM_NAME = "program_name"
 ATTR_RUN_TIME = "run_time"
-ATTR_STATUS = "status"
-ATTR_CONSUMPTION_GALLONS = "consumption_gallons"
-ATTR_CONSUMPTION_LITRES = "consumption_litres"
 ATTR_START_TIME = "start_time"
+ATTR_STATUS = "status"
 
 
 async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
