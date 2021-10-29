@@ -47,21 +47,6 @@ A **zone history** `sensor` entity is created for each zone. This reports the hi
 
 The following attrinutes are set on zone history sensor entities:
 
-budget
-100
-program
-manual
-program name
-manual
-run time
-3
-status
-complete
-consumption gallons
-7
-consumption litres
-26.5
-
 | Attribute             | Type     | Notes                                                       |
 | --------------------- | -------- | ----------------------------------------------------------- |
 | `budget`              | `number` | The watering budget used.                                   |
@@ -71,6 +56,7 @@ consumption litres
 | `status`              | `string` | The watering status.                                        |
 | `consumption_gallons` | `number` | The amount of water consumed, in gallons.                   |
 | `consumption_litres`  | `number` | The amount of water consumed, in litres.                    |
+| `start_time`          | `string` | The start time of the watering.                             |
 
 ## Switch Entities
 
@@ -138,12 +124,12 @@ A **program** `switch` entity is created for each program attached to each zone.
 
 This integration provides the following services:
 
-| Service                           | Parameters                                                                                                                                                  | Description                                                      |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `bhyve.start_watering`            | `entity_id` - zone(s) entity to start watering. This should be a reference to a zone switch entity <br/> `minutes` - number of minutes to water for         | Start watering a zone for a specific number of minutes           |
-| `bhyve.stop_watering`             | `entity_id` - zone(s) entity to stop watering. This should be a reference to a zone switch entity                                                           | Stop watering a zone                                             |
-| `bhyve.enable_rain_delay`         | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch <br/> `hours` - number of hours to enable a rain delay   | Enable a rain delay for a device for a specified number of hours |
-| `bhyve.disable_rain_delay`        | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch                                                          | Cancel a rain delay on a given device                            |
+| Service                    | Parameters                                                                                                                                                | Description                                                      |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bhyve.start_watering`     | `entity_id` - zone(s) entity to start watering. This should be a reference to a zone switch entity <br/> `minutes` - number of minutes to water for       | Start watering a zone for a specific number of minutes           |
+| `bhyve.stop_watering`      | `entity_id` - zone(s) entity to stop watering. This should be a reference to a zone switch entity                                                         | Stop watering a zone                                             |
+| `bhyve.enable_rain_delay`  | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch <br/> `hours` - number of hours to enable a rain delay | Enable a rain delay for a device for a specified number of hours |
+| `bhyve.disable_rain_delay` | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch                                                        | Cancel a rain delay on a given device                            |
 
 ## Python Script
 
