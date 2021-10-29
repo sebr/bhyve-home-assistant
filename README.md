@@ -10,6 +10,7 @@ If this integration has been useful to you, please consider chipping in and buyi
 
 This integration works with:
 
+- [Orbit 71000 B-Hyve Smart Flood Sensors with Wi-Fi Hub](https://www.orbitonline.com/product/b-hyve-smart-flood-sensor/). The Wifi hub is required to provide the flood sensors with internet connectivity.
 - [Orbit 21004 B-hyve Smart Hose Faucet Timer with Wi-Fi Hub](https://www.amazon.com/dp/B0758NR8DJ). The Wifi hub is required to provide the faucet timer with internet connectivity. Bluetooth connectivity with the timer is not supported.
 - [Orbit 57946 B-hyve Smart Indoor/Outdoor 6-Station WiFi Sprinkler System Controller](https://www.amazon.com/gp/product/B01D15HOIQ). Compatibility has been reported by members of the community.
 - [Orbit 57925 B-hyve Smart 8-Zone Indoor-Mount Sprinkler Controller](https://www.amazon.com/dp/B07DJ628XH). Compatibility has been reported by members of the community.
@@ -17,8 +18,10 @@ This integration works with:
 
 ## Supported Entities
 
-- `sensor` for measuring battery levels and watering history of `sprinkler_timer` devices as well as the device on/off state (not to be confused with zone on/off switches)
-- `switch` for turning a zone on/off, enabling/disabling rain delays and toggling pre-configured programs
+- `sensor` for measuring battery levels and watering history of `sprinkler_timer` devices as well as the device on/off state (not to be confused with zone on/off switches).
+- `temperature sensor` for measuring the temperature at the device and alarm attribute for above/below threshold. 
+- `switch` for turning a zone on/off, enabling/disabling rain delays and toggling pre-configured programs.
+- `binary_sensor` for detecting water leaks or flooding.
 
 ## Installation
 
@@ -38,6 +41,10 @@ sensor:
 
 switch:
   - platform: bhyve
+
+binary_sensor:
+  - platform: bhyve
+  
 ```
 
 ## Sensor Entities

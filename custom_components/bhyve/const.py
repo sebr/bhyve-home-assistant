@@ -9,8 +9,10 @@ CONF_CONF_DIR = "conf_dir"
 CONF_PACKET_DUMP = "packet_dump"
 
 DEVICE_SPRINKLER = "sprinkler_timer"
+DEVICE_FLOOD = "flood_sensor"
 
 EVENT_CHANGE_MODE = "change_mode"
+EVENT_FS_ALARM = "fs_status_update"
 EVENT_DEVICE_IDLE = "device_idle"
 EVENT_PROGRAM_CHANGED = "program_changed"
 EVENT_RAIN_DELAY = "rain_delay"
