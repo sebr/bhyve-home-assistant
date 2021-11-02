@@ -318,7 +318,6 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
 
     async def set_manual_preset_runtime(self, minutes: int):
         # {event: "set_manual_preset_runtime", device_id: "abc", seconds: 900}
-        # Does not seem to work ¯\_(ツ)_/¯
         payload = {
             "event": EVENT_SET_MANUAL_PRESET_TIME,
             "device_id": self._device_id,
