@@ -1,7 +1,7 @@
 """Support for Orbit BHyve sensors."""
 import logging
 
-from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY
+from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY, ENTITY_CATEGORY_DIAGNOSTIC
 from homeassistant.helpers.icon import icon_for_battery_level
 
 from . import BHyveDeviceEntity
@@ -98,6 +98,11 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:battery"
 
+    @property
+    def entity_category(self):
+        """Battery is a diagnostic category"""
+        return ENTITY_CATEGORY_DIAGNOSTIC
+
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_CHANGE_MODE]
 
@@ -113,6 +118,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
 
     def __init__(self, hass, bhyve, device, zone):
         """Initialize the sensor."""
+        self._history = None
         self._zone = zone
         self._zone_id = zone.get("station")
 
@@ -133,6 +139,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
         """Return the state of the entity"""
         return self._state
 
+    @property
     def should_poll(self):
         """Enable polling."""
         return True
@@ -141,6 +148,11 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:{self._zone_id}:history"
+
+    @property
+    def entity_category(self):
+        """History is a diagnostic category"""
+        return ENTITY_CATEGORY_DIAGNOSTIC
 
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_DEVICE_IDLE]
@@ -171,7 +183,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
                     self._state = orbit_time_to_local_time(
                         latest_irrigation.get("start_time")
                     )
-                    
+
                     self._attrs = {
                         ATTR_BUDGET: latest_irrigation.get(ATTR_BUDGET),
                         ATTR_PROGRAM: latest_irrigation.get(ATTR_PROGRAM),
@@ -217,6 +229,11 @@ class BHyveStateSensor(BHyveDeviceEntity):
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:state"
+
+    @property
+    def entity_category(self):
+        """Run state is a diagnostic category"""
+        return ENTITY_CATEGORY_DIAGNOSTIC
 
     def _on_ws_data(self, data):
         """
