@@ -18,7 +18,7 @@ except ImportError:
         SwitchDevice as SwitchEntity,
     )
 
-from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.const import ATTR_ENTITY_ID, ENTITY_CATEGORY_CONFIG
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -103,11 +103,10 @@ SERVICE_TO_METHOD = {
         "schema": START_WATERING_SCHEMA,
     },
     SERVICE_STOP_WATERING: {"method": "stop_watering", "schema": SERVICE_BASE_SCHEMA},
-    # Does not currently work ¯\_(ツ)_/¯
-    # SERVICE_SET_MANUAL_PRESET_RUNTIME: {
-    #     "method": "set_manual_preset_runtime",
-    #     "schema": SET_PRESET_RUNTIME_SCHEMA,
-    # },
+    SERVICE_SET_MANUAL_PRESET_RUNTIME: {
+        "method": "set_manual_preset_runtime",
+        "schema": SET_PRESET_RUNTIME_SCHEMA,
+    },
 }
 
 
@@ -238,15 +237,20 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     def unique_id(self):
         return "bhyve:program:{}".format(self._program_id)
 
+    @property
+    def entity_category(self):
+        """Zone program is a configuration category"""
+        return ENTITY_CATEGORY_CONFIG
+
     async def _set_state(self, is_on):
         self._program.update({"enabled": is_on})
         await self._bhyve.update_program(self._program_id, self._program)
 
-    async def async_turn_on(self, **kwargs):
+    async def async_turn_on(self):
         """Turn the switch on."""
         await self._set_state(True)
 
-    async def async_turn_off(self, **kwargs):
+    async def async_turn_off(self):
         """Turn the switch off."""
         await self._set_state(False)
 
@@ -299,6 +303,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
     def __init__(self, hass, bhyve, device, zone, device_programs, icon):
         """Initialize the switch."""
+        self._is_on = False
         self._zone = zone
         self._zone_id = zone.get("station")
         self._entity_picture = zone.get("image_url")
@@ -504,6 +509,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
     @property
     def entity_picture(self):
+        """Return picture of the entity"""
         return self._entity_picture
 
     @property
@@ -526,7 +532,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         self._is_on = False
         await self._send_station_message(station_payload)
 
-    async def async_turn_on(self, **kwargs):
+    async def async_turn_on(self):
         """Turn the switch on."""
         run_time = self._manual_preset_runtime / 60
         if run_time == 0:
@@ -535,7 +541,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
         await self.start_watering(run_time)
 
-    async def async_turn_off(self, **kwargs):
+    async def async_turn_off(self):
         """Turn the switch off."""
         await self.stop_watering()
 
@@ -547,6 +553,9 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
         """Initialize the switch."""
         name = "{} rain delay".format(device.get("name"))
         _LOGGER.info("Creating switch: %s", name)
+
+        self._update_device_cb = None
+        self._is_on = False
 
         super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
 
@@ -618,12 +627,17 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:rain_delay"
 
-    async def async_turn_on(self, **kwargs):
+    @property
+    def entity_category(self):
+        """Rain delay is a configuration category"""
+        return ENTITY_CATEGORY_CONFIG
+
+    async def async_turn_on(self):
         """Turn the switch on."""
         self._is_on = True
         await self.enable_rain_delay()
 
-    async def async_turn_off(self, **kwargs):
+    async def async_turn_off(self):
         """Turn the switch off."""
         self._is_on = False
         await self.disable_rain_delay()
