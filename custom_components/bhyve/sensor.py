@@ -1,10 +1,20 @@
 """Support for Orbit BHyve sensors."""
 import logging
 
-from homeassistant.const import ATTR_BATTERY_LEVEL, DEVICE_CLASS_BATTERY, DEVICE_CLASS_TEMPERATURE, TEMP_FAHRENHEIT, ENTITY_CATEGORY_DIAGNOSTIC
+from homeassistant.const import (
+    ATTR_BATTERY_LEVEL,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_TEMPERATURE,
+    TEMP_FAHRENHEIT,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+)
 from homeassistant.helpers.icon import icon_for_battery_level
 
-from . import BHyveDeviceEntity
+from homeassistant.components.sensor import (
+    DEVICE_CLASS_TEMPERATURE,
+)
+
+from . import BHyveDeviceEntity, WebsocketEntity
 from .const import (
     DATA_BHYVE,
     DEVICE_SPRINKLER,
@@ -58,7 +68,12 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         name = "{} battery level".format(device.get("name"))
         _LOGGER.info("Creating battery sensor: %s", name)
         super().__init__(
-            hass, bhyve, device, name, "battery", DEVICE_CLASS_BATTERY,
+            hass,
+            bhyve,
+            device,
+            name,
+            "battery",
+            DEVICE_CLASS_BATTERY,
         )
 
         self._unit = "%"
@@ -131,7 +146,11 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
         _LOGGER.info("Creating history sensor: %s", name)
 
         super().__init__(
-            hass, bhyve, device, name, "history",
+            hass,
+            bhyve,
+            device,
+            name,
+            "history",
         )
 
     def _setup(self, device):
@@ -202,10 +221,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
                     break
 
         except BHyveError as err:
-            _LOGGER.warning(
-                f"Unable to retreive data for {self._name}: {err}"
-            )
-
+            _LOGGER.warning(f"Unable to retreive data for {self._name}: {err}")
 
 
 class BHyveStateSensor(BHyveDeviceEntity):
@@ -242,7 +258,7 @@ class BHyveStateSensor(BHyveDeviceEntity):
 
     def _on_ws_data(self, data):
         """
-            {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
+        {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
         """
         event = data.get("event")
         if event == EVENT_CHANGE_MODE:
@@ -259,7 +275,9 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
         """Initialize the sensor."""
         name = "{0} temperature sensor".format(device.get("name"))
         _LOGGER.info("Creating temperature sensor: %s", name)
-        super().__init__(hass, bhyve, device, name, "thermometer", DEVICE_CLASS_TEMPERATURE)
+        super().__init__(
+            hass, bhyve, device, name, "thermometer", DEVICE_CLASS_TEMPERATURE
+        )
 
     def _setup(self, device):
         self._state = device.get("status", {}).get("temp_f")
@@ -273,15 +291,15 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
         _LOGGER.debug(
             f"Temperature sensor {self._name} setup: State: {self._state} | Available: {self._available}"
         )
-    
+
     @property
     def native_unit_of_measurement(self):
         return TEMP_FAHRENHEIT
-    
+
     @property
     def native_value(self):
         return self._state
-    
+
     @property
     def unit_of_measurement(self):
         """Return the unit of measurement for the sensor."""
@@ -294,14 +312,14 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
 
     def _on_ws_data(self, data):
         """
-            {"last_flood_alarm_at":"2021-08-29T16:32:35.585Z","rssi":-60,"onboard_complete":true,"temp_f":75.2,"provisioned":true,"phy":"le_1m_1000","event":"fs_status_update","temp_alarm_status":"ok","status_updated_at":"2021-08-29T16:33:17.089Z","identify_enabled":false,"device_id":"612ad9134f0c6c9c9faddbba","timestamp":"2021-08-29T16:33:17.089Z","flood_alarm_status":"ok","last_temp_alarm_at":null}
+        {"last_flood_alarm_at":"2021-08-29T16:32:35.585Z","rssi":-60,"onboard_complete":true,"temp_f":75.2,"provisioned":true,"phy":"le_1m_1000","event":"fs_status_update","temp_alarm_status":"ok","status_updated_at":"2021-08-29T16:33:17.089Z","identify_enabled":false,"device_id":"612ad9134f0c6c9c9faddbba","timestamp":"2021-08-29T16:33:17.089Z","flood_alarm_status":"ok","last_temp_alarm_at":null}
         """
         _LOGGER.info("Received program data update {}".format(data))
         event = data.get("event")
         if event == EVENT_FS_ALARM:
             self._state = data.get("temp_f")
-            self._attrs['rssi'] = data.get("rssi")
-            self._attrs['temperature_alarm'] = data.get("temp_alarm_status")
+            self._attrs["rssi"] = data.get("rssi")
+            self._attrs["temperature_alarm"] = data.get("temp_alarm_status")
 
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_FS_ALARM]

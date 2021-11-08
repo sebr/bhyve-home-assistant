@@ -6,8 +6,6 @@ import pprint
 
 import voluptuous as vol
 
-from aiohttp import WSMsgType, WSMessage
-
 from homeassistant.const import (
     ATTR_ATTRIBUTION,
     CONF_PASSWORD,
@@ -149,7 +147,12 @@ class BHyveEntity(Entity):
     """Define a base BHyve entity."""
 
     def __init__(
-        self, hass, bhyve, name, icon, device_class=None,
+        self,
+        hass,
+        bhyve,
+        name,
+        icon,
+        device_class=None,
     ):
         """Initialize the sensor."""
         self._hass = hass
@@ -206,7 +209,12 @@ class BHyveWebsocketEntity(BHyveEntity):
     """An entity which responds to websocket events."""
 
     def __init__(
-        self, hass, bhyve, name, icon, device_class=None,
+        self,
+        hass,
+        bhyve,
+        name,
+        icon,
+        device_class=None,
     ):
         self._async_unsub_dispatcher_connect = None
         self._ws_unprocessed_events = []
@@ -232,7 +240,13 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
     """Define a base BHyve entity with a device."""
 
     def __init__(
-        self, hass, bhyve, device, name, icon, device_class=None,
+        self,
+        hass,
+        bhyve,
+        device,
+        name,
+        icon,
+        device_class=None,
     ):
         """Initialize the sensor."""
 
@@ -259,9 +273,7 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
             self._setup(device)
 
         except BHyveError as err:
-            _LOGGER.warning(
-                f"Unable to retreive data for {self.name}: {err}"
-            )
+            _LOGGER.warning(f"Unable to retreive data for {self.name}: {err}")
 
     async def _fetch_device_history(self, force_update=False):
         try:
@@ -327,12 +339,14 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
         await self._bhyve.send_message(payload)
 
     async def enable_rain_delay(self, hours: int = 24):
+        """Enable rain delay"""
         await self._set_rain_delay(hours)
 
     async def disable_rain_delay(self):
+        """Disable rain delay"""
         await self._set_rain_delay(0)
 
-    async def _set_rain_delay(self, hours):
+    async def _set_rain_delay(self, hours: int):
         try:
             # {event: "rain_delay", device_id: "abc", delay: 48}
             payload = {

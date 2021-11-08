@@ -5,18 +5,11 @@ import logging
 from datetime import timedelta
 import voluptuous as vol
 
-try:
-    from homeassistant.components.switch import (
-        DEVICE_CLASS_SWITCH,
-        DOMAIN as SWITCH_DOMAIN,
-        SwitchEntity,
-    )
-except ImportError:
-    from homeassistant.components.switch import (
-        DEVICE_CLASS_SWITCH,
-        DOMAIN as SWITCH_DOMAIN,
-        SwitchDevice as SwitchEntity,
-    )
+from homeassistant.components.switch import (
+    DEVICE_CLASS_SWITCH,
+    DOMAIN as SWITCH_DOMAIN,
+    SwitchEntity,
+)
 
 from homeassistant.const import ATTR_ENTITY_ID, ENTITY_CATEGORY_CONFIG
 from homeassistant.core import callback

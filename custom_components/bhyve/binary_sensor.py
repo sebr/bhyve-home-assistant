@@ -9,8 +9,7 @@ from .const import (
     EVENT_DEVICE_IDLE,
 )
 from homeassistant.components.binary_sensor import (
-    DEVICE_CLASS_MOISTURE,
-    BinarySensorEntity,
+    DEVICE_CLASS_MOISTURE
 )
 from .pybhyve.errors import BHyveError
 from .util import orbit_time_to_local_time
