@@ -14,7 +14,7 @@ from homeassistant.components.sensor import (
     DEVICE_CLASS_TEMPERATURE,
 )
 
-from . import BHyveDeviceEntity, WebsocketEntity
+from . import BHyveDeviceEntity
 from .const import (
     DATA_BHYVE,
     DEVICE_SPRINKLER,
@@ -293,11 +293,8 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
         )
 
     @property
-    def native_unit_of_measurement(self):
-        return TEMP_FAHRENHEIT
-
-    @property
-    def native_value(self):
+    def state(self):
+        """Return the state of the entity"""
         return self._state
 
     @property
