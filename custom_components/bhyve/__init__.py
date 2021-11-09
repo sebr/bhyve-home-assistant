@@ -24,6 +24,7 @@ from homeassistant.helpers.entity import Entity
 from .const import (
     CONF_ATTRIBUTION,
     CONF_CONF_DIR,
+    CONF_FAKE_MODE,
     CONF_PACKET_DUMP,
     DATA_BHYVE,
     DOMAIN,
@@ -43,6 +44,7 @@ _LOGGER = logging.getLogger(__name__)
 DATA_CONFIG = "config"
 
 DEFAULT_PACKET_DUMP = False
+DEFAULT_FAKE_MODE = False
 DEFAULT_CONF_DIR = ""
 
 CONFIG_SCHEMA = vol.Schema(
@@ -53,6 +55,7 @@ CONFIG_SCHEMA = vol.Schema(
                 vol.Required(CONF_PASSWORD): cv.string,
                 vol.Optional(CONF_PACKET_DUMP, default=DEFAULT_PACKET_DUMP): cv.boolean,
                 vol.Optional(CONF_CONF_DIR, default=DEFAULT_CONF_DIR): cv.string,
+                # vol.Optional(CONF_FAKE_MODE, default=DEFAULT_FAKE_MODE): cv.boolean,
             }
         )
     },
@@ -60,11 +63,51 @@ CONFIG_SCHEMA = vol.Schema(
 )
 
 
+class MockClient(Client):
+    def __init__(
+        self,
+        username: str,
+        password: str,
+        mock_devices,
+        mock_programs,
+        loop,
+        session,
+        async_callback,
+    ) -> None:
+        super().__init__(
+            username,
+            password,
+            loop=loop,
+            session=session,
+            async_callback=async_callback,
+        )
+
+        self._devices = mock_devices
+        self._timer_programs = mock_programs
+
+    async def _refresh_devices(self, force_update=False):
+        pass
+
+    async def _refresh_timer_programs(self, force_update=False):
+        pass
+
+    @property
+    async def devices(self):
+        """Get all devices."""
+        return self._devices
+
+    @property
+    async def timer_programs(self):
+        """Get timer programs."""
+        return self._timer_programs
+
+
 async def async_setup(hass, config):
     """Set up the BHyve component."""
 
     conf = config[DOMAIN]
     packet_dump = conf.get(CONF_PACKET_DUMP)
+    fake_mode = conf.get(CONF_FAKE_MODE)
     conf_dir = conf.get(CONF_CONF_DIR)
 
     if conf_dir == "":
@@ -106,15 +149,39 @@ async def async_setup(hass, config):
     session = aiohttp_client.async_get_clientsession(hass)
 
     try:
-        bhyve = Client(
-            conf[CONF_USERNAME],
-            conf[CONF_PASSWORD],
-            loop=hass.loop,
-            session=session,
-            async_callback=async_update_callback,
-        )
+        if fake_mode:
+            fake_devices_file = conf_dir + "/" + "devices.json"
+            fake_programs_file = conf_dir + "/" + "programs.json"
+
+            _LOGGER.info("Loading devices {}".format(fake_devices_file))
+
+            with open(fake_devices_file) as fake_devices:
+                mock_devices = json.load(fake_devices)
+
+            _LOGGER.info("Loading programs {}".format(fake_programs_file))
+            with open(fake_programs_file) as fake_programs:
+                mock_programs = json.load(fake_programs)
+
+            bhyve = MockClient(
+                conf[CONF_USERNAME],
+                conf[CONF_PASSWORD],
+                mock_devices,
+                mock_programs,
+                loop=hass.loop,
+                session=session,
+                async_callback=async_update_callback,
+            )
+        else:
+            bhyve = Client(
+                conf[CONF_USERNAME],
+                conf[CONF_PASSWORD],
+                loop=hass.loop,
+                session=session,
+                async_callback=async_update_callback,
+            )
 
         await bhyve.login()
+
         devices = [anonymize(device) for device in await bhyve.devices]
         programs = await bhyve.timer_programs
 

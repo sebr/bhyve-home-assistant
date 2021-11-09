@@ -6,6 +6,7 @@ DATA_BHYVE = "bhyve_data"
 
 CONF_ATTRIBUTION = "Data provided by api.orbitbhyve.com"
 CONF_CONF_DIR = "conf_dir"
+CONF_FAKE_MODE = "fake_mode"
 CONF_PACKET_DUMP = "packet_dump"
 
 DEVICE_SPRINKLER = "sprinkler_timer"
