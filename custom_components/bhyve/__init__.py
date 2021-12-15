@@ -374,8 +374,10 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
             """Update the state."""
             event = data.get("event")
             if event == "device_disconnected":
+                _LOGGER.warning("Device {} disconnected and is no longer available".format(self.name))
                 self._available = False
             elif event == "device_connected":
+                _LOGGER.info("Device {} reconnected and is now available".format(self.name))
                 self._available = True
             if self._should_handle_event(event, data):
                 _LOGGER.info(
