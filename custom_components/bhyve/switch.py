@@ -206,7 +206,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
         self._available = True
 
     @property
-    def device_state_attributes(self):
+    def extra_state_attributes(self):
         """Return the device state attributes."""
 
         attrs = {
