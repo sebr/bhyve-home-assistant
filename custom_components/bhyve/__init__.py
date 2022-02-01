@@ -1,8 +1,6 @@
 """Support for Orbit BHyve irrigation devices."""
 import json
 import logging
-import os
-import pprint
 
 import voluptuous as vol
 
