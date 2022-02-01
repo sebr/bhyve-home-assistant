@@ -528,21 +528,59 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     async def set_smart_watering_soil_moisture(self, percentage):
         """Set the soil moisture percentage for the zone."""
         if self._attrs[ATTR_SMART_WATERING_ENABLED]:
-            landscape = await self._bhyve.get_landscape(self._device_id, self._zone_id)
+            landscape = None
+            try:
+                landscape = await self._bhyve.get_landscape(self._device_id, self._zone_id)
+            
+            except BHyveError as err:
+                _LOGGER.warning(f"Unable to retreive current soil data for {self.name}: {err}")
+            
             if landscape is not None:
                 _LOGGER.debug("Landscape data %s", landscape)
-                update_json = {}
-                to_remove = ['available_water', 'created_at', 'distribution_uniformity', 'landscape_coefficient', 'plant_available_water', 'updated_at']
 
-                # Remove properties from update json
+                # Define the landscape update json payload
+                landscape_update = {
+                    "allowable_soil_acc": 0,
+                    "application_rate": 0,
+                    "current_water_level": 0,
+                    "device_id": "",
+                    "drought_factor": 0,
+                    "efficiency": 0,
+                    "field_capacity": 0,
+                    "field_capacity_depth": 0,
+                    "id": "",
+                    "infiltration_rate": 0,
+                    "max_allowable_depletion": 0,
+                    "max_runtime": 0,
+                    "micro_climate": 0,
+                    "monthly_eto": [],
+                    "permanent_wilting_point": 0,
+                    "plant_factor": 0,
+                    "pwp_depth": 0,
+                    "rainfall_efficiency": 0,
+                    "readily_available_water": 0,
+                    "replenishment_point": 0,
+                    "root_depth": 0,
+                    "scheduling_multiplier": 0,
+                    "station": 0
+                }
+                # Set required properties with returned data
                 for item in landscape:
-                    if item not in to_remove:
-                        update_json[item] = landscape[item]
-                # Add moisture level to update json
-                update_json['current_water_level'] = landscape['replenishment_point'] + ((percentage * (landscape['field_capacity_depth'] - landscape['replenishment_point'])) / 100.0)
+                    if item in landscape_update:
+                        landscape_update[item] = landscape[item]
 
-                _LOGGER.debug("Landscape update %s",update_json)
-                await self._bhyve.update_landscape(update_json)
+                landscape_moisture_level_0 = landscape['replenishment_point']       # B-hyve computed value for 0% moisture
+                landscape_moisture_level_100 = landscape['field_capacity_depth']    # B-hyve computed value for 100% moisture
+                # Set property to computed user desired soil moisture level 
+                landscape_update['current_water_level'] = (landscape_moisture_level_0 
+                    + ((percentage * (landscape_moisture_level_100 - landscape_moisture_level_0)) / 100.0))
+
+                try:
+                    _LOGGER.debug("Landscape update %s", landscape_update)
+                    await self._bhyve.update_landscape(landscape_update)
+
+                except BHyveError as err:
+                    _LOGGER.warning(f"Unable to set soil moisture level for {self.name}: {err}")
         else:
             _LOGGER.info("Zone %s isn't smart watering enabled, cannot set soil moisture.", self._zone_name)
 
