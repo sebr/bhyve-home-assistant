@@ -126,7 +126,7 @@ class Client:
     async def _refresh_landscapes(self, device_id, force_update=False):
         now = time.time()
         if force_update:
-            _LOGGER.debug("Forcing lanscape refresh")
+            _LOGGER.debug("Forcing landscape refresh")
         elif now - self._last_poll_landscapes < API_POLL_PERIOD:
             return
 
