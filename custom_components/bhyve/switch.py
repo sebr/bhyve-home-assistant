@@ -311,6 +311,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         self._zone_id = zone.get("station")
         self._entity_picture = zone.get("image_url")
         self._zone_name = zone.get("name")
+        self._smart_watering_enabled = zone.get("smart_watering_enabled")
         self._manual_preset_runtime = device.get(
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
@@ -328,7 +329,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             "device_name": self._device_name,
             "device_id": self._device_id,
             "zone_name": self._zone_name,
-            ATTR_SMART_WATERING_ENABLED: False,
+            ATTR_SMART_WATERING_ENABLED: self._smart_watering_enabled,
         }
         self._available = device.get("is_connected", False)
 
@@ -405,9 +406,6 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             "name": program_name,
             "is_smart_program": is_smart_program,
         }
-
-        if is_smart_program:
-            self._attrs[ATTR_SMART_WATERING_ENABLED] = program_enabled
 
         if not program_enabled or not active_program_run_times:
             _LOGGER.info(
@@ -527,7 +525,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
     async def set_smart_watering_soil_moisture(self, percentage):
         """Set the soil moisture percentage for the zone."""
-        if self._attrs[ATTR_SMART_WATERING_ENABLED]:
+        if self._smart_watering_enabled:
             landscape = None
             try:
                 landscape = await self._bhyve.get_landscape(self._device_id, self._zone_id)
@@ -538,42 +536,23 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             if landscape is not None:
                 _LOGGER.debug("Landscape data %s", landscape)
 
-                # Define the landscape update json payload
+                # Define the minimum landscape update json payload
                 landscape_update = {
-                    "allowable_soil_acc": 0,
-                    "application_rate": 0,
                     "current_water_level": 0,
                     "device_id": "",
-                    "drought_factor": 0,
-                    "efficiency": 0,
-                    "field_capacity": 0,
-                    "field_capacity_depth": 0,
                     "id": "",
-                    "infiltration_rate": 0,
-                    "max_allowable_depletion": 0,
-                    "max_runtime": 0,
-                    "micro_climate": 0,
-                    "monthly_eto": [],
-                    "permanent_wilting_point": 0,
-                    "plant_factor": 0,
-                    "pwp_depth": 0,
-                    "rainfall_efficiency": 0,
-                    "readily_available_water": 0,
-                    "replenishment_point": 0,
-                    "root_depth": 0,
-                    "scheduling_multiplier": 0,
                     "station": 0
                 }
-                # Set required properties with returned data
-                for item in landscape:
-                    if item in landscape_update:
-                        landscape_update[item] = landscape[item]
 
                 landscape_moisture_level_0 = landscape['replenishment_point']       # B-hyve computed value for 0% moisture
                 landscape_moisture_level_100 = landscape['field_capacity_depth']    # B-hyve computed value for 100% moisture
                 # Set property to computed user desired soil moisture level 
                 landscape_update['current_water_level'] = (landscape_moisture_level_0 
                     + ((percentage * (landscape_moisture_level_100 - landscape_moisture_level_0)) / 100.0))
+                # Set remaining properties
+                landscape_update['device_id'] = self._device_id
+                landscape_update['id'] = landscape['id']
+                landscape_update['station'] = self._zone_id
 
                 try:
                     _LOGGER.debug("Landscape update %s", landscape_update)
