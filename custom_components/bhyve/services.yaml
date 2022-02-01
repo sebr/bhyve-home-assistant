@@ -45,7 +45,7 @@ set_manual_preset_runtime:
       example: 15
 
 set_smart_watering_soil_moisture:
-  description: Set the smart watering soil moisture level for a device entity
+  description: Set the smart watering soil moisture level for a zone
   fields:
     entity_id:
       description: Zone
