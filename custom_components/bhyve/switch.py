@@ -88,7 +88,9 @@ SET_PRESET_RUNTIME_SCHEMA = SERVICE_BASE_SCHEMA.extend(
 )
 
 SET_SMART_WATERING_SOIL_MOISTURE_SCHEMA = SERVICE_BASE_SCHEMA.extend(
-    {vol.Required(ATTR_PERCENTAGE): cv.positive_int,}
+    {
+        vol.Required(ATTR_PERCENTAGE): cv.positive_int,
+    }
 )
 
 SERVICE_ENABLE_RAIN_DELAY = "enable_rain_delay"
@@ -515,7 +517,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
         except BHyveError as err:
             _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise (err)
+            raise err
 
     @property
     def entity_picture(self):
@@ -537,40 +539,54 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         if self._smart_watering_enabled:
             landscape = None
             try:
-                landscape = await self._bhyve.get_landscape(self._device_id, self._zone_id)
-            
+                landscape = await self._bhyve.get_landscape(
+                    self._device_id, self._zone_id
+                )
+
             except BHyveError as err:
-                _LOGGER.warning(f"Unable to retreive current soil data for {self.name}: {err}")
-            
+                _LOGGER.warning(
+                    "Unable to retreive current soil data for %s: %s", self.name, err
+                )
+
             if landscape is not None:
                 _LOGGER.debug("Landscape data %s", landscape)
 
                 # Define the minimum landscape update json payload
                 landscape_update = {
                     "current_water_level": 0,
-                    "device_id": "",
-                    "id": "",
-                    "station": 0
+                    "device_id": self._device_id,
+                    "id": landscape.get("id"),
+                    "station": self._zone_id,
                 }
 
-                landscape_moisture_level_0 = landscape['replenishment_point']       # B-hyve computed value for 0% moisture
-                landscape_moisture_level_100 = landscape['field_capacity_depth']    # B-hyve computed value for 100% moisture
-                # Set property to computed user desired soil moisture level 
-                landscape_update['current_water_level'] = (landscape_moisture_level_0 
-                    + ((percentage * (landscape_moisture_level_100 - landscape_moisture_level_0)) / 100.0))
-                # Set remaining properties
-                landscape_update['device_id'] = self._device_id
-                landscape_update['id'] = landscape['id']
-                landscape_update['station'] = self._zone_id
+                landscape_moisture_level_0 = landscape[
+                    "replenishment_point"
+                ]  # B-hyve computed value for 0% moisture
+                landscape_moisture_level_100 = landscape[
+                    "field_capacity_depth"
+                ]  # B-hyve computed value for 100% moisture
+                # Set property to computed user desired soil moisture level
+                landscape_update["current_water_level"] = landscape_moisture_level_0 + (
+                    (
+                        percentage
+                        * (landscape_moisture_level_100 - landscape_moisture_level_0)
+                    )
+                    / 100.0
+                )
 
                 try:
                     _LOGGER.debug("Landscape update %s", landscape_update)
                     await self._bhyve.update_landscape(landscape_update)
 
                 except BHyveError as err:
-                    _LOGGER.warning(f"Unable to set soil moisture level for {self.name}: {err}")
+                    _LOGGER.warning(
+                        "Unable to set soil moisture level for %s: %s", self.name, err
+                    )
         else:
-            _LOGGER.info("Zone %s isn't smart watering enabled, cannot set soil moisture.", self._zone_name)
+            _LOGGER.info(
+                "Zone %s isn't smart watering enabled, cannot set soil moisture.",
+                self._zone_name,
+            )
 
     async def start_watering(self, minutes):
         """Start watering program"""
@@ -634,7 +650,8 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
         if event is None:
             _LOGGER.warning("No event on ws data %s", data)
             return
-        elif event == EVENT_RAIN_DELAY:
+
+        if event == EVENT_RAIN_DELAY:
             self._extract_rain_delay(
                 data.get("delay"), {"rain_delay_started_at": data.get("timestamp")}
             )
