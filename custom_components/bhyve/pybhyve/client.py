@@ -12,6 +12,7 @@ from .const import (
     DEVICES_PATH,
     DEVICE_HISTORY_PATH,
     TIMER_PROGRAMS_PATH,
+    LANDSCAPE_DESCRIPTIONS_PATH,
     LOGIN_PATH,
     WS_HOST,
 )
@@ -46,6 +47,9 @@ class Client:
 
         self._device_histories = dict()
         self._last_poll_device_histories = 0
+    
+        self._landscapes = []
+        self._last_poll_landscapes = 0
 
     async def _request(
         self, method: str, endpoint: str, params: dict = None, json: dict = None
@@ -119,6 +123,21 @@ class Client:
 
         self._last_poll_device_histories = now
 
+    async def _refresh_landscapes(self, device_id, force_update=False):
+        now = time.time()
+        if force_update:
+            _LOGGER.debug("Forcing landscape refresh")
+        elif now - self._last_poll_landscapes < API_POLL_PERIOD:
+            return
+
+        self._landscapes = await self._request(
+            "get",
+            f"{LANDSCAPE_DESCRIPTIONS_PATH}/{device_id}",
+            params={"t": str(time.time())}
+        )
+
+        self._last_poll_landscapes = now
+
     async def _async_ws_handler(self, data):
         """Process incoming websocket message."""
         if self._async_callback:
@@ -181,6 +200,21 @@ class Client:
         """Get device watering history by id."""
         await self._refresh_device_history(device_id, force_update=force_update)
         return self._device_histories.get(device_id)
+
+    async def get_landscape(self, device_id, zone_id, force_update=False):
+        """Get landscape by zone id."""
+        await self._refresh_landscapes(device_id, force_update)
+        for zone in self._landscapes:
+            if zone.get("station") == zone_id:
+                return zone
+        return None
+
+    async def update_landscape(self, landscape):
+        """Update the state of a zone landscape"""
+        id = landscape.get("id")
+        path = f"{LANDSCAPE_DESCRIPTIONS_PATH}/{id}"
+        json = {"landscape_description": landscape}
+        await self._request("put", path, json=json)
 
     async def update_program(self, program_id, program):
         """Update the state of a program"""
