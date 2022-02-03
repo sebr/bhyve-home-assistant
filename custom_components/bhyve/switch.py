@@ -62,18 +62,28 @@ ATTR_STARTED_AT = "started_at"
 
 ATTR_PROGRAM = "program_{}"
 
-SERVICE_BASE_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): cv.comp_entity_ids,})
+SERVICE_BASE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.comp_entity_ids,
+    }
+)
 
 ENABLE_RAIN_DELAY_SCHEMA = SERVICE_BASE_SCHEMA.extend(
-    {vol.Required(ATTR_HOURS): cv.positive_int,}
+    {
+        vol.Required(ATTR_HOURS): cv.positive_int,
+    }
 )
 
 START_WATERING_SCHEMA = SERVICE_BASE_SCHEMA.extend(
-    {vol.Required(ATTR_MINUTES): cv.positive_int,}
+    {
+        vol.Required(ATTR_MINUTES): cv.positive_int,
+    }
 )
 
 SET_PRESET_RUNTIME_SCHEMA = SERVICE_BASE_SCHEMA.extend(
-    {vol.Required(ATTR_MINUTES): cv.positive_int,}
+    {
+        vol.Required(ATTR_MINUTES): cv.positive_int,
+    }
 )
 
 SERVICE_ENABLE_RAIN_DELAY = "enable_rain_delay"
@@ -111,7 +121,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
     devices = await bhyve.devices
     programs = await bhyve.timer_programs
 
-    device_by_id = dict()
+    device_by_id = {}
 
     for device in devices:
         device_id = device.get("id")
@@ -119,7 +129,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
         if device.get("type") == DEVICE_SPRINKLER:
 
             if not device.get("status"):
-                _LOGGER.warn(
+                _LOGGER.warning(
                     "Unable to configure device %s: the 'status' attribute is missing. Has it been paired with the wifi hub?",
                     device.get("name"),
                 )
@@ -156,10 +166,10 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
 
     async def async_service_handler(service):
         """Map services to method of BHyve devices."""
-        _LOGGER.info("{} service called".format(service.service))
+        _LOGGER.info("%s service called", service.service)
         method = SERVICE_TO_METHOD.get(service.service)
         if not method:
-            _LOGGER.warning("Unknown service method {}".format(service.service))
+            _LOGGER.warning("Unknown service method %s", service.service)
             return
 
         params = {
@@ -173,7 +183,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
             return
 
         method_name = method["method"]
-        _LOGGER.debug("Service handler: {} {}".format(method_name, params))
+        _LOGGER.debug("Service handler: %s, %s", method_name, params)
 
         for entity in target_switches:
             if not hasattr(entity, method_name):
@@ -181,7 +191,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                 return
             await getattr(entity, method_name)(**params)
 
-    for service in SERVICE_TO_METHOD:
+    for service in SERVICE_TO_METHOD.items():
         schema = SERVICE_TO_METHOD[service]["schema"]
         hass.services.async_register(
             DOMAIN, service, async_service_handler, schema=schema
@@ -228,7 +238,8 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
     @property
     def unique_id(self):
-        return "bhyve:program:{}".format(self._program_id)
+        """Return a unique id for the entity. Changing this results in a backwards incompatible change."""
+        return f"bhyve:program:{self._program_id}"
 
     @property
     def entity_category(self):
@@ -254,9 +265,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
         def update(device_id, data):
             """Update the state."""
             _LOGGER.info(
-                "Program update: {} - {} - {}".format(
-                    self.name, self._program_id, str(data)
-                )
+                "Program update: %s - %s - %s", self.name, self._program_id, str(data)
             )
             event = data.get("event")
             if event == EVENT_PROGRAM_CHANGED:
@@ -274,13 +283,13 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
     def _on_ws_data(self, data):
         """
-            {'event': 'program_changed' }
+        {'event': 'program_changed' }
         """
-        _LOGGER.info("Received program data update {}".format(data))
+        _LOGGER.info("Received program data update %s", data)
 
         event = data.get("event")
         if event is None:
-            _LOGGER.warning("No event on ws data {}".format(data))
+            _LOGGER.warning("No event on ws data %s", data)
             return
         elif event == EVENT_PROGRAM_CHANGED:
             program = data.get("program")
@@ -325,7 +334,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         status = device.get("status", {})
         watering_status = status.get("watering_status")
 
-        _LOGGER.info("{} watering_status: {}".format(self.name, watering_status))
+        _LOGGER.info("%s watering_status: %s", self.name, watering_status)
 
         zones = device.get("zones", [])
 
@@ -401,23 +410,24 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
         if not program_enabled or not active_program_run_times:
             _LOGGER.info(
-                "{} Zone: Watering program {} ({}) is not enabled, skipping".format(
-                    self._zone_name, program_name, program_id
-                )
+                "%s Zone: Watering program %s (%s) is not enabled, skipping",
+                self._zone_name,
+                program_name,
+                program_id,
             )
 
             return
 
-        """
-            "name": "Backyard",
-            "frequency": { "type": "days", "days": [1, 4] },
-            "start_times": ["07:30"],
-            "budget": 100,
-            "program": "a",
-            "run_times": [{ "run_time": 20, "station": 1 }],
-        """
+        #
+        #   "name": "Backyard",
+        #   "frequency": { "type": "days", "days": [1, 4] },
+        #   "start_times": ["07:30"],
+        #   "budget": 100,
+        #   "program": "a",
+        #   "run_times": [{ "run_time": 20, "station": 1 }],
+        #
 
-        if is_smart_program == True:
+        if is_smart_program:
             upcoming_run_times = []
             for plan in program.get("watering_plan", []):
                 run_times = plan.get("run_times")
@@ -454,14 +464,13 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         ]
 
     def _on_ws_data(self, data):
-        """
-            {'event': 'watering_in_progress_notification', 'program': 'e', 'current_station': 1, 'run_time': 14, 'started_watering_station_at': '2020-01-09T20:29:59.000Z', 'rain_sensor_hold': False, 'device_id': 'id', 'timestamp': '2020-01-09T20:29:59.000Z'}
-            {'event': 'device_idle', 'device_id': 'id', 'timestamp': '2020-01-10T12:32:06.000Z'}
-            {'event': 'set_manual_preset_runtime', 'device_id': 'id', 'seconds': 480, 'timestamp': '2020-01-18T17:00:35.000Z'}
-            {'event': 'program_changed' }
-        """
+        # {'event': 'watering_in_progress_notification', 'program': 'e', 'current_station': 1, 'run_time': 14, 'started_watering_station_at': '2020-01-09T20:29:59.000Z', 'rain_sensor_hold': False, 'device_id': 'id', 'timestamp': '2020-01-09T20:29:59.000Z'}
+        # {'event': 'device_idle', 'device_id': 'id', 'timestamp': '2020-01-10T12:32:06.000Z'}
+        # {'event': 'set_manual_preset_runtime', 'device_id': 'id', 'seconds': 480, 'timestamp': '2020-01-18T17:00:35.000Z'}
+        # {'event': 'program_changed' }
+
         event = data.get("event")
-        if event == EVENT_DEVICE_IDLE or event == EVENT_WATERING_COMPLETE:
+        if event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE):
             self._is_on = False
             self._set_watering_started(None)
         elif event == EVENT_WATERING_IN_PROGRESS:
@@ -516,11 +525,13 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         return self._is_on
 
     async def start_watering(self, minutes):
+        """Start watering program"""
         station_payload = [{"station": self._zone_id, "run_time": minutes}]
         self._is_on = True
         await self._send_station_message(station_payload)
 
     async def stop_watering(self):
+        """Stop watering program"""
         station_payload = []
         self._is_on = False
         await self._send_station_message(station_payload)
@@ -529,7 +540,11 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         """Turn the switch on."""
         run_time = self._manual_preset_runtime / 60
         if run_time == 0:
-            _LOGGER.warning("Switch %s manual preset runtime is 0, watering has defaulted to %s minutes. Set the manual run time on your device or please specify number of minutes using the bhyve.start_watering service", self._device_name, DEFAULT_MANUAL_RUNTIME.minutes)
+            _LOGGER.warning(
+                "Switch %s manual preset runtime is 0, watering has defaulted to %s minutes. Set the manual run time on your device or please specify number of minutes using the bhyve.start_watering service",
+                self._device_name,
+                DEFAULT_MANUAL_RUNTIME.minutes,
+            )
             run_time = 5
 
         await self.start_watering(run_time)
@@ -566,12 +581,10 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
         self._extract_rain_delay(rain_delay, device_status)
 
     def _on_ws_data(self, data):
-        """
-            {'event': 'rain_delay', 'device_id': 'id', 'delay': 0, 'timestamp': '2020-01-14T12:10:10.000Z'}
-        """
+        # {'event': 'rain_delay', 'device_id': 'id', 'delay': 0, 'timestamp': '2020-01-14T12:10:10.000Z'}
         event = data.get("event")
         if event is None:
-            _LOGGER.warning("No event on ws data {}".format(data))
+            _LOGGER.warning("No event on ws data %s", data)
             return
         elif event == EVENT_RAIN_DELAY:
             self._extract_rain_delay(
