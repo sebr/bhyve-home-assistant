@@ -53,6 +53,7 @@ ATTR_SMART_WATERING_PLAN = "watering_program"
 # Service Attributes
 ATTR_MINUTES = "minutes"
 ATTR_HOURS = "hours"
+ATTR_PERCENTAGE = "percentage"
 
 # Rain Delay Attributes
 ATTR_CAUSE = "cause"
@@ -86,11 +87,16 @@ SET_PRESET_RUNTIME_SCHEMA = SERVICE_BASE_SCHEMA.extend(
     }
 )
 
+SET_SMART_WATERING_SOIL_MOISTURE_SCHEMA = SERVICE_BASE_SCHEMA.extend(
+    {vol.Required(ATTR_PERCENTAGE): cv.positive_int,}
+)
+
 SERVICE_ENABLE_RAIN_DELAY = "enable_rain_delay"
 SERVICE_DISABLE_RAIN_DELAY = "disable_rain_delay"
 SERVICE_START_WATERING = "start_watering"
 SERVICE_STOP_WATERING = "stop_watering"
 SERVICE_SET_MANUAL_PRESET_RUNTIME = "set_manual_preset_runtime"
+SERVICE_SET_SMART_WATERING_SOIL_MOISTURE = "set_smart_watering_soil_moisture"
 
 SERVICE_TO_METHOD = {
     SERVICE_ENABLE_RAIN_DELAY: {
@@ -109,6 +115,10 @@ SERVICE_TO_METHOD = {
     SERVICE_SET_MANUAL_PRESET_RUNTIME: {
         "method": "set_manual_preset_runtime",
         "schema": SET_PRESET_RUNTIME_SCHEMA,
+    },
+    SERVICE_SET_SMART_WATERING_SOIL_MOISTURE: {
+        "method": "set_smart_watering_soil_moisture",
+        "schema": SET_SMART_WATERING_SOIL_MOISTURE_SCHEMA,
     },
 }
 
@@ -155,7 +165,6 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
         program_device = device_by_id.get(program.get("device_id"))
         program_id = program.get("program")
         if program_id is not None:
-            _LOGGER.info("Creating switch: Program %s", program.get("name"))
             switches.append(
                 BHyveProgramSwitch(
                     hass, bhyve, program, program_device, "bulletin-board"
@@ -207,6 +216,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
         program_name = program.get("name")
 
         name = f"{device_name} {program_name} program"
+        _LOGGER.info("Creating switch: %s", name)
 
         super().__init__(hass, bhyve, name, icon, DEVICE_CLASS_SWITCH)
 
@@ -310,6 +320,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         self._zone_id = zone.get("station")
         self._entity_picture = zone.get("image_url")
         self._zone_name = zone.get("name")
+        self._smart_watering_enabled = zone.get("smart_watering_enabled")
         self._manual_preset_runtime = device.get(
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
@@ -327,7 +338,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             "device_name": self._device_name,
             "device_id": self._device_id,
             "zone_name": self._zone_name,
-            ATTR_SMART_WATERING_ENABLED: False,
+            ATTR_SMART_WATERING_ENABLED: self._smart_watering_enabled,
         }
         self._available = device.get("is_connected", False)
 
@@ -404,9 +415,6 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             "name": program_name,
             "is_smart_program": is_smart_program,
         }
-
-        if is_smart_program:
-            self._attrs[ATTR_SMART_WATERING_ENABLED] = program_enabled
 
         if not program_enabled or not active_program_run_times:
             _LOGGER.info(
@@ -523,6 +531,46 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     def is_on(self):
         """Return the status of the sensor."""
         return self._is_on
+
+    async def set_smart_watering_soil_moisture(self, percentage):
+        """Set the soil moisture percentage for the zone."""
+        if self._smart_watering_enabled:
+            landscape = None
+            try:
+                landscape = await self._bhyve.get_landscape(self._device_id, self._zone_id)
+            
+            except BHyveError as err:
+                _LOGGER.warning(f"Unable to retreive current soil data for {self.name}: {err}")
+            
+            if landscape is not None:
+                _LOGGER.debug("Landscape data %s", landscape)
+
+                # Define the minimum landscape update json payload
+                landscape_update = {
+                    "current_water_level": 0,
+                    "device_id": "",
+                    "id": "",
+                    "station": 0
+                }
+
+                landscape_moisture_level_0 = landscape['replenishment_point']       # B-hyve computed value for 0% moisture
+                landscape_moisture_level_100 = landscape['field_capacity_depth']    # B-hyve computed value for 100% moisture
+                # Set property to computed user desired soil moisture level 
+                landscape_update['current_water_level'] = (landscape_moisture_level_0 
+                    + ((percentage * (landscape_moisture_level_100 - landscape_moisture_level_0)) / 100.0))
+                # Set remaining properties
+                landscape_update['device_id'] = self._device_id
+                landscape_update['id'] = landscape['id']
+                landscape_update['station'] = self._zone_id
+
+                try:
+                    _LOGGER.debug("Landscape update %s", landscape_update)
+                    await self._bhyve.update_landscape(landscape_update)
+
+                except BHyveError as err:
+                    _LOGGER.warning(f"Unable to set soil moisture level for {self.name}: {err}")
+        else:
+            _LOGGER.info("Zone %s isn't smart watering enabled, cannot set soil moisture.", self._zone_name)
 
     async def start_watering(self, minutes):
         """Start watering program"""
