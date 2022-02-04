@@ -202,7 +202,7 @@ async def async_setup_platform(hass, config, async_add_entities, _discovery_info
                 return
             await getattr(entity, method_name)(**params)
 
-    for service in SERVICE_TO_METHOD.items():
+    for service in SERVICE_TO_METHOD.keys():
         schema = SERVICE_TO_METHOD[service]["schema"]
         hass.services.async_register(
             DOMAIN, service, async_service_handler, schema=schema
