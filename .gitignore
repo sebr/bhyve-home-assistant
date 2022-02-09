@@ -1,4 +1,7 @@
+.DS_Store
 __pycache__
 *.pyc
 
 tmp
+
+debug/[0-9]*
