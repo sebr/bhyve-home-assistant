@@ -1,5 +1,6 @@
 """Config flow for BHyve integration."""
 from __future__ import annotations
+import json
 
 import logging
 from typing import Any
@@ -22,13 +23,6 @@ from .pybhyve import Client
 from .pybhyve.errors import BHyveError
 
 _LOGGER = logging.getLogger(__name__)
-
-STEP_USER_DATA_SCHEMA = vol.Schema(
-    {
-        vol.Required("username"): str,
-        vol.Required("password"): str,
-    }
-)
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -168,7 +162,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         except BHyveError:
             return self.async_abort(reason="cannot_connect")
 
-        device_options = {str(d["device_id"]): d["name"] for d in devices}
+        # _LOGGER.debug("Devices: %s", json.dumps(devices))
+        # _LOGGER.debug("Programs: %s", json.dumps(programs))
+
+        device_options = {str(d["id"]): f'{d["name"]} ({d["type"]})' for d in devices}
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
