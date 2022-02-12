@@ -480,7 +480,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         #
         event = data.get("event")
         if event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE) or (
-            event == EVENT_CHANGE_MODE and event.get("mode") in ("off", "auto")
+            event == EVENT_CHANGE_MODE and data.get("mode") in ("off", "auto")
         ):
             self._is_on = False
             self._set_watering_started(None)
