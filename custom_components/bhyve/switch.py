@@ -463,11 +463,12 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
     def _should_handle_event(self, event_name, data):
         return event_name in [
+            EVENT_CHANGE_MODE,
             EVENT_DEVICE_IDLE,
+            EVENT_PROGRAM_CHANGED,
+            EVENT_SET_MANUAL_PRESET_TIME,
             EVENT_WATERING_COMPLETE,
             EVENT_WATERING_IN_PROGRESS,
-            EVENT_SET_MANUAL_PRESET_TIME,
-            EVENT_PROGRAM_CHANGED,
         ]
 
     def _on_ws_data(self, data):
@@ -478,7 +479,9 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         # {'event': 'program_changed' }
         #
         event = data.get("event")
-        if event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE):
+        if event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE) or (
+            event == EVENT_CHANGE_MODE and event.get("mode") in ("off", "auto")
+        ):
             self._is_on = False
             self._set_watering_started(None)
         elif event == EVENT_WATERING_IN_PROGRESS:
