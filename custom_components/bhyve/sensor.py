@@ -210,7 +210,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
 
     async def async_update(self):
         """Retrieve latest state."""
-        force_update = True if list(self._ws_unprocessed_events) else False
+        force_update = bool(list(self._ws_unprocessed_events))
         self._ws_unprocessed_events[:] = []  # We don't care about these
 
         try:
@@ -248,7 +248,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
                     break
 
         except BHyveError as err:
-            _LOGGER.warning(f"Unable to retreive data for {self._name}: {err}")
+            _LOGGER.warning("Unable to retreive data for %s: %s", self._name, err)
 
 
 class BHyveStateSensor(BHyveDeviceEntity):
@@ -265,7 +265,10 @@ class BHyveStateSensor(BHyveDeviceEntity):
         self._state = device.get("status", {}).get("run_mode")
         self._available = device.get("is_connected", False)
         _LOGGER.debug(
-            f"State sensor {self._name} setup: State: {self._state} | Available: {self._available}"
+            "State sensor %s setup: State: %s | Available: %s",
+            self._name,
+            self._state,
+            self._available,
         )
 
     @property
@@ -284,9 +287,9 @@ class BHyveStateSensor(BHyveDeviceEntity):
         return EntityCategory.DIAGNOSTIC
 
     def _on_ws_data(self, data):
-        """
-        {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
-        """
+        #
+        # {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}
+        #
         event = data.get("event")
         if event == EVENT_CHANGE_MODE:
             self._state = data.get("mode")
@@ -316,7 +319,10 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
             "temperature_alarm": device.get("status", {}).get("temp_alarm_status"),
         }
         _LOGGER.debug(
-            f"Temperature sensor {self._name} setup: State: {self._state} | Available: {self._available}"
+            "Temperature sensor %s setup: State: %s | Available: %s",
+            self._name,
+            self._state,
+            self._available,
         )
 
     @property
@@ -338,7 +344,7 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
         """
         {"last_flood_alarm_at":"2021-08-29T16:32:35.585Z","rssi":-60,"onboard_complete":true,"temp_f":75.2,"provisioned":true,"phy":"le_1m_1000","event":"fs_status_update","temp_alarm_status":"ok","status_updated_at":"2021-08-29T16:33:17.089Z","identify_enabled":false,"device_id":"612ad9134f0c6c9c9faddbba","timestamp":"2021-08-29T16:33:17.089Z","flood_alarm_status":"ok","last_temp_alarm_at":null}
         """
-        _LOGGER.info("Received program data update {}".format(data))
+        _LOGGER.info("Received program data update %s", data)
         event = data.get("event")
         if event == EVENT_FS_ALARM:
             self._state = data.get("temp_f")

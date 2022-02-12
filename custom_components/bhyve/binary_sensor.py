@@ -84,6 +84,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
 
     @property
     def is_on(self):
+        """Reports state of the flood sensor"""
         return self._state == "on"
 
     def _on_ws_data(self, data):
