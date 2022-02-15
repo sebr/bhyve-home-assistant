@@ -1,9 +1,9 @@
 """Support for Orbit BHyve switch (toggle zone)."""
 import datetime
-import logging
-
 from datetime import timedelta
+import logging
 from typing import Any
+
 import voluptuous as vol
 
 from homeassistant.components.switch import (
@@ -11,20 +11,17 @@ from homeassistant.components.switch import (
     DOMAIN as SWITCH_DOMAIN,
     SwitchEntity,
 )
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt
 
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-
-from . import BHyveWebsocketEntity, BHyveDeviceEntity
+from . import BHyveDeviceEntity, BHyveWebsocketEntity
 from .const import (
     CONF_CLIENT,
     DEVICE_SPRINKLER,
@@ -246,11 +243,12 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
     @property
     def unique_id(self):
-        return "bhyve:program:{}".format(self._program_id)
+        """Return the unique id for the switch program."""
+        return f"bhyve:program:{self._program_id}"
 
     @property
     def entity_category(self):
-        """Zone program is a configuration category"""
+        """Zone program is a configuration category."""
         return EntityCategory.CONFIG
 
     async def _set_state(self, is_on):
@@ -289,16 +287,17 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
             self._async_unsub_dispatcher_connect()
 
     def _on_ws_data(self, data):
-        """
-        {'event': 'program_changed' }
-        """
+        #
+        # {'event': 'program_changed' }
+        #
         _LOGGER.info("Received program data update %s", data)
 
         event = data.get("event")
         if event is None:
             _LOGGER.warning("No event on ws data %s", data)
             return
-        elif event == EVENT_PROGRAM_CHANGED:
+
+        if event == EVENT_PROGRAM_CHANGED:
             program = data.get("program")
             if program is not None:
                 self._program = program
@@ -345,11 +344,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
         zones = device.get("zones", [])
 
-        zone = None
-        for z in zones:
-            if z.get("station") == self._zone_id:
-                zone = z
-                break
+        zone = next(filter(lambda z: z.get("station") == self._zone_id, zones), None)
 
         if zone is not None:
             is_watering = (
@@ -434,7 +429,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         #    "run_times": [{ "run_time": 20, "station": 1 }],
         #
 
-        if is_smart_program == True:
+        if is_smart_program is True:
             upcoming_run_times = []
             for plan in program.get("watering_plan", []):
                 run_times = plan.get("run_times")
@@ -445,9 +440,13 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                     if zone_times:
                         plan_date = orbit_time_to_local_time(plan.get("date"))
                         for time in plan.get("start_times", []):
-                            t = dt.parse_time(time)
+                            upcoming_time = dt.parse_time(time)
                             upcoming_run_times.append(
-                                plan_date + timedelta(hours=t.hour, minutes=t.minute)
+                                plan_date
+                                + timedelta(
+                                    hours=upcoming_time.hour,
+                                    minutes=upcoming_time.minute,
+                                )
                             )
             self._attrs[program_attr].update(
                 {ATTR_SMART_WATERING_PLAN: upcoming_run_times}
@@ -480,7 +479,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         #
         event = data.get("event")
         if event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE) or (
-            event == EVENT_CHANGE_MODE and data.get("mode") in ("off", "auto")
+            event == EVENT_CHANGE_MODE and event.get("mode") in ("off", "auto")
         ):
             self._is_on = False
             self._set_watering_started(None)
@@ -522,7 +521,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
     @property
     def entity_picture(self):
-        """Return picture of the entity"""
+        """Return picture of the entity."""
         return self._entity_picture
 
     @property
@@ -536,13 +535,13 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         return self._is_on
 
     async def start_watering(self, minutes):
-        """Turns on the switch and starts watering"""
+        """Turns on the switch and starts watering."""
         station_payload = [{"station": self._zone_id, "run_time": minutes}]
         self._is_on = True
         await self._send_station_message(station_payload)
 
     async def stop_watering(self):
-        """Turns off the switch and stops watering"""
+        """Turns off the switch and stops watering."""
         station_payload = []
         self._is_on = False
         await self._send_station_message(station_payload)
@@ -649,7 +648,7 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
 
     @property
     def entity_category(self):
-        """Rain delay is a configuration category"""
+        """Rain delay is a configuration category."""
         return EntityCategory.CONFIG
 
     async def async_turn_on(self, **kwargs: Any) -> None:

@@ -1,6 +1,5 @@
 """Config flow for BHyve integration."""
 from __future__ import annotations
-import json
 
 import logging
 from typing import Any
@@ -8,19 +7,15 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import (
-    CONF_PASSWORD,
-    CONF_USERNAME,
-)
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 
-from .const import CONF_DEVICES, DOMAIN, DEVICES, PROGRAMS
-
+from .const import CONF_DEVICES, DEVICE_BRIDGE, DEVICES, DOMAIN, PROGRAMS
 from .pybhyve import Client
-from .pybhyve.errors import BHyveError
+from .pybhyve.errors import AuthenticationError, BHyveError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,8 +29,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         self.data: dict = {}
         self.client: Client | None = None
-        self.devices: []
-        self.programs: []
+        self.devices: list[Any]
+        self.programs: list[Any]
         self._reauth_username: str | None = None
 
     async def async_auth(self, user_input: dict[str, str]) -> dict[str, str] | None:
@@ -43,9 +38,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.client = Client(
             user_input[CONF_USERNAME],
             user_input[CONF_PASSWORD],
-            loop=self.hass.loop,
             session=async_get_clientsession(self.hass),
-            async_callback=None,
         )
 
         try:
@@ -53,9 +46,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if result is False:
                 return {"base": "invalid_auth"}
             return None
-
+        except AuthenticationError:
+            return {"base": "invalid_auth"}
         except Exception:  # pylint: disable=broad-except
-            _LOGGER.exception("Unexpected exception")
             return {"base": "cannot_connect"}
 
     async def async_step_user(
@@ -74,11 +67,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self.devices = await self.client.devices  # type: ignore[union-attr]
                 self.programs = await self.client.timer_programs  # type: ignore[union-attr]
 
-                return self.async_create_entry(
-                    title=self.data[CONF_USERNAME],
-                    data=self.data,
-                    options={DEVICES: self.devices, PROGRAMS: self.programs},
-                )
+                if len(self.devices) == 1:
+                    return self.async_create_entry(
+                        title=self.data[CONF_USERNAME],
+                        data=self.data,
+                        options={
+                            DEVICES: [str(self.devices[0]["id"])],
+                            PROGRAMS: self.programs,
+                        },
+                    )
+
+                # Account has more than one device, select devices to add
+                return await self.async_step_device()
 
         return self.async_show_form(
             step_id="user",
@@ -89,6 +89,32 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+        )
+
+    async def async_step_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the optional device selection step."""
+        if user_input is not None:
+            return self.async_create_entry(
+                title=self.data[CONF_USERNAME], data=self.data, options=user_input
+            )
+
+        device_options = {
+            str(d["id"]): f'{d["name"]}'
+            for d in self.devices
+            if d["type"] != DEVICE_BRIDGE
+        }
+        return self.async_show_form(
+            step_id="device",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_DEVICES, default=list(device_options.keys())
+                    ): cv.multi_select(device_options)
+                }
+            ),
+            errors=None,
         )
 
     async def async_step_reauth(
@@ -152,20 +178,27 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             return self.async_abort(reason="unknown")
 
         data = self.hass.data[DOMAIN][self.config_entry.entry_id]
-        client = data["client"]
         try:
+            client = data["client"]
             result = await client.login()
             if result is False:
                 return self.async_abort(reason="invalid_auth")
 
             devices = await client.devices
+        except AuthenticationError:
+            return self.async_abort(reason="invalid_auth")
         except BHyveError:
             return self.async_abort(reason="cannot_connect")
 
         # _LOGGER.debug("Devices: %s", json.dumps(devices))
         # _LOGGER.debug("Programs: %s", json.dumps(programs))
 
-        device_options = {str(d["id"]): f'{d["name"]} ({d["type"]})' for d in devices}
+        _LOGGER.debug("ALL DEVICES")
+        _LOGGER.debug(self.config_entry.options.get(CONF_DEVICES))
+
+        device_options = {
+            str(d["id"]): f'{d["name"]}' for d in devices if d["type"] != DEVICE_BRIDGE
+        }
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(

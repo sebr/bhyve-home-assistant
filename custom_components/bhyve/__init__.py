@@ -16,17 +16,18 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
     HomeAssistantError,
 )
-from homeassistant.helpers import config_validation as cv
+
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.dispatcher import (
-    async_dispatcher_send,
     async_dispatcher_connect,
+    async_dispatcher_send,
 )
-from homeassistant.helpers.entity import Entity, DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, Entity
 
 from .const import (
     CONF_ATTRIBUTION,
+    CONF_DEVICES,
     DATA_BHYVE,
     DOMAIN,
     EVENT_PROGRAM_CHANGED,
@@ -36,9 +37,9 @@ from .const import (
     SIGNAL_UPDATE_DEVICE,
     SIGNAL_UPDATE_PROGRAM,
 )
-from .util import anonymize
 from .pybhyve import Client
-from .pybhyve.errors import BHyveError, WebsocketError
+from .pybhyve.errors import AuthenticationError, BHyveError, WebsocketError
+from .util import anonymize
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,19 +72,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     client = Client(
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],
-        loop=hass.loop,
         session=async_get_clientsession(hass),
-        async_callback=async_update_callback,
     )
 
     try:
-        result = await client.login()
-        devices = await client.devices
-        programs = await client.timer_programs
-        if result is False:
+        if await client.login() is False:
             raise ConfigEntryAuthFailed()
+
+        client.listen(hass.loop, async_update_callback)
+        all_devices = await client.devices
+        programs = await client.timer_programs
+    except AuthenticationError as err:
+        raise ConfigEntryAuthFailed() from err
     except BHyveError as err:
         raise ConfigEntryNotReady() from err
+
+    # Filter the device list to those that are enabled in options
+    devices = [d for d in all_devices if str(d["id"]) in entry.options[CONF_DEVICES]]
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "client": client,
@@ -92,7 +97,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
-
+    entry.async_on_unload(entry.add_update_listener(update_listener))
     # hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, bhyve.stop())
 
     return True
@@ -124,7 +129,7 @@ class BHyveEntity(Entity):
         self._device_class = device_class
 
         self._name = name
-        self._icon = "mdi:{}".format(icon)
+        self._icon = f"mdi:{icon}"
         self._state = None
         self._available = False
         self._attrs = {}
@@ -203,7 +208,7 @@ class BHyveWebsocketEntity(BHyveEntity):
         pass
 
     def _should_handle_event(self, event_name, data):
-        """True if the websocket event should be handled"""
+        """True if the websocket event should be handled."""
         return True
 
     async def async_update(self):
@@ -272,7 +277,7 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
     def unique_id(self):
         """Return a unique, unchanging string that represents this sensor."""
         raise HomeAssistantError(
-            "{} does not define a unique_id".format(self.__class__.__name__)
+            f"{self.__class__.__name__} does not define a unique_id"
         )
 
     async def async_added_to_hass(self):
@@ -310,7 +315,7 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
             self._async_unsub_dispatcher_connect()
 
     async def set_manual_preset_runtime(self, minutes: int):
-        """Sets the default watering runtime for the device"""
+        """Sets the default watering runtime for the device."""
         # {event: "set_manual_preset_runtime", device_id: "abc", seconds: 900}
         payload = {
             "event": EVENT_SET_MANUAL_PRESET_TIME,
@@ -321,11 +326,11 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
         await self._bhyve.send_message(payload)
 
     async def enable_rain_delay(self, hours: int = 24):
-        """Enable rain delay"""
+        """Enable rain delay."""
         await self._set_rain_delay(hours)
 
     async def disable_rain_delay(self):
-        """Disable rain delay"""
+        """Disable rain delay."""
         await self._set_rain_delay(0)
 
     async def _set_rain_delay(self, hours: int):

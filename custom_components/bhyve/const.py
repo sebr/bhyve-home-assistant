@@ -11,6 +11,7 @@ CONF_ATTRIBUTION = "Data provided by api.orbitbhyve.com"
 CONF_CLIENT = "client"
 CONF_DEVICES = "devices"
 
+DEVICE_BRIDGE = "bridge"
 DEVICE_SPRINKLER = "sprinkler_timer"
 DEVICE_FLOOD = "flood_sensor"
 

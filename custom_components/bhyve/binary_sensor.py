@@ -1,17 +1,13 @@
 """Support for Orbit BHyve sensors."""
 import logging
 
-from . import BHyveDeviceEntity
-from .const import (
-    CONF_CLIENT,
-    DEVICE_FLOOD,
-    DOMAIN,
-    EVENT_FS_ALARM,
-)
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.binary_sensor import DEVICE_CLASS_MOISTURE
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from . import BHyveDeviceEntity
+from .const import CONF_CLIENT, DEVICE_FLOOD, DOMAIN, EVENT_FS_ALARM
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +46,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
 
     def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
-        name = "{0} flood sensor".format(device.get("name"))
+        name = "{} flood sensor".format(device.get("name"))
         _LOGGER.info("Creating flood sensor: %s", name)
         super().__init__(hass, bhyve, device, name, "water", DEVICE_CLASS_MOISTURE)
 
