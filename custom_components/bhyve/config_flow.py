@@ -29,8 +29,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         self.data: dict = {}
         self.client: Client | None = None
-        self.devices: list[Any]
-        self.programs: list[Any]
+        self.devices: list[Any] | None = None
+        self.programs: list[Any] | None = None
         self._reauth_username: str | None = None
 
     async def async_auth(self, user_input: dict[str, str]) -> dict[str, str] | None:

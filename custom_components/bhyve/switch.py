@@ -344,7 +344,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
         zones = device.get("zones", [])
 
-        zone = next(filter(lambda z: z.get("station") == self._zone_id, zones), None)
+        zone = next(filter(lambda z: (z.get("station") == self._zone_id), zones), None)
 
         if zone is not None:
             is_watering = (
@@ -479,7 +479,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         #
         event = data.get("event")
         if event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE) or (
-            event == EVENT_CHANGE_MODE and event.get("mode") in ("off", "auto")
+            event == EVENT_CHANGE_MODE and data.get("mode") in ("off", "auto")
         ):
             self._is_on = False
             self._set_watering_started(None)

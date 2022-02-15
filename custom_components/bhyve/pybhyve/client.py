@@ -159,7 +159,7 @@ class Client:
             loop=loop,
             session=self._session,
             url=self._ws_url,
-            async_callback=lambda: async_callback,
+            async_callback=async_callback,
         )
         self._websocket.start()
 
