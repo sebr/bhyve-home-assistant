@@ -1,6 +1,7 @@
 """Support for Orbit BHyve sensors."""
 import logging
 
+from homeassistant.components.bhyve.util import filter_configured_devices
 from homeassistant.components.binary_sensor import DEVICE_CLASS_MOISTURE
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -20,7 +21,10 @@ async def async_setup_entry(
     bhyve = hass.data[DOMAIN][entry.entry_id][CONF_CLIENT]
 
     sensors = []
-    devices = await bhyve.devices
+
+    # Filter the device list to those that are enabled in options
+    devices = filter_configured_devices(entry, await bhyve.devices)
+
     for device in devices:
         if device.get("type") == DEVICE_FLOOD:
             sensors.append(BHyveFloodSensor(hass, bhyve, device))

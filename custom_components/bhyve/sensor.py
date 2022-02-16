@@ -23,7 +23,7 @@ from .const import (
     EVENT_FS_ALARM,
 )
 from .pybhyve.errors import BHyveError
-from .util import orbit_time_to_local_time
+from .util import filter_configured_devices, orbit_time_to_local_time
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,7 +46,8 @@ async def async_setup_entry(
     bhyve = hass.data[DOMAIN][entry.entry_id][CONF_CLIENT]
 
     sensors = []
-    devices = await bhyve.devices
+    devices = filter_configured_devices(entry, await bhyve.devices)
+
     for device in devices:
         if device.get("type") == DEVICE_SPRINKLER:
             sensors.append(BHyveStateSensor(hass, bhyve, device))

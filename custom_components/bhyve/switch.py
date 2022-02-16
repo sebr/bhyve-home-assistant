@@ -36,7 +36,7 @@ from .const import (
     SIGNAL_UPDATE_PROGRAM,
 )
 from .pybhyve.errors import BHyveError
-from .util import orbit_time_to_local_time
+from .util import filter_configured_devices, orbit_time_to_local_time
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -123,7 +123,7 @@ async def async_setup_entry(
     bhyve = hass.data[DOMAIN][entry.entry_id][CONF_CLIENT]
 
     switches = []
-    devices = await bhyve.devices
+    devices = filter_configured_devices(entry, await bhyve.devices)
     programs = await bhyve.timer_programs
 
     device_by_id = {}
@@ -344,7 +344,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
         zones = device.get("zones", [])
 
-        zone = next(filter(lambda z: (z.get("station") == self._zone_id), zones), None)
+        zone = next(filter(lambda z: z.get("station") == self._zone_id, zones), None)
 
         if zone is not None:
             is_watering = (
@@ -479,7 +479,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         #
         event = data.get("event")
         if event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE) or (
-            event == EVENT_CHANGE_MODE and data.get("mode") in ("off", "auto")
+            event == EVENT_CHANGE_MODE and event.get("mode") in ("off", "auto")
         ):
             self._is_on = False
             self._set_watering_started(None)
