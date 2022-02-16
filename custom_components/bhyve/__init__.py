@@ -1,10 +1,8 @@
 """Support for Orbit BHyve irrigation devices."""
-import json
 import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    ATTR_ATTRIBUTION,
     CONF_PASSWORD,
     CONF_USERNAME,
     EVENT_HOMEASSISTANT_STOP,
@@ -16,9 +14,7 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
     HomeAssistantError,
 )
-
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
     async_dispatcher_send,
@@ -26,9 +22,7 @@ from homeassistant.helpers.dispatcher import (
 from homeassistant.helpers.entity import DeviceInfo, Entity
 
 from .const import (
-    CONF_ATTRIBUTION,
     CONF_DEVICES,
-    DATA_BHYVE,
     DOMAIN,
     EVENT_PROGRAM_CHANGED,
     EVENT_RAIN_DELAY,
@@ -38,8 +32,7 @@ from .const import (
     SIGNAL_UPDATE_PROGRAM,
 )
 from .pybhyve import Client
-from .pybhyve.errors import AuthenticationError, BHyveError, WebsocketError
-from .util import anonymize
+from .pybhyve.errors import AuthenticationError, BHyveError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -185,13 +178,9 @@ class BHyveEntity(Entity):
         return False
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Return device registry information for this entity."""
-        return {
-            "name": self._name,
-            "manufacturer": MANUFACTURER,
-            ATTR_ATTRIBUTION: CONF_ATTRIBUTION,
-        }
+        return self._attr_device_info
 
 
 class BHyveWebsocketEntity(BHyveEntity):
@@ -268,16 +257,6 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
 
         except BHyveError as err:
             raise (err)
-
-    @property
-    def device_info(self):
-        """Return device registry information for this entity."""
-        return {
-            "identifiers": {(DOMAIN, self._mac_address)},
-            "name": self._device_name,
-            "manufacturer": MANUFACTURER,
-            ATTR_ATTRIBUTION: CONF_ATTRIBUTION,
-        }
 
     @property
     def unique_id(self):

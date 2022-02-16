@@ -7,7 +7,6 @@ PROGRAMS = "programs"
 
 DATA_BHYVE = "bhyve_data"
 
-CONF_ATTRIBUTION = "Data provided by api.orbitbhyve.com"
 CONF_CLIENT = "client"
 CONF_DEVICES = "devices"
 
