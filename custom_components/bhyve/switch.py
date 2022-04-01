@@ -11,10 +11,11 @@ from homeassistant.components.switch import (
     SwitchEntity,
 )
 
-from homeassistant.const import ATTR_ENTITY_ID, ENTITY_CATEGORY_CONFIG
+from homeassistant.const import ATTR_ENTITY_ID 
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt
 
@@ -256,7 +257,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     @property
     def entity_category(self):
         """Zone program is a configuration category"""
-        return ENTITY_CATEGORY_CONFIG
+        return EntityCategory.CONFIG
 
     async def _set_state(self, is_on):
         self._program.update({"enabled": is_on})
@@ -704,7 +705,7 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
     @property
     def entity_category(self):
         """Rain delay is a configuration category"""
-        return ENTITY_CATEGORY_CONFIG
+        return EntityCategory.CONFIG
 
     async def async_turn_on(self):
         """Turn the switch on."""

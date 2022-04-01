@@ -6,8 +6,8 @@ from homeassistant.const import (
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_TEMPERATURE,
     TEMP_FAHRENHEIT,
-    ENTITY_CATEGORY_DIAGNOSTIC,
 )
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.icon import icon_for_battery_level
 
 from homeassistant.components.sensor import (
@@ -121,7 +121,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
     @property
     def entity_category(self):
         """Battery is a diagnostic category"""
-        return ENTITY_CATEGORY_DIAGNOSTIC
+        return EntityCategory.DIAGNOSTIC
 
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_CHANGE_MODE]
@@ -176,7 +176,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
     @property
     def entity_category(self):
         """History is a diagnostic category"""
-        return ENTITY_CATEGORY_DIAGNOSTIC
+        return EntityCategory.DIAGNOSTIC
 
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_DEVICE_IDLE]
@@ -254,7 +254,7 @@ class BHyveStateSensor(BHyveDeviceEntity):
     @property
     def entity_category(self):
         """Run state is a diagnostic category"""
-        return ENTITY_CATEGORY_DIAGNOSTIC
+        return EntityCategory.DIAGNOSTIC
 
     def _on_ws_data(self, data):
         """
