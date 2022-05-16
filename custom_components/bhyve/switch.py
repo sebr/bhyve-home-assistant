@@ -11,10 +11,11 @@ from homeassistant.components.switch import (
     SwitchEntity,
 )
 
-from homeassistant.const import ATTR_ENTITY_ID, ENTITY_CATEGORY_CONFIG
+from homeassistant.const import ATTR_ENTITY_ID 
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt
 
@@ -256,7 +257,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     @property
     def entity_category(self):
         """Zone program is a configuration category"""
-        return ENTITY_CATEGORY_CONFIG
+        return EntityCategory.CONFIG
 
     async def _set_state(self, is_on):
         self._program.update({"enabled": is_on})
@@ -466,11 +467,12 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
     def _should_handle_event(self, event_name, data):
         return event_name in [
+            EVENT_CHANGE_MODE,
             EVENT_DEVICE_IDLE,
+            EVENT_PROGRAM_CHANGED,
+            EVENT_SET_MANUAL_PRESET_TIME,
             EVENT_WATERING_COMPLETE,
             EVENT_WATERING_IN_PROGRESS,
-            EVENT_SET_MANUAL_PRESET_TIME,
-            EVENT_PROGRAM_CHANGED,
         ]
 
     def _on_ws_data(self, data):
@@ -480,7 +482,9 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         # {'event': 'program_changed' }
 
         event = data.get("event")
-        if event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE):
+        if event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE) or (
+            event == EVENT_CHANGE_MODE and data.get("mode") in ("off", "auto")
+        ):
             self._is_on = False
             self._set_watering_started(None)
         elif event == EVENT_WATERING_IN_PROGRESS:
@@ -701,7 +705,7 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
     @property
     def entity_category(self):
         """Rain delay is a configuration category"""
-        return ENTITY_CATEGORY_CONFIG
+        return EntityCategory.CONFIG
 
     async def async_turn_on(self):
         """Turn the switch on."""

@@ -1,6 +1,6 @@
 ---
-name: Bug report
-about: Create a report to help us improve
+name: Support a new device
+about: Create a request to support a new BHyve device
 title: ''
 labels: ''
 assignees:
@@ -8,14 +8,8 @@ assignees:
 
 ---
 
-**Describe the bug**
-<!-- A clear and concise description of what the bug is. -->
-
-**Expected behaviour**
-<!-- A clear and concise description of what you expected to happen. -->
-
-**BHyve devices**
-<!-- Please detail the number and types of devices in your BHyve configuration. -->
+**Describe the new device**
+<!-- A clear and concise description of the device, including any reference links. -->
 
 **Logs**
 <!--
