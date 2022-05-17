@@ -67,17 +67,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self.devices = await self.client.devices  # type: ignore[union-attr]
                 self.programs = await self.client.timer_programs  # type: ignore[union-attr]
 
-                if len(self.devices) == 1:
-                    return self.async_create_entry(
-                        title=self.data[CONF_USERNAME],
-                        data=self.data,
-                        options={
-                            DEVICES: [str(self.devices[0]["id"])],
-                            PROGRAMS: self.programs,
-                        },
-                    )
-
-                # Account has more than one device, select devices to add
                 return await self.async_step_device()
 
         return self.async_show_form(

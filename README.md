@@ -40,20 +40,7 @@ Recommended installation is via HACS.
 
 ## Configuration
 
-```yaml
-bhyve:
-  username: !secret bhyve_username
-  password: !secret bhyve_password
-
-sensor:
-  - platform: bhyve
-
-switch:
-  - platform: bhyve
-
-binary_sensor:
-  - platform: bhyve
-```
+This integration should be configured from the Home Assistant devices & services UI page.
 
 ## Sensor Entities
 

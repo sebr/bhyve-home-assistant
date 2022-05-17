@@ -63,27 +63,6 @@ async def async_setup_entry(
     async_add_entities(sensors)
 
 
-# async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
-#     """Set up BHyve sensors based on a config entry."""
-#     bhyve = hass.data[DATA_BHYVE]
-
-#     sensors = []
-#     devices = await bhyve.devices
-#     for device in devices:
-#         if device.get("type") == DEVICE_SPRINKLER:
-#             sensors.append(BHyveStateSensor(hass, bhyve, device))
-#             for zone in device.get("zones"):
-#                 sensors.append(BHyveZoneHistorySensor(hass, bhyve, device, zone))
-
-#             if device.get("battery", None) is not None:
-#                 sensors.append(BHyveBatterySensor(hass, bhyve, device))
-#         if device.get("type") == DEVICE_FLOOD:
-#             sensors.append(BHyveTemperatureSensor(hass, bhyve, device))
-#             sensors.append(BHyveBatterySensor(hass, bhyve, device))
-
-#     async_add_entities(sensors, True)
-
-
 class BHyveBatterySensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 

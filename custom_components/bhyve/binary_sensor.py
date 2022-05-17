@@ -32,19 +32,6 @@ async def async_setup_entry(
     async_add_entities(sensors, True)
 
 
-# async def async_setup_platform(hass, config, async_add_entities, _discovery_info=None):
-#     """Set up BHyve sensors based on a config entry."""
-#     bhyve = hass.data[DATA_BHYVE]
-
-#     sensors = []
-#     devices = await bhyve.devices
-#     for device in devices:
-#         if device.get("type") == DEVICE_FLOOD:
-#             sensors.append(BHyveFloodSensor(hass, bhyve, device))
-
-#     async_add_entities(sensors, True)
-
-
 class BHyveFloodSensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
@@ -70,11 +57,12 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         )
 
     def _parse_status(self, status):
+        """Convert BHyve alarm status to entity value."""
         return "on" if status.get("flood_alarm_status") == "alarm" else "off"
 
     @property
     def state(self):
-        """Return the state of the entity"""
+        """Return the state of the entity."""
         return self._state
 
     @property
@@ -84,7 +72,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
 
     @property
     def is_on(self):
-        """Reports state of the flood sensor"""
+        """Reports state of the flood sensor."""
         return self._state == "on"
 
     def _on_ws_data(self, data):
