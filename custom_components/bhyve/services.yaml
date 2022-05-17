@@ -43,13 +43,3 @@ set_manual_preset_runtime:
     minutes:
       description: Number of minutes to set the preset runtime
       example: 15
-
-set_smart_watering_soil_moisture:
-  description: Set the smart watering soil moisture level for a zone
-  fields:
-    entity_id:
-      description: Zone
-      example: "switch.backyard_zone"
-    percentage:
-      description: Moisture level between 0 - 100 (percent)
-      example: 50

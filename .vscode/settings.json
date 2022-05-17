@@ -1,6 +1,17 @@
 {
-  "python.formatting.provider": "black",
-  "python.pythonPath": "/usr/local/bin/python3",
-  "python.linting.enabled": true,
-  "python.linting.pylintEnabled": true
+  "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+    "python.linting.pylintArgs": [
+      "--disable",
+      "import-error"
+    ],
+    "python.formatting.provider": "black",
+    "editor.formatOnPaste": false,
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true,
+    "python.analysis.autoImportCompletions": false,
+    "python.analysis.diagnosticSeverityOverrides": {
+      "reportMissingImports": "none"
+    }
+    
 }
