@@ -1,7 +1,6 @@
 """Support for Orbit BHyve sensors."""
 import logging
 
-from homeassistant.components.bhyve.util import filter_configured_devices
 from homeassistant.components.binary_sensor import DEVICE_CLASS_MOISTURE
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -9,6 +8,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import BHyveDeviceEntity
 from .const import CONF_CLIENT, DEVICE_FLOOD, DOMAIN, EVENT_FS_ALARM
+from .util import filter_configured_devices
 
 _LOGGER = logging.getLogger(__name__)
 
