@@ -1,17 +1,16 @@
 {
   "python.linting.pylintEnabled": true,
-    "python.linting.enabled": true,
-    "python.linting.pylintArgs": [
-      "--disable",
-      "import-error"
-    ],
-    "python.formatting.provider": "black",
-    "editor.formatOnPaste": false,
-    "editor.formatOnSave": true,
-    "editor.formatOnType": true,
-    "python.analysis.autoImportCompletions": false,
-    "python.analysis.diagnosticSeverityOverrides": {
-      "reportMissingImports": "none"
-    }
-    
+  "python.linting.enabled": true,
+  "python.linting.pylintArgs": ["--disable", "import-error"],
+  "python.formatting.provider": "black",
+  "editor.formatOnPaste": false,
+  "editor.formatOnSave": true,
+  "editor.formatOnType": true,
+  "python.analysis.autoImportCompletions": false,
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "none"
+  },
+  "files.associations": {
+    "*.yaml": "home-assistant"
+  }
 }
