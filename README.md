@@ -34,11 +34,17 @@ _Note_: The Wifi hub is required to provide the flood sensors with internet conn
 
 ## Installation
 
-Recommended installation is via HACS.
+Recommended installation is via the [Home Assistant Community Store (HACS)](https://hacs.xyz/).
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)
 
 ## Configuration
+
+To use this integration, first install it via HACS. If you do not know how to do this, please read the [HACS getting started guide](https://hacs.xyz/docs/setup/prerequisites).
+
+To enable the integration, it must be enabled in `configuration.yaml`. This integration does not (yet) support enabling and configuring via the Home Assistant settings pages.
+
+If you are not familiar with the Home Assistant configuration file, or with the YAML file format, please see the [Home Assistant documentation](https://www.home-assistant.io/docs/configuration/).
 
 ```yaml
 bhyve:
@@ -54,6 +60,13 @@ switch:
 binary_sensor:
   - platform: bhyve
 ```
+
+### Help!
+
+Some common errors in set up include:
+* Assuming that installing the integration via HACS is all that is required - it still needs to be configured!
+* Incorrect YAML format / syntax
+* Not restarting Home Assistant after configuring the integraion
 
 ## Sensor Entities
 
