@@ -203,7 +203,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
 
                     self._state = orbit_time_to_local_time(
                         latest_irrigation.get("start_time")
-                    )
+                    ).isoformat()
 
                     self._attrs = {
                         ATTR_BUDGET: latest_irrigation.get(ATTR_BUDGET),

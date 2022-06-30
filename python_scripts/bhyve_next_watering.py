@@ -47,7 +47,7 @@ else:
         delay_seconds = rain_delay.attributes.get("delay") * 3600
         delay_finishes_at = dt_util.as_local(
             dt_util.utc_from_timestamp(started_at + delay_seconds)
-        )
+        ).isoformat()
         rain_delay_finishing_attrs.update({"device_class": "timestamp"})
         hass.states.set(
             rain_delay_finishing_entity, delay_finishes_at, rain_delay_finishing_attrs
@@ -67,7 +67,7 @@ else:
                 if watering_time > now and (
                     delay_finishes_at is None or watering_time > delay_finishes_at
                 ):
-                    next_watering = watering_time
+                    next_watering = watering_time.isoformat()
                     break
         else:
             """ find the next manual watering time """
