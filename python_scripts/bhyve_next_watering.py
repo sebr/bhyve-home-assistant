@@ -48,6 +48,7 @@ else:
         delay_finishes_at = dt_util.as_local(
             dt_util.utc_from_timestamp(started_at + delay_seconds)
         )
+        rain_delay_finishing_attrs.update({"device_class": "timestamp"})
         hass.states.set(
             rain_delay_finishing_entity, delay_finishes_at, rain_delay_finishing_attrs
         )
@@ -92,5 +93,5 @@ else:
             # next_watering_day = (
             #         filter(lambda day: (day > now_weekday), configured_days)
             #     )[0]# else configured_days[0]
-
+    next_watering_attrs.update({"device_class": "timestamp"})
     hass.states.set(next_watering_entity, next_watering, next_watering_attrs)
