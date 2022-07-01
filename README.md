@@ -99,7 +99,7 @@ The following attributes are set on zone history sensor entities:
 
 ### Zone Switch
 
-A **zone** `switch` entity is created for each zone of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone. Turning on the switch will enable watering of the zone for the amount of time configured in the BHyve app &mdash; it is not possible to configure the default runtime value via this integration at this time, however it's configured value is available via the `manual_preset_runtime` attribute. In order to water a zone for a specific number of minutes, please use the `start_watering` service call.
+A **zone** `switch` entity is created for each zone of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone. Turning on the switch will enable watering of the zone for the amount of time indicated by the `manual_preset_runtime` attribute. This amount of time can be set using the `set_manual_preset_runtime` service or configured in the B-hyve app.
 
 The following attributes are set on zone switch entities:
 
