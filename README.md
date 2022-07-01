@@ -1,6 +1,6 @@
 # bhyve-home-assistant
 
-Orbit BHyve component for [Home Assistant](https://www.home-assistant.io/).
+Orbit B-hyve component for [Home Assistant](https://www.home-assistant.io/).
 
 If this integration has been useful to you, please consider chipping in and buying me a coffee!
 
@@ -15,13 +15,13 @@ This integration works with:
 - [Orbit 21004 B-hyve Smart Hose Faucet Timer with Wi-Fi Hub](https://www.amazon.com/dp/B0758NR8DJ). The Wifi hub is required to provide the faucet timer with internet connectivity. Bluetooth connectivity with the timer is not supported.
 - [Orbit 57946 B-hyve Smart Indoor/Outdoor 6-Station WiFi Sprinkler System Controller](https://www.amazon.com/gp/product/B01D15HOIQ). Compatibility has been reported by members of the community.
 - [Orbit 57925 B-hyve Smart 8-Zone Indoor-Mount Sprinkler Controller](https://www.amazon.com/dp/B07DJ628XH). Compatibility has been reported by members of the community.
-- [Orbit 57995 B-Hyve XR](https://www.amazon.com/Orbit-57995-16-Zone-Sprinkler-Controller/dp/B08J2C3FL5). Compatibility has been reported by members of the community.
+- [Orbit 57995 B-hyve XR](https://www.amazon.com/Orbit-57995-16-Zone-Sprinkler-Controller/dp/B08J2C3FL5). Compatibility has been reported by members of the community.
 
 _Note_: The Wifi hub is required to provide the faucet controllers with internet connectivity.
 
 ### Flood sensors
 
-- [Orbit 71000 B-Hyve Smart Flood Sensors with Wi-Fi Hub](https://www.orbitonline.com/product/b-hyve-smart-flood-sensor/).
+- [Orbit 71000 B-hyve Smart Flood Sensors with Wi-Fi Hub](https://www.orbitonline.com/product/b-hyve-smart-flood-sensor/).
 
 _Note_: The Wifi hub is required to provide the flood sensors with internet connectivity.
 
@@ -76,7 +76,7 @@ A **battery** `sensor` entity is created for any device which has a battery leve
 
 ### Device State sensor
 
-A **device state** `sensor` entity is created for each device. This reports the state of the device, for example `auto` or `off`. A device may be switched to `off` either manually through the BHyve app, or may be automatically set when battery levels are too low to operate the device correctly.
+A **device state** `sensor` entity is created for each device. This reports the state of the device, for example `auto` or `off`. A device may be switched to `off` either manually through the B-hyve app, or may be automatically set when battery levels are too low to operate the device correctly.
 
 ### Zone Watering History sensor
 
@@ -126,7 +126,7 @@ Please see [program switches](#program-switch) below for more details.
 
 ### Rain Delay Switch
 
-A **rain delay** `switch` entity is created for each discovered `sprinkler_timer` device. This entity will be **on** whenever BHyve reports that a device's watering schedule will be delayed due to weather conditions.
+A **rain delay** `switch` entity is created for each discovered `sprinkler_timer` device. This entity will be **on** whenever B-hyve reports that a device's watering schedule will be delayed due to weather conditions.
 
 Enabling the switch will set a 24 hour rain delay on the device &mdash; for a custom rain delay, please use the `enable_rain_delay` service.
 
@@ -141,7 +141,7 @@ The following attributes are set on `switch.*_rain_delay` entities, if the senso
 
 ### Program Switch
 
-A **program** `switch` entity is created for each program attached to each zone. These switches can be switched on or off. They can be configured using the official BHyve app.
+A **program** `switch` entity is created for each program attached to each zone. These switches can be switched on or off. They can be configured using the official B-hyve app.
 
 | Attribute              | Type           | Notes                                                             |
 | ---------------------- | -------------- | ----------------------------------------------------------------- |
@@ -205,7 +205,7 @@ Hook these scripts up to automations to update as required:
 
 ```yaml
 automation:
-  - alias: BHyve next watering & rain delay finishing updater
+  - alias: B-hyve next watering & rain delay finishing updater
     trigger:
       - platform: state
         entity_id: switch.backyard_zone, switch.rain_delay_lawn
