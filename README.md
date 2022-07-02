@@ -34,13 +34,20 @@ _Note_: The Wifi hub is required to provide the flood sensors with internet conn
 
 ## Installation
 
-Recommended installation is via HACS.
+Recommended installation is via the [Home Assistant Community Store (HACS)](https://hacs.xyz/).
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)
 
 ## Configuration
 
 This integration should be configured from the Home Assistant devices & services UI page.
+
+### Help!
+
+Some common errors in set up include:
+* Assuming that installing the integration via HACS is all that is required - it still needs to be configured!
+* Incorrect YAML format / syntax
+* Not restarting Home Assistant after configuring the integraion
 
 ## Sensor Entities
 
