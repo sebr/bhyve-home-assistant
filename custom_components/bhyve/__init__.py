@@ -94,8 +94,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 hass, SIGNAL_UPDATE_PROGRAM.format(program_id), program_id, data
             )
 
-    _LOGGER.debug("Setting up entry %s", entry)
-
     client = Client(
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],

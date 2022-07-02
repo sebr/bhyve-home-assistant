@@ -161,17 +161,15 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self.devices = await self.client.devices  # type: ignore[union-attr]
             self.programs = await self.client.timer_programs  # type: ignore[union-attr]
 
-            device_options = {
+            devices = {
                 str(d["id"]): f'{d["name"]}'
                 for d in self.devices
                 if d["type"] != DEVICE_BRIDGE
             }
 
-            _LOGGER.debug("Import options %s", device_options)
+            import_input = {CONF_DEVICES: devices}
 
-            self.async_create_entry(
-                title=self.data[CONF_USERNAME], data=self.data, options=device_options
-            )
+            return await self.async_step_device(user_input=import_input)
         else:
             return self.async_abort(reason="cannot_connect")
 
