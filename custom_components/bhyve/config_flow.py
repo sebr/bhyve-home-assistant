@@ -13,7 +13,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 
-from .const import CONF_DEVICES, DEVICE_BRIDGE, DEVICES, DOMAIN, PROGRAMS
+from .const import CONF_DEVICES, DEVICE_BRIDGE, DOMAIN
 from .pybhyve import Client
 from .pybhyve.errors import AuthenticationError, BHyveError
 
@@ -141,6 +141,39 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
         )
+
+    async def async_step_import(self, config):
+        """Handle import of BHyve config from YAML."""
+
+        username = config[CONF_USERNAME]
+        password = config[CONF_PASSWORD]
+
+        credentials = {
+            CONF_USERNAME: username,
+            CONF_PASSWORD: password,
+        }
+
+        if not (errors := await self.async_auth(credentials)):
+            await self.async_set_unique_id(credentials[CONF_USERNAME].lower())
+            self._abort_if_unique_id_configured()
+
+            self.data = credentials
+            self.devices = await self.client.devices  # type: ignore[union-attr]
+            self.programs = await self.client.timer_programs  # type: ignore[union-attr]
+
+            device_options = {
+                str(d["id"]): f'{d["name"]}'
+                for d in self.devices
+                if d["type"] != DEVICE_BRIDGE
+            }
+
+            _LOGGER.debug("Import options %s", device_options)
+
+            self.async_create_entry(
+                title=self.data[CONF_USERNAME], data=self.data, options=device_options
+            )
+        else:
+            return self.async_abort(reason="cannot_connect")
 
     @staticmethod
     @callback
