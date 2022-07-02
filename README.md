@@ -40,26 +40,7 @@ Recommended installation is via the [Home Assistant Community Store (HACS)](http
 
 ## Configuration
 
-To use this integration, first install it via HACS. If you do not know how to do this, please read the [HACS getting started guide](https://hacs.xyz/docs/setup/prerequisites).
-
-To enable the integration, it must be enabled in `configuration.yaml`. This integration does not (yet) support enabling and configuring via the Home Assistant settings pages.
-
-If you are not familiar with the Home Assistant configuration file, or with the YAML file format, please see the [Home Assistant documentation](https://www.home-assistant.io/docs/configuration/).
-
-```yaml
-bhyve:
-  username: !secret bhyve_username
-  password: !secret bhyve_password
-
-sensor:
-  - platform: bhyve
-
-switch:
-  - platform: bhyve
-
-binary_sensor:
-  - platform: bhyve
-```
+This integration should be configured from the Home Assistant devices & services UI page.
 
 ### Help!
 
