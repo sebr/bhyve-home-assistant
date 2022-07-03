@@ -1,6 +1,6 @@
 # bhyve-home-assistant
 
-Orbit BHyve component for [Home Assistant](https://www.home-assistant.io/).
+Orbit B-hyve component for [Home Assistant](https://www.home-assistant.io/).
 
 If this integration has been useful to you, please consider chipping in and buying me a coffee!
 
