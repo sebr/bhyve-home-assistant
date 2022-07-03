@@ -17,14 +17,14 @@ The following controllers have been verified as compatible with this integration
 - [Orbit 21004 B-hyve Smart Hose Faucet Timer with Wi-Fi Hub](https://www.amazon.com/dp/B0758NR8DJ). The Wifi hub is required to provide the faucet timer with internet connectivity. Bluetooth connectivity with the timer is not supported.
 - [Orbit 57946 B-hyve Smart Indoor/Outdoor 6-Station WiFi Sprinkler System Controller](https://www.amazon.com/gp/product/B01D15HOIQ).
 - [Orbit 57925 B-hyve Smart 8-Zone Indoor-Mount Sprinkler Controller](https://www.amazon.com/dp/B07DJ628XH).
-- [Orbit 57995 B-Hyve XR](https://www.amazon.com/Orbit-57995-16-Zone-Sprinkler-Controller/dp/B08J2C3FL5).
-- [Orbit B-Hyve XD](https://www.amazon.com/Orbit-24516-B-hyve-Smart-Watering/dp/B09KKFLN1D/) (with the Gen 2 Wifi hub).
+- [Orbit 57995 B-hyve XR](https://www.amazon.com/Orbit-57995-16-Zone-Sprinkler-Controller/dp/B08J2C3FL5).
+- [Orbit B-hyve XD](https://www.amazon.com/Orbit-24516-B-hyve-Smart-Watering/dp/B09KKFLN1D/) (with the Gen 2 Wifi hub).
 
 _Note_: The Wifi hub is required to provide the faucet controllers with internet connectivity.
 
 ### Flood sensors
 
-- [Orbit 71000 B-Hyve Smart Flood Sensors with Wi-Fi Hub](https://www.orbitonline.com/product/b-hyve-smart-flood-sensor/).
+- [Orbit 71000 B-hyve Smart Flood Sensors with Wi-Fi Hub](https://www.orbitonline.com/product/b-hyve-smart-flood-sensor/).
 
 _Note_: The Wifi hub is required to provide the flood sensors with internet connectivity.
 
