@@ -161,15 +161,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self.devices = await self.client.devices  # type: ignore[union-attr]
             self.programs = await self.client.timer_programs  # type: ignore[union-attr]
 
-            devices = {
-                str(d["id"]): f'{d["name"]}'
-                for d in self.devices
-                if d["type"] != DEVICE_BRIDGE
-            }
+            devices = [str(d["id"]) for d in self.devices if d["type"] != DEVICE_BRIDGE]
 
-            import_input = {CONF_DEVICES: devices}
-
-            return await self.async_step_device(user_input=import_input)
+            return await self.async_step_device(user_input={CONF_DEVICES: devices})
         else:
             return self.async_abort(reason="cannot_connect")
 
@@ -213,8 +207,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         # _LOGGER.debug("Devices: %s", json.dumps(devices))
         # _LOGGER.debug("Programs: %s", json.dumps(programs))
 
-        _LOGGER.debug("ALL DEVICES")
-        _LOGGER.debug(self.config_entry.options.get(CONF_DEVICES))
+        # _LOGGER.debug("ALL DEVICES")
+        # _LOGGER.debug(str(self.config_entry.options))
 
         device_options = {
             str(d["id"]): f'{d["name"]}' for d in devices if d["type"] != DEVICE_BRIDGE
