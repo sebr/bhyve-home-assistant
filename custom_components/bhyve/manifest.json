@@ -1,7 +1,8 @@
 {
   "domain": "bhyve",
-  "version": "2.2.3",
-  "name": "Orbit BHyve Integration",
+  "version": "3.0.0-beta0",
+  "name": "Orbit BHyve",
+  "config_flow": true,
   "documentation": "https://github.com/sebr/bhyve-home-assistant/blob/master/README.md",
   "dependencies": [],
   "codeowners": ["@sebr"],
