@@ -58,12 +58,11 @@ If you do not wish to use HACS, then please download the latest version from the
 
 <img width="450" alt="Configure B-hyve from Home Assistant" src="https://user-images.githubusercontent.com/81972/177079633-672ef7be-3b20-4350-bc46-9dc6cd9c8e19.png">
 
-### Help!
+### Help
 
 Some common errors in set up include:
 
 - Assuming that installing the integration via HACS is all that is required - it still needs to be configured!
-- Incorrect YAML format / syntax
 - Not restarting Home Assistant after configuring the integraion
 
 ## Sensor Entities
