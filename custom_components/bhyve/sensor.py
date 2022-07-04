@@ -4,13 +4,14 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_BATTERY_LEVEL,
-    DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_TEMPERATURE,
+    TEMP_FAHRENHEIT
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.icon import icon_for_battery_level
+
+from homeassistant.components.sensor import SensorDeviceClass
 
 from . import BHyveDeviceEntity
 from .const import (
@@ -76,7 +77,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
             device,
             name,
             "battery",
-            DEVICE_CLASS_BATTERY,
+            SensorDeviceClass.BATTERY,
         )
 
         self._unit = "%"
@@ -105,7 +106,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
     @property
     def icon(self):
         """Icon to use in the frontend, if any."""
-        if self._device_class == DEVICE_CLASS_BATTERY and self._state is not None:
+        if self._device_class == SensorDeviceClass.BATTERY and self._state is not None:
             return icon_for_battery_level(
                 battery_level=int(self._state), charging=False
             )
@@ -154,6 +155,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
             device,
             name,
             "history",
+            SensorDeviceClass.TIMESTAMP,
         )
 
     def _setup(self, device):
@@ -209,7 +211,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
 
                     self._state = orbit_time_to_local_time(
                         latest_irrigation.get("start_time")
-                    )
+                    ).isoformat()
 
                     self._attrs = {
                         ATTR_BUDGET: latest_irrigation.get(ATTR_BUDGET),
@@ -282,7 +284,7 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
         name = "{} temperature sensor".format(device.get("name"))
         _LOGGER.info("Creating temperature sensor: %s", name)
         super().__init__(
-            hass, bhyve, device, name, "thermometer", DEVICE_CLASS_TEMPERATURE
+            hass, bhyve, device, name, "thermometer", SensorDeviceClass.TEMPERATURE
         )
 
     def _setup(self, device):
