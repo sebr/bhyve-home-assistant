@@ -1,5 +1,6 @@
 # pylint: disable=undefined-variable
 now = dt_util.now()
+UNKNOWN = 'unknown'
 
 zone_entity_id = data.get("entity_id")
 
@@ -41,8 +42,8 @@ if zone.state == "unavailable":
         rain_delay_finishing_entity, "Unavailable", rain_delay_finishing_attrs
     )
 else:
-    delay_finishes_at = 'unknown'
-    next_watering = 'unknown'
+    delay_finishes_at = UNKNOWN
+    next_watering = UNKNOWN
 
     if rain_delay.state == "on":
         started_at = dt_util.as_timestamp(rain_delay.attributes.get("started_at"))
@@ -68,7 +69,7 @@ else:
             for timestamp in program.get("watering_program", []):
                 watering_time = dt_util.parse_datetime(str(timestamp))
                 if watering_time > now and (
-                    delay_finishes_at is 'unknown' or watering_time > delay_finishes_at
+                    delay_finishes_at is UNKNOWN or watering_time > delay_finishes_at
                 ):
                     next_watering = watering_time
                     break
@@ -96,7 +97,7 @@ else:
             # next_watering_day = (
             #         filter(lambda day: (day > now_weekday), configured_days)
             #     )[0]# else configured_days[0]
-    if next_watering == 'unknown':
+    if next_watering == UNKNOWN:
         hass.states.set(next_watering_entity, next_watering, next_watering_attrs)
     else:
         hass.states.set(next_watering_entity, next_watering.isoformat(), next_watering_attrs)
