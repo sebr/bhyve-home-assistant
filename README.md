@@ -74,7 +74,7 @@ A **battery** `sensor` entity is created for any device which has a battery leve
 
 ### Device State sensor
 
-A **device state** `sensor` entity is created for each device. This reports the state of the device, for example `auto` or `off`. A device may be switched to `off` either manually through the BHyve app, or may be automatically set when battery levels are too low to operate the device correctly.
+A **device state** `sensor` entity is created for each device. This reports the state of the device, for example `auto` or `off`. A device may be switched to `off` either manually through the B-hyve app, or may be automatically set when battery levels are too low to operate the device correctly.
 
 ### Zone Watering History sensor
 
@@ -97,7 +97,7 @@ The following attributes are set on zone history sensor entities:
 
 ### Zone Switch
 
-A **zone** `switch` entity is created for each zone of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone. Turning on the switch will enable watering of the zone for the amount of time configured in the BHyve app &mdash; it is not possible to configure the default runtime value via this integration at this time, however it's configured value is available via the `manual_preset_runtime` attribute. In order to water a zone for a specific number of minutes, please use the `start_watering` service call.
+A **zone** `switch` entity is created for each zone of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone. Turning on the switch will enable watering of the zone for the amount of time indicated by the `manual_preset_runtime` attribute. This amount of time can be set using the `set_manual_preset_runtime` service or configured in the B-hyve app.
 
 The following attributes are set on zone switch entities:
 
@@ -124,7 +124,7 @@ Please see [program switches](#program-switch) below for more details.
 
 ### Rain Delay Switch
 
-A **rain delay** `switch` entity is created for each discovered `sprinkler_timer` device. This entity will be **on** whenever BHyve reports that a device's watering schedule will be delayed due to weather conditions.
+A **rain delay** `switch` entity is created for each discovered `sprinkler_timer` device. This entity will be **on** whenever B-hyve reports that a device's watering schedule will be delayed due to weather conditions.
 
 Enabling the switch will set a 24 hour rain delay on the device &mdash; for a custom rain delay, please use the `enable_rain_delay` service.
 
@@ -139,7 +139,7 @@ The following attributes are set on `switch.*_rain_delay` entities, if the senso
 
 ### Program Switch
 
-A **program** `switch` entity is created for each program attached to each zone. These switches can be switched on or off. They can be configured using the official BHyve app.
+A **program** `switch` entity is created for each program attached to each zone. These switches can be switched on or off. They can be configured using the official B-hyve app.
 
 | Attribute              | Type           | Notes                                                             |
 | ---------------------- | -------------- | ----------------------------------------------------------------- |
@@ -203,7 +203,7 @@ Hook these scripts up to automations to update as required:
 
 ```yaml
 automation:
-  - alias: BHyve next watering & rain delay finishing updater
+  - alias: B-hyve next watering & rain delay finishing updater
     trigger:
       - platform: state
         entity_id: switch.backyard_zone, switch.rain_delay_lawn
