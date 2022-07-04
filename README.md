@@ -37,20 +37,34 @@ _Note_: The Wifi hub is required to provide the flood sensors with internet conn
 
 ## Installation
 
-Recommended installation is via the [Home Assistant Community Store (HACS)](https://hacs.xyz/).
+Recommended installation is via the [Home Assistant Community Store (HACS)](https://hacs.xyz/). [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)
+### 1. Install via HACS
 
-## Configuration
+If you do not wish to use HACS, then please download the latest version from the [releases page](https://github.com/sebr/bhyve-home-assistant/releases) and proceed to Step 2.
 
-This integration should be configured from the Home Assistant devices & services UI page.
+1. Navigate to the HACS add-on
+2. Search for the `Orbit B-hyve` integration and install it
+3. Restart Home Assistant
+
+<img width="450" alt="Install B-hyve from HACS" src="https://user-images.githubusercontent.com/81972/177079621-a66a8ab3-ceee-44de-b539-4c65ad921640.png">
+
+### 2. Configure via Home Assistant
+
+1. Navigate to Home Assistant Settings > Devices & Services
+2. Click `+ Add Integration`
+3. Search for `Orbit B-hyve`
+4. Complete the guided configuration
+
+<img width="450" alt="Configure B-hyve from Home Assistant" src="https://user-images.githubusercontent.com/81972/177079633-672ef7be-3b20-4350-bc46-9dc6cd9c8e19.png">
 
 ### Help!
 
 Some common errors in set up include:
-* Assuming that installing the integration via HACS is all that is required - it still needs to be configured!
-* Incorrect YAML format / syntax
-* Not restarting Home Assistant after configuring the integraion
+
+- Assuming that installing the integration via HACS is all that is required - it still needs to be configured!
+- Incorrect YAML format / syntax
+- Not restarting Home Assistant after configuring the integraion
 
 ## Sensor Entities
 
