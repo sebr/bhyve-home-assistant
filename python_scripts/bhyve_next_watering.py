@@ -24,14 +24,16 @@ if not device_name:
 logger.info("updating next_watering for zone: ({}: {})".format(zone_name, zone))
 
 next_watering_entity = f"sensor.{zone_name}_next_watering".replace(" ", "_").replace("-", "_").lower()
-next_watering_attrs = {"friendly_name": f"{zone_name} next watering"}
+next_watering_attrs = {"friendly_name": f"{zone_name} next watering", "device_class": "timestamp"}
 
 rain_delay_finishing_entity = f"sensor.{device_name}_rain_delay_finishing".replace(
     " ", "_"
 ).replace("-", "_").lower()
-rain_delay_finishing_attrs = {"friendly_name": f"{device_name} rain delay finishing"}
+rain_delay_finishing_attrs = {"friendly_name": f"{device_name} rain delay finishing", "device_class": "timestamp"}
 
-rain_delay = hass.states.get(f"switch.{device_name}_rain_delay")
+rain_delay = hass.states.get(f"switch.{device_name}_rain_delay".replace(
+    " ", "_"
+).replace("-", "_").lower())
 
 if zone.state == "unavailable":
     hass.states.set(next_watering_entity, "Unavailable", next_watering_attrs)
@@ -39,21 +41,22 @@ if zone.state == "unavailable":
         rain_delay_finishing_entity, "Unavailable", rain_delay_finishing_attrs
     )
 else:
-    delay_finishes_at = None
-    next_watering = None
+    delay_finishes_at = 'unknown'
+    next_watering = 'unknown'
 
     if rain_delay.state == "on":
         started_at = dt_util.as_timestamp(rain_delay.attributes.get("started_at"))
         delay_seconds = rain_delay.attributes.get("delay") * 3600
         delay_finishes_at = dt_util.as_local(
             dt_util.utc_from_timestamp(started_at + delay_seconds)
-        ).isoformat()
-        rain_delay_finishing_attrs.update({"device_class": "timestamp"})
+        )
+        hass.states.set(
+            rain_delay_finishing_entity, delay_finishes_at.isoformat(), rain_delay_finishing_attrs
+        )
+    else:
         hass.states.set(
             rain_delay_finishing_entity, delay_finishes_at, rain_delay_finishing_attrs
         )
-    else:
-        hass.states.set(rain_delay_finishing_entity, None, rain_delay_finishing_attrs)
 
     for program_id in ["a", "b", "c", "e"]:
         program = zone.attributes.get(f"program_{program_id}")
@@ -65,9 +68,9 @@ else:
             for timestamp in program.get("watering_program", []):
                 watering_time = dt_util.parse_datetime(str(timestamp))
                 if watering_time > now and (
-                    delay_finishes_at is None or watering_time > delay_finishes_at
+                    delay_finishes_at is 'unknown' or watering_time > delay_finishes_at
                 ):
-                    next_watering = watering_time.isoformat()
+                    next_watering = watering_time
                     break
         else:
             """ find the next manual watering time """
@@ -93,5 +96,7 @@ else:
             # next_watering_day = (
             #         filter(lambda day: (day > now_weekday), configured_days)
             #     )[0]# else configured_days[0]
-    next_watering_attrs.update({"device_class": "timestamp"})
-    hass.states.set(next_watering_entity, next_watering, next_watering_attrs)
+    if next_watering == 'unknown':
+        hass.states.set(next_watering_entity, next_watering, next_watering_attrs)
+    else:
+        hass.states.set(next_watering_entity, next_watering.isoformat(), next_watering_attrs)
