@@ -5,3 +5,4 @@ __pycache__
 tmp
 
 debug/[0-9]*
+debug/sync

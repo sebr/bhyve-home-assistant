@@ -12,10 +12,13 @@ This integration works with:
 
 ### Faucet / Tap / Sprinkler controllers
 
+The following controllers have been verified as compatible with this integration, either by the author or members of the community. By virtue that this is an unofficial project which is not supported by the company, there is no guarantee of continued compatibility for current or future devices.
+
 - [Orbit 21004 B-hyve Smart Hose Faucet Timer with Wi-Fi Hub](https://www.amazon.com/dp/B0758NR8DJ). The Wifi hub is required to provide the faucet timer with internet connectivity. Bluetooth connectivity with the timer is not supported.
-- [Orbit 57946 B-hyve Smart Indoor/Outdoor 6-Station WiFi Sprinkler System Controller](https://www.amazon.com/gp/product/B01D15HOIQ). Compatibility has been reported by members of the community.
-- [Orbit 57925 B-hyve Smart 8-Zone Indoor-Mount Sprinkler Controller](https://www.amazon.com/dp/B07DJ628XH). Compatibility has been reported by members of the community.
-- [Orbit 57995 B-hyve XR](https://www.amazon.com/Orbit-57995-16-Zone-Sprinkler-Controller/dp/B08J2C3FL5). Compatibility has been reported by members of the community.
+- [Orbit 57946 B-hyve Smart Indoor/Outdoor 6-Station WiFi Sprinkler System Controller](https://www.amazon.com/gp/product/B01D15HOIQ).
+- [Orbit 57925 B-hyve Smart 8-Zone Indoor-Mount Sprinkler Controller](https://www.amazon.com/dp/B07DJ628XH).
+- [Orbit 57995 B-hyve XR](https://www.amazon.com/Orbit-57995-16-Zone-Sprinkler-Controller/dp/B08J2C3FL5).
+- [Orbit B-hyve XD](https://www.amazon.com/Orbit-24516-B-hyve-Smart-Watering/dp/B09KKFLN1D/) (with the Gen 2 Wifi hub).
 
 _Note_: The Wifi hub is required to provide the faucet controllers with internet connectivity.
 
@@ -34,39 +37,34 @@ _Note_: The Wifi hub is required to provide the flood sensors with internet conn
 
 ## Installation
 
-Recommended installation is via the [Home Assistant Community Store (HACS)](https://hacs.xyz/).
+Recommended installation is via the [Home Assistant Community Store (HACS)](https://hacs.xyz/). [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/custom-components/hacs)
+### 1. Install via HACS
 
-## Configuration
+If you do not wish to use HACS, then please download the latest version from the [releases page](https://github.com/sebr/bhyve-home-assistant/releases) and proceed to Step 2.
 
-To use this integration, first install it via HACS. If you do not know how to do this, please read the [HACS getting started guide](https://hacs.xyz/docs/setup/prerequisites).
+1. Navigate to the HACS add-on
+2. Search for the `Orbit B-hyve` integration and install it
+3. Restart Home Assistant
 
-To enable the integration, it must be enabled in `configuration.yaml`. This integration does not (yet) support enabling and configuring via the Home Assistant settings pages.
+<img width="450" alt="Install B-hyve from HACS" src="https://user-images.githubusercontent.com/81972/177079621-a66a8ab3-ceee-44de-b539-4c65ad921640.png">
 
-If you are not familiar with the Home Assistant configuration file, or with the YAML file format, please see the [Home Assistant documentation](https://www.home-assistant.io/docs/configuration/).
+### 2. Configure via Home Assistant
 
-```yaml
-bhyve:
-  username: !secret bhyve_username
-  password: !secret bhyve_password
+1. Navigate to Home Assistant Settings > Devices & Services
+2. Click `+ Add Integration`
+3. Search for `Orbit B-hyve`
+4. Complete the guided configuration
 
-sensor:
-  - platform: bhyve
-
-switch:
-  - platform: bhyve
-
-binary_sensor:
-  - platform: bhyve
-```
+<img width="450" alt="Configure B-hyve from Home Assistant" src="https://user-images.githubusercontent.com/81972/177079633-672ef7be-3b20-4350-bc46-9dc6cd9c8e19.png">
 
 ### Help!
 
 Some common errors in set up include:
-* Assuming that installing the integration via HACS is all that is required - it still needs to be configured!
-* Incorrect YAML format / syntax
-* Not restarting Home Assistant after configuring the integraion
+
+- Assuming that installing the integration via HACS is all that is required - it still needs to be configured!
+- Incorrect YAML format / syntax
+- Not restarting Home Assistant after configuring the integraion
 
 ## Sensor Entities
 
