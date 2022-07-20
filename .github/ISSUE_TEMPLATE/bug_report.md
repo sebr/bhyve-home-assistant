@@ -18,4 +18,12 @@ assignees:
 <!-- Please detail the number and types of devices in your BHyve configuration. -->
 
 **Device Diagnostics**
-<!-- Please attach [device diagnostics](https://www.home-assistant.io/integrations/diagnostics/). This can be done by visiting the Home Assistant device page. See here for an example: https://user-images.githubusercontent.com/81972/179869298-3d2a33ca-f847-4a25-8e77-20757e49f914.png -->
+<!--
+
+Please attach the Home Assistant diagnostics for the B-hyve device. Sensitive information is redacted when compiling the diagnostic data.
+
+* Home Assistant diagnostics: https://www.home-assistant.io/integrations/diagnostics/
+* Diagnostic data implementation: https://github.com/sebr/bhyve-home-assistant/blob/main/custom_components/bhyve/diagnostics.py
+* Example of how to generate: https://user-images.githubusercontent.com/81972/179869298-3d2a33ca-f847-4a25-8e77-20757e49f914.png
+
+-->
