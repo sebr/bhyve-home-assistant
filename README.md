@@ -63,7 +63,7 @@ If you do not wish to use HACS, then please download the latest version from the
 Some common errors in set up include:
 
 - Assuming that installing the integration via HACS is all that is required - it still needs to be configured!
-- Not restarting Home Assistant after configuring the integraion
+- Not restarting Home Assistant after installing the integraion via HACS
 
 ## Sensor Entities
 
