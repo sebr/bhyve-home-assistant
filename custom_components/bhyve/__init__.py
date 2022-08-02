@@ -15,7 +15,7 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
     HomeAssistantError,
 )
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, entity_registry
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
@@ -33,7 +33,7 @@ from .const import (
     SIGNAL_UPDATE_DEVICE,
     SIGNAL_UPDATE_PROGRAM,
 )
-from .util import filter_configured_devices
+from .util import filter_configured_devices, constant_program_id
 from .pybhyve import Client
 from .pybhyve.errors import AuthenticationError, BHyveError
 
@@ -82,6 +82,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if event == EVENT_PROGRAM_CHANGED:
             device_id = data.get("program", {}).get("device_id")
             program_id = data.get("program", {}).get("id")
+            # Use a constant id if Smart program.
+            is_smart_program = bool(
+                data.get("program", {}).get("is_smart_program", False)
+            )
+            program_id = constant_program_id(device_id, program_id, is_smart_program)
         else:
             device_id = data.get("device_id")
 
@@ -140,6 +145,32 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate old entry."""
+    _LOGGER.debug("Migrating Bhyve from version %s", entry.version)
+    version = entry.version
+    device_id = entry.options["devices"][0]  # Use ID of first device
+
+    # Migrate Smart Watering program switch to new constant Unique ID
+    if version == 1:
+        registry = entity_registry.async_get(hass)
+        for entity_id, e_entry in registry.entities.items():
+            if e_entry.config_entry_id == entry.entry_id:
+                new_unique_id = f"bhyve:{device_id}:program:smart_program"
+                if entity_id.endswith(
+                    "_smart_watering_program"
+                ):  # Only migrate the first switch
+                    registry.async_update_entity(entity_id, new_unique_id=new_unique_id)
+                    entry.version = 2
+                    _LOGGER.info(
+                        "Bhyve unique identifier for entity: %s has been updated",
+                        entity_id,
+                    )
+
+    _LOGGER.info("Migration to version %s successful", entry.version)
+    return True
 
 
 class BHyveEntity(Entity):

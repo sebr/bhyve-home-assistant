@@ -36,7 +36,11 @@ from .const import (
     SIGNAL_UPDATE_PROGRAM,
 )
 from .pybhyve.errors import BHyveError
-from .util import filter_configured_devices, orbit_time_to_local_time
+from .util import (
+    filter_configured_devices,
+    orbit_time_to_local_time,
+    constant_program_id,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -232,6 +236,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
         self._device_id = program.get("device_id")
         self._program_id = program.get("id")
         self._available = True
+        self._is_smart_program = bool(self._program.get("is_smart_program", False))
 
     @property
     def extra_state_attributes(self):
@@ -239,7 +244,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
         attrs = {
             "device_id": self._device_id,
-            "is_smart_program": self._program.get("is_smart_program", False),
+            "is_smart_program": self._is_smart_program,
             "frequency": self._program.get("frequency"),
             "start_times": self._program.get("start_times"),
             "budget": self._program.get("budget"),
@@ -256,8 +261,8 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
     @property
     def unique_id(self):
-        """Return the unique id for the switch program."""
-        return f"bhyve:program:{self._program_id}"
+        """Return the unique id, unchanging string that represents this switch program."""
+        return f"bhyve:{self._device_id}:program:{'smart_program' if self._is_smart_program else self._program_id}"
 
     @property
     def entity_category(self):
@@ -290,8 +295,13 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
                 self._ws_unprocessed_events.append(data)
                 self.async_schedule_update_ha_state(True)
 
+        # Use a constant id so that it is updated on change.
+        program_id = constant_program_id(
+            self._device_id, self._program_id, self._is_smart_program
+        )
+
         self._async_unsub_dispatcher_connect = async_dispatcher_connect(
-            self.hass, SIGNAL_UPDATE_PROGRAM.format(self._program_id), update
+            self.hass, SIGNAL_UPDATE_PROGRAM.format(program_id), update
         )
 
     async def async_will_remove_from_hass(self):
@@ -314,6 +324,8 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
             program = data.get("program")
             if program is not None:
                 self._program = program
+                # Update Smart Watering program_id to match id if changed on irrigation system.
+                self._program_id = program.get("id")
 
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_PROGRAM_CHANGED]
