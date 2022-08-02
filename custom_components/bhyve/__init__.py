@@ -15,7 +15,7 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
     HomeAssistantError,
 )
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, entity_registry
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
@@ -145,6 +145,32 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate old entry."""
+    _LOGGER.debug("Migrating Bhyve from version %s", entry.version)
+    version = entry.version
+    device_id = entry.options["devices"][0]  # Use ID of first device
+
+    # Migrate Smart Watering program switch to new constant Unique ID
+    if version == 1:
+        registry = entity_registry.async_get(hass)
+        for entity_id, e_entry in registry.entities.items():
+            if e_entry.config_entry_id == entry.entry_id:
+                new_unique_id = f"bhyve:{device_id}:program:smart_program"
+                if entity_id.endswith(
+                    "_smart_watering_program"
+                ):  # Only migrate the first switch
+                    registry.async_update_entity(entity_id, new_unique_id=new_unique_id)
+                    entry.version = 2
+                    _LOGGER.info(
+                        "Bhyve unique identifier for entity: %s has been updated",
+                        entity_id,
+                    )
+
+    _LOGGER.info("Migration to version %s successful", entry.version)
+    return True
 
 
 class BHyveEntity(Entity):
