@@ -1,6 +1,7 @@
 """Config flow for BHyve integration."""
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -204,8 +205,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         except BHyveError:
             return self.async_abort(reason="cannot_connect")
 
-        # _LOGGER.debug("Devices: %s", json.dumps(devices))
-        # _LOGGER.debug("Programs: %s", json.dumps(programs))
+        _LOGGER.debug("Devices: %s", json.dumps(devices))
 
         # _LOGGER.debug("ALL DEVICES")
         # _LOGGER.debug(str(self.config_entry.options))

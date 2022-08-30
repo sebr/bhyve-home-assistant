@@ -12,18 +12,18 @@ folder = sys.argv[1]
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
-devices_json = os.path.join(script_dir, folder + "/devices.json")
+diagnostics_json = os.path.join(script_dir, folder + "/diagnostics.json")
 
-with open(devices_json) as devicesFile:
-    devices = json.load(devicesFile)
-    devicesFile.close()
+with open(diagnostics_json) as diagnosticsFile:
+    diagnostics = json.load(diagnosticsFile)
+    diagnosticsFile.close()
 
-
-for device in devices:
+for device in diagnostics.get("data").get("devices"):
     if device.get("type") == "bridge":
         continue
 
     name = device.get("name")
+    print("")
 
     if device.get("type") == "sprinkler_timer":
         zones = device.get("zones")
