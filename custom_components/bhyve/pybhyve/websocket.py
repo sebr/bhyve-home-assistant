@@ -135,11 +135,13 @@ class OrbitWebsocket:
 
         except aiohttp.ClientConnectorError:
             _LOGGER.error("Client connection error; state: %s", self.state)
+            self.state = STATE_STOPPED
             self.retry()
 
         # pylint: disable=broad-except
         except Exception as err:
             _LOGGER.error("Unexpected error %s", err)
+            self.state = STATE_STOPPED
             self.retry()
 
         else:
