@@ -226,8 +226,8 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
     def __init__(self, hass, bhyve, device, program, icon):
         """Initialize the switch."""
-        device_name = device.get("name")
-        program_name = program.get("name")
+        device_name = device.get("name", "Unknown switch")
+        program_name = program.get("name", "unknown")
 
         name = f"{device_name} {program_name} program"
 

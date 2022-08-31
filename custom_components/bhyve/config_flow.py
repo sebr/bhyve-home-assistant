@@ -91,9 +91,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         device_options = {
-            str(d["id"]): f'{d["name"]}'
+            str(d.get("id")): f'{d.get("name", "Unnamed device")}'
             for d in self.devices
-            if d["type"] != DEVICE_BRIDGE
+            if d.get("type") != DEVICE_BRIDGE
         }
         return self.async_show_form(
             step_id="device",
@@ -211,8 +211,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         # _LOGGER.debug(str(self.config_entry.options))
 
         device_options = {
-            str(d["id"]): f'{d["name"]}' for d in devices if d["type"] != DEVICE_BRIDGE
+            str(d.get("id")): f'{d.get("name", "Unnamed device")}'
+            for d in self.devices
+            if d.get("type") != DEVICE_BRIDGE
         }
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
