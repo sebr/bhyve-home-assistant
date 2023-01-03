@@ -3,8 +3,7 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    ATTR_BATTERY_LEVEL,
-    TEMP_FAHRENHEIT
+    ATTR_BATTERY_LEVEL
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
