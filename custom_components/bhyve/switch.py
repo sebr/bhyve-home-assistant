@@ -622,7 +622,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             _LOGGER.warning(
                 "Switch %s manual preset runtime is 0, watering has defaulted to %s minutes. Set the manual run time on your device or please specify number of minutes using the bhyve.start_watering service",
                 self._device_name,
-                DEFAULT_MANUAL_RUNTIME.minutes,
+                int(DEFAULT_MANUAL_RUNTIME.seconds / 60),
             )
             run_time = 5
 
