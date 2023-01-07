@@ -283,7 +283,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
         
     async def start_program(self):
         """Begins running a program."""
-        station_payload = self._program_id
+        station_payload = self._program["program"]
         await self._send_program_message(station_payload)
 
     async def _send_program_message(self, station_payload):
@@ -298,7 +298,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
                 "timestamp": iso_time,
                 "program": station_payload,
             }
-            _LOGGER.info("Starting watering")
+            _LOGGER.info(payload)
             await self._bhyve.send_message(payload)
 
         except BHyveError as err:
