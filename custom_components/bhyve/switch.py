@@ -280,6 +280,13 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
         await self._set_state(False)
+        
+    async def start_program(self):
+        """Begins running a program."""
+        station_payload = [{"station": self._zone_id, "run_time": minutes}] #change
+        self._is_on = True #remove?
+        await self._send_station_message(station_payload) #change
+
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -613,7 +620,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         station_payload = [{"station": self._zone_id, "run_time": minutes}]
         self._is_on = True
         await self._send_station_message(station_payload)
-
+        
     async def stop_watering(self):
         """Turns off the switch and stops watering."""
         station_payload = []
