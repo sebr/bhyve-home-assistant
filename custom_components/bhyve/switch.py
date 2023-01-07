@@ -297,7 +297,6 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
                 "device_id": self._device_id,
                 "timestamp": iso_time,
                 "program": station_payload,
-                "stations": null,
             }
             _LOGGER.info("Starting watering")
             await self._bhyve.send_message(payload)
