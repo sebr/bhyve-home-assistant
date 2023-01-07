@@ -101,6 +101,7 @@ SERVICE_START_WATERING = "start_watering"
 SERVICE_STOP_WATERING = "stop_watering"
 SERVICE_SET_MANUAL_PRESET_RUNTIME = "set_manual_preset_runtime"
 SERVICE_SET_SMART_WATERING_SOIL_MOISTURE = "set_smart_watering_soil_moisture"
+SERVICE_START_PROGRAM = "start_program"
 
 
 SERVICE_TO_METHOD = {
@@ -124,6 +125,10 @@ SERVICE_TO_METHOD = {
     SERVICE_SET_SMART_WATERING_SOIL_MOISTURE: {
         "method": "set_smart_watering_soil_moisture",
         "schema": SET_SMART_WATERING_SOIL_MOISTURE_SCHEMA,
+    },
+    SERVICE_START_PROGRAM: {
+        "method": "start_program",
+        "schema": SERVICE_BASE_SCHEMA,
     },
 }
 
