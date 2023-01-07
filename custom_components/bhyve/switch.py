@@ -283,7 +283,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
         
     async def start_program(self):
         """Begins running a program."""
-        station_payload = self._program
+        station_payload = self._program_id
         await self._send_program_message(station_payload)
 
     async def _send_program_message(self, station_payload):
