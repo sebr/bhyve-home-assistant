@@ -284,8 +284,26 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     async def start_program(self):
         """Begins running a program."""
         station_payload = self.program
-        await self._send_station_message(station_payload) #change
+        await self._send_program_message(station_payload)
 
+    async def _send_program_message(self, station_payload):
+        try:
+            now = datetime.datetime.now()
+            iso_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            payload = {
+                "event": EVENT_CHANGE_MODE,
+                "mode": "manual",
+                "device_id": self._device_id,
+                "timestamp": iso_time,
+                "program": station_payload,
+            }
+            _LOGGER.info("Starting watering")
+            await self._bhyve.send_message(payload)
+
+        except BHyveError as err:
+            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
+            raise (err)
 
     async def async_added_to_hass(self):
         """Register callbacks."""
