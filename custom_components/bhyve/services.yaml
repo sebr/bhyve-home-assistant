@@ -53,3 +53,10 @@ set_smart_watering_soil_moisture:
     percentage:
       description: Moisture level between 0 - 100 (percent)
       example: 50
+
+start_program:
+  description: Begin watering a program
+  fields:
+    entity_id:
+      description: Program
+      example: "switch.front_yard_program"
