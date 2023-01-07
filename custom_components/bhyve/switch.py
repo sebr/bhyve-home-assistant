@@ -7,8 +7,8 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components.switch import (
-    DEVICE_CLASS_SWITCH,
     DOMAIN as SWITCH_DOMAIN,
+    SwitchDeviceClass,
     SwitchEntity,
 )
 from homeassistant.config_entries import ConfigEntry
@@ -226,7 +226,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
         name = f"{device_name} {program_name} program"
 
-        super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
+        super().__init__(hass, bhyve, device, name, icon, SwitchDeviceClass.SWITCH)
 
         self._program = program
         self._device_id = program.get("device_id")
@@ -339,7 +339,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         name = f"{self._zone_name} zone"
         _LOGGER.info("Creating switch: %s", name)
 
-        super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
+        super().__init__(hass, bhyve, device, name, icon, SwitchDeviceClass.SWITCH)
 
     def _setup(self, device):
         self._is_on = False
@@ -644,7 +644,7 @@ class BHyveRainDelaySwitch(BHyveDeviceEntity, SwitchEntity):
         self._update_device_cb = None
         self._is_on = False
 
-        super().__init__(hass, bhyve, device, name, icon, DEVICE_CLASS_SWITCH)
+        super().__init__(hass, bhyve, device, name, icon, SwitchDeviceClass.SWITCH)
 
     def _setup(self, device):
         self._is_on = False
