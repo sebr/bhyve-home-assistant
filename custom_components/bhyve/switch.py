@@ -298,7 +298,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
                 "timestamp": iso_time,
                 "program": station_payload,
             }
-            _LOGGER.info(payload)
+            _LOGGER.debug(payload)
             await self._bhyve.send_message(payload)
 
         except BHyveError as err:
