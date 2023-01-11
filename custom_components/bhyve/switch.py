@@ -637,6 +637,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         station_payload = [{"station": self._zone_id, "run_time": minutes}]
         self._is_on = True
         await self._send_station_message(station_payload)
+
     async def stop_watering(self):
         """Turns off the switch and stops watering."""
         station_payload = []
