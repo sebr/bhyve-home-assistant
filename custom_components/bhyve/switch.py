@@ -101,6 +101,7 @@ SERVICE_START_WATERING = "start_watering"
 SERVICE_STOP_WATERING = "stop_watering"
 SERVICE_SET_MANUAL_PRESET_RUNTIME = "set_manual_preset_runtime"
 SERVICE_SET_SMART_WATERING_SOIL_MOISTURE = "set_smart_watering_soil_moisture"
+SERVICE_START_PROGRAM = "start_program"
 
 
 SERVICE_TO_METHOD = {
@@ -124,6 +125,10 @@ SERVICE_TO_METHOD = {
     SERVICE_SET_SMART_WATERING_SOIL_MOISTURE: {
         "method": "set_smart_watering_soil_moisture",
         "schema": SET_SMART_WATERING_SOIL_MOISTURE_SCHEMA,
+    },
+    SERVICE_START_PROGRAM: {
+        "method": "start_program",
+        "schema": SERVICE_BASE_SCHEMA,
     },
 }
 
@@ -275,6 +280,30 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
         await self._set_state(False)
+        
+    async def start_program(self):
+        """Begins running a program."""
+        program_payload = self._program["program"]
+        await self._send_program_message(program_payload)
+
+    async def _send_program_message(self, station_payload):
+        try:
+            now = datetime.datetime.now()
+            iso_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            payload = {
+                "event": EVENT_CHANGE_MODE,
+                "mode": "manual",
+                "device_id": self._device_id,
+                "timestamp": iso_time,
+                "program": station_payload,
+            }
+            _LOGGER.debug(payload)
+            await self._bhyve.send_message(payload)
+
+        except BHyveError as err:
+            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
+            raise (err)
 
     async def async_added_to_hass(self):
         """Register callbacks."""
@@ -608,7 +637,6 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         station_payload = [{"station": self._zone_id, "run_time": minutes}]
         self._is_on = True
         await self._send_station_message(station_payload)
-
     async def stop_watering(self):
         """Turns off the switch and stops watering."""
         station_payload = []
