@@ -212,7 +212,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         device_options = {
             str(d.get("id")): f'{d.get("name", "Unnamed device")}'
-            for d in self.devices
+            for d in devices
             if d.get("type") != DEVICE_BRIDGE
         }
 
