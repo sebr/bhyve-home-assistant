@@ -121,7 +121,7 @@ class BHyveTemperatureAlert(BHyveDeviceEntity):
         _LOGGER.info("Received program data update %s", data)
         event = data.get("event")
         if event == EVENT_FS_ALARM:
-            self._state = self._parse_status(data)
+            self._state = data.get("temp_alarm_status")
 
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_FS_ALARM]
