@@ -99,9 +99,6 @@ class BHyveTemperatureAlert(BHyveDeviceEntity):
     def _setup(self, device):
         self._available = device.get("is_connected", False)
         self._state = device.get("status", {}).get("temp_alarm_status")
-
-    def _parse_status(self, status):
-        return "on" if status.get("temp_alarm_status") == "high_temp_alarm" else "off"
     
     @property
     def state(self):
@@ -115,7 +112,7 @@ class BHyveTemperatureAlert(BHyveDeviceEntity):
 
     @property
     def is_on(self):
-        return self._state == "on"
+        return self._state == "high_temp_alarm"
 
     def _on_ws_data(self, data):
         """
@@ -124,7 +121,7 @@ class BHyveTemperatureAlert(BHyveDeviceEntity):
         _LOGGER.info("Received program data update %s", data)
         event = data.get("event")
         if event == EVENT_FS_ALARM:
-            self._state = self._parse_status(data)
+            self._state = data.get("temp_alarm_status")
 
     def _should_handle_event(self, event_name, data):
         return event_name in [EVENT_FS_ALARM]
