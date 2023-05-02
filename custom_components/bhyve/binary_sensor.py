@@ -98,7 +98,6 @@ class BHyveTemperatureAlert(BHyveDeviceEntity):
 
     def _setup(self, device):
         self._available = device.get("is_connected", False)
-        """self._state = device.get("status", {}).get("temp_alarm_status")"""
         self._state = self._parse_status(device.get("status", {}))
     
     def _parse_status(self, status):
@@ -120,9 +119,6 @@ class BHyveTemperatureAlert(BHyveDeviceEntity):
         return self._state == "on"
 
     def _on_ws_data(self, data):
-        """
-        {"last_flood_alarm_at":"2021-08-29T16:32:35.585Z","rssi":-60,"onboard_complete":true,"temp_f":75.2,"provisioned":true,"phy":"le_1m_1000","event":"fs_status_update","temp_alarm_status":"ok","status_updated_at":"2021-08-29T16:33:17.089Z","identify_enabled":false,"device_id":"612ad9134f0c6c9c9faddbba","timestamp":"2021-08-29T16:33:17.089Z","flood_alarm_status":"ok","last_temp_alarm_at":null}
-        """
         _LOGGER.info("Received program data update %s", data)
         event = data.get("event")
         if event == EVENT_FS_ALARM:
