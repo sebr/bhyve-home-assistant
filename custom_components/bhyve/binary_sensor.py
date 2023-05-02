@@ -99,7 +99,7 @@ class BHyveTemperatureAlert(BHyveDeviceEntity):
     def _setup(self, device):
         self._available = device.get("is_connected", False)
         """self._state = device.get("status", {}).get("temp_alarm_status")"""
-        self._state = self._parse_status(device.get("status", {})
+        self._state = self._parse_status(device.get("status", {}))
     
     def _parse_status(self, status):
         """Convert BHyve alarm status to entity value."""
