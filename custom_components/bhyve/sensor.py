@@ -89,8 +89,8 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         battery = device.get("battery")
 
         if battery is not None:
-            self._state = battery["percent"]
-            self._attrs[ATTR_BATTERY_LEVEL] = battery["percent"]
+            self._state = 0 """battery["percent"]"""
+            self._attrs[ATTR_BATTERY_LEVEL] = battery
 
     @property
     def state(self):
