@@ -104,7 +104,7 @@ class BHyveTemperatureBinarySensor(BHyveDeviceEntity):
     
     def _parse_status(self, status):
         """Convert BHyve alarm status to entity value."""
-        return "on" if status.get("temp_alarm_status") == "high_temp_alarm" else "off"
+        return "on" if "alarm" in status.get("temp_alarm_status") else "off"
     
     @property
     def state(self):
