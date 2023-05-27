@@ -356,7 +356,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         self._zone = zone
         self._zone_id = zone.get("station")
         self._entity_picture = zone.get("image_url")
-        self._zone_name = zone.get("name")
+        self._zone_name = zone.get("name", "Unknown")
         self._smart_watering_enabled = zone.get("smart_watering_enabled")
         self._manual_preset_runtime = device.get(
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
