@@ -2,7 +2,7 @@
   "python.linting.pylintEnabled": true,
   "python.linting.enabled": true,
   "python.linting.pylintArgs": ["--disable", "import-error"],
-  "python.formatting.provider": "black",
+  "python.formatting.provider": "none",
   "editor.formatOnPaste": false,
   "editor.formatOnSave": true,
   "editor.formatOnType": true,
@@ -12,5 +12,8 @@
   },
   "files.associations": {
     "*.yaml": "home-assistant"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
   }
 }
