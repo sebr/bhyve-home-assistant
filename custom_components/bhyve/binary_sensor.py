@@ -92,7 +92,7 @@ class BHyveFloodSensor(BHyveDeviceEntity):
         return event_name in [EVENT_FS_ALARM]
 
     
-class BHyveTemperatureAlert(BHyveDeviceEntity):
+class BHyveTemperatureBinarySensor(BHyveDeviceEntity):
 
     def __init__(self, hass, bhyve, device):
         name = "{} temperature alert".format(device.get("name"))
