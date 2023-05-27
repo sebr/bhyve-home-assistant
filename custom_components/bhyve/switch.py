@@ -150,7 +150,6 @@ async def async_setup_entry(
         device_id = device.get("id")
         device_by_id[device_id] = device
         if device.get("type") == DEVICE_SPRINKLER:
-
             if not device.get("status"):
                 _LOGGER.warning(
                     "Unable to configure device %s: the 'status' attribute is missing. Has it been paired with the wifi hub?",
@@ -280,7 +279,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
         await self._set_state(False)
-        
+
     async def start_program(self):
         """Begins running a program."""
         program_payload = self._program["program"]
