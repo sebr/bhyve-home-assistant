@@ -28,7 +28,7 @@ async def async_setup_entry(
     for device in devices:
         if device.get("type") == DEVICE_FLOOD:
             sensors.append(BHyveFloodSensor(hass, bhyve, device))
-            sensors.append(BHyveTemperatureAlert(hass, bhyve, device))
+            sensors.append(BHyveTemperatureBinarySensor(hass, bhyve, device))
 
     async_add_entities(sensors, True)
 
