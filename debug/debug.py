@@ -33,7 +33,8 @@ for device in diagnostics.get("data").get("devices"):
         print(f"{'Zones':>10}: {len(zones)}")
         for zone in device.get("zones"):
             zn = zone.get("name", "Unknown Zone")
-            print(f"            - {zn}")
+            zid = zone.get("station")
+            print(f"            [{zid:<2}] {zn}")
 
     if device.get("type") == "flood_sensor":
         print("Flood sensor:")
