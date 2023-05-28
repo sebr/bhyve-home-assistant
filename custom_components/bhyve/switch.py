@@ -166,10 +166,23 @@ async def async_setup_entry(
                 BHyveRainDelaySwitch(hass, bhyve, device, "weather-pouring")
             )
 
-            for zone in device.get("zones"):
+            all_zones = device.get("zones")
+            for zone in all_zones:
+                zone_name = zone.get("name")
+                # if the zone doesn't have a name, set it to the device's name if there is only one (eg a hose timer)
+                if zone_name is None:
+                    zone_name = (
+                        device.get("name") if len(all_zones) == 1 else "Unnamed Zone"
+                    )
                 switches.append(
                     BHyveZoneSwitch(
-                        hass, bhyve, device, zone, device_programs, "water-pump"
+                        hass,
+                        bhyve,
+                        device,
+                        zone,
+                        zone_name,
+                        device_programs,
+                        "water-pump",
                     )
                 )
 
@@ -213,8 +226,8 @@ async def async_setup_entry(
                 return
             await getattr(entity, method_name)(**params)
 
-    for service in SERVICE_TO_METHOD:
-        schema = SERVICE_TO_METHOD[service]["schema"]
+    for service, details in SERVICE_TO_METHOD.items():
+        schema = details["schema"]
         hass.services.async_register(
             DOMAIN, service, async_service_handler, schema=schema
         )
@@ -350,13 +363,13 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
     """Define a BHyve zone switch."""
 
-    def __init__(self, hass, bhyve, device, zone, device_programs, icon):
+    def __init__(self, hass, bhyve, device, zone, zone_name, device_programs, icon):
         """Initialize the switch."""
         self._is_on = False
         self._zone = zone
         self._zone_id = zone.get("station")
         self._entity_picture = zone.get("image_url")
-        self._zone_name = zone.get("name", "Unknown")
+        self._zone_name = zone_name
         self._smart_watering_enabled = zone.get("smart_watering_enabled")
         self._manual_preset_runtime = device.get(
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
