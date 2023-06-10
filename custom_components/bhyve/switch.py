@@ -441,7 +441,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                     current_runtime = stations[0].get("run_time")
                 else:
                     current_runtime = None
-                self._set_watering_started(started_watering_at,current_station,current_program,current_runtime)
+                self._set_watering_started(started_watering_at, current_station, current_program, current_runtime)
 
         if self._initial_programs is not None:
             programs = self._initial_programs
