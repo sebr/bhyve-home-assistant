@@ -435,11 +435,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             if is_watering:
                 started_watering_at = watering_status.get("started_watering_station_at")
                 current_station = watering_status.get("current_station")
-                current_program = watering_status.get("program")
-                if current_program:
-                    current_program = current_program
-                else:
-                    current_program = None
+                current_program = watering_status.get("program", None)
                 stations = watering_status.get("stations")
                 if stations:
                     current_runtime = stations[0].get("run_time")
