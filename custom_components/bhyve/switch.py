@@ -462,18 +462,13 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             self._attrs[ATTR_STARTED_WATERING_AT] = orbit_time_to_local_time(timestamp)
         else:
             self._attrs[ATTR_STARTED_WATERING_AT] = None
-        if station is not None:
-            self._attrs[ATTR_CURRENT_STATION] = station
-        else:
-            self._attrs[ATTR_CURRENT_STATION] = None
-        if program is not None:
-            self._attrs[ATTR_CURRENT_PROGRAM] = program
-        else:
-            self._attrs[ATTR_CURRENT_PROGRAM] = None
-        if runtime is not None:
-            self._attrs[ATTR_CURRENT_RUNTIME] = runtime
-        else:
-            self._attrs[ATTR_CURRENT_RUNTIME] = None
+            
+        self._attrs[ATTR_CURRENT_STATION] = station
+
+        self._attrs[ATTR_CURRENT_PROGRAM] = program
+
+        self._attrs[ATTR_CURRENT_RUNTIME] = runtime
+
 
     def _set_watering_program(self, program):
         if program is None:
@@ -576,7 +571,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             event == EVENT_CHANGE_MODE and data.get("mode") in ("off", "auto")
         ):
             self._is_on = False
-            self._set_watering_started(None,None,None,None)
+            self._set_watering_started(None, None, None, None)
         elif event == EVENT_WATERING_IN_PROGRESS:
             zone = data.get("current_station")
             if zone == self._zone_id:
@@ -586,7 +581,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                 current_program = data.get("program")
                 current_runtime = data.get("run_time")
 
-                self._set_watering_started(started_watering_at,current_station,current_program,current_runtime)
+                self._set_watering_started(started_watering_at, current_station, current_program, current_runtime)
         elif event == EVENT_SET_MANUAL_PRESET_TIME:
             self._manual_preset_runtime = data.get("seconds")
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
