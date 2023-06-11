@@ -51,6 +51,11 @@ ATTR_SPRINKLER_TYPE = "sprinkler_type"
 ATTR_IMAGE_URL = "image_url"
 ATTR_STARTED_WATERING_AT = "started_watering_station_at"
 ATTR_SMART_WATERING_PLAN = "watering_program"
+ATTR_CURRENT_STATION = "current_station"
+ATTR_CURRENT_PROGRAM = "current_program"
+ATTR_CURRENT_RUNTIME = "current_runtime"
+ATTR_NEXT_START_TIME = "next_start_time"
+ATTR_NEXT_START_PROGRAMS = "next_start_programs"
 
 # Service Attributes
 ATTR_MINUTES = "minutes"
@@ -410,6 +415,14 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             self._is_on = is_watering
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
 
+            next_start_time = status.get("next_start_time")
+            if next_start_time is not None:
+                next_start_programs = status.get("next_start_programs")
+                self._attrs[ATTR_NEXT_START_TIME]: orbit_time_to_local_time(
+                    next_start_time
+                ).isoformat()
+                self._attrs[ATTR_NEXT_START_PROGRAMS]: next_start_programs
+
             sprinkler_type = zone.get("sprinkler_type")
             if sprinkler_type is not None:
                 self._attrs[ATTR_SPRINKLER_TYPE] = sprinkler_type
@@ -420,7 +433,19 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
             if is_watering:
                 started_watering_at = watering_status.get("started_watering_station_at")
-                self._set_watering_started(started_watering_at)
+                current_station = watering_status.get("current_station")
+                current_program = watering_status.get("program", None)
+                stations = watering_status.get("stations")
+                if stations:
+                    current_runtime = stations[0].get("run_time")
+                else:
+                    current_runtime = None
+                self._set_watering_started(
+                    started_watering_at,
+                    current_station,
+                    current_program,
+                    current_runtime,
+                )
 
         if self._initial_programs is not None:
             programs = self._initial_programs
@@ -428,11 +453,19 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                 self._set_watering_program(program)
             self._initial_programs = None
 
-    def _set_watering_started(self, timestamp):
-        if timestamp is not None:
-            self._attrs[ATTR_STARTED_WATERING_AT] = orbit_time_to_local_time(timestamp)
-        else:
-            self._attrs[ATTR_STARTED_WATERING_AT] = None
+    def _set_watering_started(self, timestamp, station, program, runtime):
+        started_watering_at_timestamp = (
+            orbit_time_to_local_time(timestamp) if timestamp is not None else None
+        )
+
+        self._attrs.update(
+            {
+                ATTR_CURRENT_STATION: station,
+                ATTR_CURRENT_PROGRAM: program,
+                ATTR_CURRENT_RUNTIME: runtime,
+                ATTR_STARTED_WATERING_AT: started_watering_at_timestamp,
+            }
+        )
 
     def _set_watering_program(self, program):
         if program is None:
@@ -535,13 +568,22 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             event == EVENT_CHANGE_MODE and data.get("mode") in ("off", "auto")
         ):
             self._is_on = False
-            self._set_watering_started(None)
+            self._set_watering_started(None, None, None, None)
         elif event == EVENT_WATERING_IN_PROGRESS:
             zone = data.get("current_station")
             if zone == self._zone_id:
                 self._is_on = True
                 started_watering_at = data.get("started_watering_station_at")
-                self._set_watering_started(started_watering_at)
+                current_station = data.get("current_station")
+                current_program = data.get("program")
+                current_runtime = data.get("run_time")
+
+                self._set_watering_started(
+                    started_watering_at,
+                    current_station,
+                    current_program,
+                    current_runtime,
+                )
         elif event == EVENT_SET_MANUAL_PRESET_TIME:
             self._manual_preset_runtime = data.get("seconds")
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
