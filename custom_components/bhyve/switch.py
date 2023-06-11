@@ -402,10 +402,10 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         watering_status = status.get("watering_status")
 
         next_start_programs = status.get("next_start_programs")
-        
+
         next_runtime = orbit_time_to_local_time(
-                        status.get("next_start_time")
-                    ).isoformat()
+            status.get("next_start_time")
+        ).isoformat()
 
         _LOGGER.info("%s watering_status: %s", self.name, watering_status)
 
@@ -422,7 +422,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
 
             if next_runtime is not None:
-                self._set_next_programs(next_runtime,next_start_programs)
+                self._set_next_programs(next_runtime, next_start_programs)
 
             sprinkler_type = zone.get("sprinkler_type")
             if sprinkler_type is not None:
@@ -441,7 +441,12 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                     current_runtime = stations[0].get("run_time")
                 else:
                     current_runtime = None
-                self._set_watering_started(started_watering_at, current_station, current_program, current_runtime)
+                self._set_watering_started(
+                    started_watering_at,
+                    current_station,
+                    current_program,
+                    current_runtime,
+                )
 
         if self._initial_programs is not None:
             programs = self._initial_programs
@@ -456,19 +461,20 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                 ATTR_NEXT_START_PROGRAMS: program,
             }
         )
-        
+
     def _set_watering_started(self, timestamp, station, program, runtime):
-        if timestamp is not None:
-            self._attrs[ATTR_STARTED_WATERING_AT] = orbit_time_to_local_time(timestamp)
-        else:
-            self._attrs[ATTR_STARTED_WATERING_AT] = None
-            
-        self._attrs[ATTR_CURRENT_STATION] = station
+        started_watering_at_timestamp = (
+            orbit_time_to_local_time(timestamp) if timestamp is not None else None
+        )
 
-        self._attrs[ATTR_CURRENT_PROGRAM] = program
-
-        self._attrs[ATTR_CURRENT_RUNTIME] = runtime
-
+        self._attrs.update(
+            {
+                ATTR_CURRENT_STATION: station,
+                ATTR_CURRENT_PROGRAM: program,
+                ATTR_CURRENT_RUNTIME: runtime,
+                ATTR_STARTED_WATERING_AT: started_watering_at_timestamp,
+            }
+        )
 
     def _set_watering_program(self, program):
         if program is None:
@@ -581,7 +587,12 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                 current_program = data.get("program")
                 current_runtime = data.get("run_time")
 
-                self._set_watering_started(started_watering_at, current_station, current_program, current_runtime)
+                self._set_watering_started(
+                    started_watering_at,
+                    current_station,
+                    current_program,
+                    current_runtime,
+                )
         elif event == EVENT_SET_MANUAL_PRESET_TIME:
             self._manual_preset_runtime = data.get("seconds")
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
@@ -592,7 +603,6 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                 self._set_watering_program(watering_program)
             else:
                 self._attrs[ATTR_SMART_WATERING_PLAN] = None
-
 
     async def _send_station_message(self, station_payload):
         try:
