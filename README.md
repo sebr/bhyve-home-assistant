@@ -1,3 +1,4 @@
+<!-- markdownlint-disable no-inline-html -->
 # bhyve-home-assistant
 
 Orbit B-hyve component for [Home Assistant](https://www.home-assistant.io/).
@@ -31,9 +32,9 @@ _Note_: The Wifi hub is required to provide the flood sensors with internet conn
 ## Supported Entities
 
 - `sensor` for measuring battery levels and watering history of `sprinkler_timer` devices as well as the device on/off state (not to be confused with zone on/off switches).
-- `temperature sensor` for measuring the temperature at the device and alarm attribute for above/below threshold.
+- `temperature sensor` for measuring the temperature at the device.
 - `switch` for turning a zone on/off, enabling/disabling rain delays and toggling pre-configured programs.
-- `binary_sensor` for detecting water leaks or flooding.
+- `binary_sensor` for `flood_sensor` devices which provide liquid detection and temperature alerts when out of threshold.
 
 ## Installation
 
@@ -91,6 +92,18 @@ The following attributes are set on zone history sensor entities:
 | `consumption_gallons` | `number` | The amount of water consumed, in gallons.                   |
 | `consumption_litres`  | `number` | The amount of water consumed, in litres.                    |
 | `start_time`          | `string` | The start time of the watering.                             |
+
+## Binary Sensor Entities
+
+The BHyve flood sensor provides the following `binary_sensor` entities:
+
+### Water/Flood
+
+A **binary_sensor** that turns on if water is detected.
+
+### Temperature Alert
+
+A **binary_sensor** that turns on if the detected temperature is over or under the set threshold. The threshold values should be set using the BHyve app.
 
 ## Switch Entities
 
