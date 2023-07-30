@@ -29,6 +29,7 @@ for device in diagnostics.get("data").get("devices"):
     if device.get("type") == "sprinkler_timer":
         zones = device.get("zones")
         print(f"{'Sprinkler':>10}: {name}")
+        print(f"{'id':>10}: {device.get('id')}")
         print(f"{'Battery':>10}: {device.get('battery').get('percent')}%")
         print(f"{'Zones':>10}: {len(zones)}")
         for zone in device.get("zones"):
