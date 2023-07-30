@@ -1,6 +1,6 @@
 # pylint: disable=undefined-variable
 now = dt_util.now()
-UNKNOWN = 'unknown'
+UNKNOWN = "unknown"
 
 zone_entity_id = data.get("entity_id")
 
@@ -24,17 +24,27 @@ if not device_name:
 
 logger.info("updating next_watering for zone: ({}: {})".format(zone_name, zone))
 
-next_watering_entity = f"sensor.{zone_name}_next_watering".replace(" ", "_").replace("-", "_").lower()
-next_watering_attrs = {"friendly_name": f"{zone_name} next watering", "device_class": "timestamp"}
+next_watering_entity = (
+    f"sensor.{zone_name}_next_watering".replace(" ", "_").replace("-", "_").lower()
+)
+next_watering_attrs = {
+    "friendly_name": f"{zone_name} next watering",
+    "device_class": "timestamp",
+}
 
-rain_delay_finishing_entity = f"sensor.{device_name}_rain_delay_finishing".replace(
-    " ", "_"
-).replace("-", "_").lower()
-rain_delay_finishing_attrs = {"friendly_name": f"{device_name} rain delay finishing", "device_class": "timestamp"}
+rain_delay_finishing_entity = (
+    f"sensor.{device_name}_rain_delay_finishing".replace(" ", "_")
+    .replace("-", "_")
+    .lower()
+)
+rain_delay_finishing_attrs = {
+    "friendly_name": f"{device_name} rain delay finishing",
+    "device_class": "timestamp",
+}
 
-rain_delay = hass.states.get(f"switch.{device_name}_rain_delay".replace(
-    " ", "_"
-).replace("-", "_").lower())
+rain_delay = hass.states.get(
+    f"switch.{device_name}_rain_delay".replace(" ", "_").replace("-", "_").lower()
+)
 
 if zone.state == "unavailable":
     hass.states.set(next_watering_entity, "Unavailable", next_watering_attrs)
@@ -52,7 +62,9 @@ else:
             dt_util.utc_from_timestamp(started_at + delay_seconds)
         )
         hass.states.set(
-            rain_delay_finishing_entity, delay_finishes_at.isoformat(), rain_delay_finishing_attrs
+            rain_delay_finishing_entity,
+            delay_finishes_at.isoformat(),
+            rain_delay_finishing_attrs,
         )
     else:
         hass.states.set(
@@ -74,7 +86,7 @@ else:
                     next_watering = watering_time
                     break
         else:
-            """ find the next manual watering time """
+            """find the next manual watering time"""
             """
                 Orbit day: `0` is Sunday, `1` is Monday
                 Python day: `0` is Monday, `2` is Tuesday
@@ -100,4 +112,6 @@ else:
     if next_watering == UNKNOWN:
         hass.states.set(next_watering_entity, next_watering, next_watering_attrs)
     else:
-        hass.states.set(next_watering_entity, next_watering.isoformat(), next_watering_attrs)
+        hass.states.set(
+            next_watering_entity, next_watering.isoformat(), next_watering_attrs
+        )
