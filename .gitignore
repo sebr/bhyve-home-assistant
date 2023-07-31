@@ -6,3 +6,7 @@ tmp
 
 debug/[0-9]*
 debug/sync
+
+# Home Assistant configuration
+config/*
+!config/configuration.yaml

@@ -11,9 +11,6 @@
     "reportMissingImports": "none"
   },
   "python.testing.pytestEnabled": false,
-  "files.associations": {
-    "*.yaml": "home-assistant"
-  },
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter"
   },
