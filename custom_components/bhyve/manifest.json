@@ -5,6 +5,9 @@
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/sebr/bhyve-home-assistant/blob/main/README.md",
+  "homeassistant": {
+    "min_version": "2023.3"
+  },
   "iot_class": "cloud_push",
   "requirements": [],
   "version": "3.2.0"
