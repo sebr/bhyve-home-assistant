@@ -5,6 +5,9 @@
   "forwardPorts": [
     8123
   ],
+  "remoteEnv": {
+    "TZ": "Australia/Sydney"
+  },
   "portsAttributes": {
     "8123": {
       "label": "Home Assistant",
@@ -36,7 +39,7 @@
   "remoteUser": "vscode",
   "features": {
     "ghcr.io/devcontainers/features/rust:1": {
-      
+
     }
   }
 }
