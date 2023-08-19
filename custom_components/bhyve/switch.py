@@ -194,7 +194,7 @@ async def async_setup_entry(
     for program in programs:
         program_device = device_by_id.get(program.get("device_id"))
         program_id = program.get("program")
-        if program_id is not None:
+        if program_device is not None and program_id is not None:
             _LOGGER.info("Creating switch: Program %s", program.get("name"))
             switches.append(
                 BHyveProgramSwitch(
@@ -416,8 +416,8 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
 
             next_start_time = orbit_time_to_local_time(
-                        status.get("next_start_time")
-                    ).isoformat()
+                status.get("next_start_time")
+            ).isoformat()
             if next_start_time is not None:
                 next_start_programs = status.get("next_start_programs")
                 self._attrs.update(
