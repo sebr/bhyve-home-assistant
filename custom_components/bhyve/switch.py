@@ -417,12 +417,12 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
             next_start_time = orbit_time_to_local_time(
                 status.get("next_start_time")
-            ).isoformat()
+            )
             if next_start_time is not None:
                 next_start_programs = status.get("next_start_programs")
                 self._attrs.update(
                     {
-                        ATTR_NEXT_START_TIME: next_start_time,
+                        ATTR_NEXT_START_TIME: next_start_time.isoformat(),
                         ATTR_NEXT_START_PROGRAMS: next_start_programs,
                     }
                 )
