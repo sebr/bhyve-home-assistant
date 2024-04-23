@@ -173,6 +173,11 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         Returns:
         float: The battery level as a percentage.
         """
+
+        if not isinstance(battery_data, dict):
+            _LOGGER.warning("Unexpected battery data, returning 0: %s", battery_data)
+            return 0
+
         battery_level = battery_data.get("percent", 0)
         if "mv" in battery_data and "percent" not in battery_data:
             battery_level = min(battery_data.get("mv", 0) / 3000 * 100, 100)
