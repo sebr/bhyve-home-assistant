@@ -1,4 +1,5 @@
 """Support for Orbit BHyve sensors."""
+
 import logging
 from datetime import timedelta
 
@@ -173,7 +174,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         float: The battery level as a percentage.
         """
         battery_level = battery_data.get("percent", 0)
-        if "mv" in battery_data:
+        if "mv" in battery_data and "percent" not in battery_data:
             battery_level = min(battery_data.get("mv", 0) / 3000 * 100, 100)
         return battery_level
 
