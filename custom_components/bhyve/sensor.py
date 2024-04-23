@@ -146,7 +146,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         #
         event = data.get("event")
         if event in (EVENT_BATTERY_STATUS):
-            battery_level = self.parse_battery_level(event)
+            battery_level = self.parse_battery_level(data)
 
             self._state = battery_level
             self._attrs[ATTR_BATTERY_LEVEL] = battery_level
