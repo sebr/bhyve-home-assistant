@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -ex
+cd "$(dirname "$0")/.."
+
+source .venv/bin/activate
+
+pip3 install -r core/requirements.txt
+pip3 install -r core/requirements_test.txt
+
+pip3 install -e core/
+# pip3 install $(python3 test_dependencies.py)
