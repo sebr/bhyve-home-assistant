@@ -54,8 +54,16 @@ async def async_setup_entry(
     for device in devices:
         if device.get("type") == DEVICE_SPRINKLER:
             sensors.append(BHyveStateSensor(hass, bhyve, device))
-            for zone in device.get("zones"):
-                sensors.append(BHyveZoneHistorySensor(hass, bhyve, device, zone))
+            all_zones = device.get("zones")
+            for zone in all_zones:
+                # if the zone doesn't have a name, set it to the device's name if there is only one (eg a hose timer)
+                if zone_name is None:
+                    zone_name = (
+                        device.get("name") if len(all_zones) == 1 else "Unnamed Zone"
+                    )
+                sensors.append(
+                    BHyveZoneHistorySensor(hass, bhyve, device, zone, zone_name)
+                )
 
             if device.get("battery", None) is not None:
                 sensors.append(BHyveBatterySensor(hass, bhyve, device))
@@ -187,13 +195,13 @@ class BHyveBatterySensor(BHyveDeviceEntity):
 class BHyveZoneHistorySensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
-    def __init__(self, hass, bhyve, device, zone):
+    def __init__(self, hass, bhyve, device, zone, zone_name):
         """Initialize the sensor."""
         self._history = None
         self._zone = zone
         self._zone_id = zone.get("station")
 
-        name = "{} zone history".format(zone.get("name", "Unknown"))
+        name = "{} zone history".format(zone_name)
         _LOGGER.info("Creating history sensor: %s", name)
 
         super().__init__(

@@ -4,6 +4,7 @@
 import json
 import os
 import sys
+import glob
 
 if len(sys.argv) < 2:
     print("Not enough arguments")
@@ -13,7 +14,11 @@ FOLDER = sys.argv[1]
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
-diagnostics_json = os.path.join(script_dir, FOLDER + "/diagnostics.json")
+config_entry_files = glob.glob(os.path.join(script_dir, FOLDER, "config_entry*"))
+if not config_entry_files:
+    print("No config_entry file found")
+    sys.exit()
+diagnostics_json = config_entry_files[0]
 
 with open(diagnostics_json, mode="r", encoding="utf8") as diagnosticsFile:
     diagnostics = json.load(diagnosticsFile)
