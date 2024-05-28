@@ -8,6 +8,6 @@ ln -fs ../../../custom_components/bhyve bhyve
 cd -
 
 # Link tests
-cd core/tests/components/
-ln -fs ../../../tests/ bhyve
-cd -
+# cd core/tests/components/
+# ln -fs ../../../tests/ bhyve
+# cd -
