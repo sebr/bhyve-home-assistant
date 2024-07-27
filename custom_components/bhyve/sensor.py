@@ -57,6 +57,7 @@ async def async_setup_entry(
             all_zones = device.get("zones")
             for zone in all_zones:
                 # if the zone doesn't have a name, set it to the device's name if there is only one (eg a hose timer)
+                zone_name = zone.get("name", None)
                 if zone_name is None:
                     zone_name = (
                         device.get("name") if len(all_zones) == 1 else "Unnamed Zone"
