@@ -1,16 +1,15 @@
 """Support for Orbit BHyve sensors."""
 
-import logging
 from datetime import timedelta
+import logging
 
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_BATTERY_LEVEL
+from homeassistant.const import ATTR_BATTERY_LEVEL, SensorStateClass, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.icon import icon_for_battery_level
-
-from homeassistant.components.sensor import SensorDeviceClass
 
 from . import BHyveDeviceEntity
 from .const import (
@@ -343,9 +342,11 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
         )
 
     def _setup(self, device):
-        self._state = device.get("status", {}).get("temp_f")
         self._available = device.get("is_connected", False)
-        self._unit = "°F"
+        self._native_value = device.get("status", {}).get("temp_f")
+        self._native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+        self._state_class = SensorStateClass.MEASUREMENT
+
         self._attrs = {
             "location": device.get("location_name"),
             "rssi": device.get("status", {}).get("rssi"),
