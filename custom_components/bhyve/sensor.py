@@ -3,9 +3,9 @@
 from datetime import timedelta
 import logging
 
-from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_BATTERY_LEVEL, SensorStateClass, UnitOfTemperature
+from homeassistant.const import ATTR_BATTERY_LEVEL, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -173,7 +173,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         Otherwise, if the 'mv' attribute is present, the battery level is calculated as a percentage
         based on the millivolts, assuming that 2x1.5V AA batteries are used. Note that AA batteries can
         range from 1.2V to 1.7V depending on their chemistry, so the calculation may not be accurate
-        for all types of batteries. YMMV ¯\_(ツ)_/¯
+        for all types of batteries. YMMV
 
         Args:
         battery_data (dict): A dictionary containing the battery data.
