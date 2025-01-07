@@ -2,6 +2,7 @@
 
 import logging
 from datetime import timedelta
+from typing import Any
 
 from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
@@ -76,6 +77,8 @@ async def async_setup_entry(
 class BHyveBatterySensor(BHyveDeviceEntity):
     """Define a BHyve sensor."""
 
+    _state: int | None = None
+
     def __init__(self, hass, bhyve, device):
         """Initialize the sensor."""
         name = "{} battery level".format(device.get("name"))
@@ -91,7 +94,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
 
         self._unit = "%"
 
-    def _setup(self, device):
+    def _setup(self, device: Any) -> None:
         self._state = None
         self._attrs = {}
         self._available = device.get("is_connected", False)
@@ -107,7 +110,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
             self._attrs[ATTR_BATTERY_LEVEL] = battery_level
 
     @property
-    def state(self):
+    def state(self) -> int | None:
         """Return the state of the entity."""
         return self._state
 
@@ -343,8 +346,8 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
 
     def _setup(self, device):
         self._available = device.get("is_connected", False)
-        self._native_value = device.get("status", {}).get("temp_f")
-        self._native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+        self._state = device.get("status", {}).get("temp_f")
+        self._unit_of_measurement = UnitOfTemperature.FAHRENHEIT
         self._state_class = SensorStateClass.MEASUREMENT
 
         self._attrs = {
@@ -363,11 +366,6 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
     def state(self):
         """Return the state of the entity."""
         return self._state
-
-    @property
-    def unit_of_measurement(self):
-        """Return the unit of measurement for the sensor."""
-        return self._unit
 
     @property
     def unique_id(self):
