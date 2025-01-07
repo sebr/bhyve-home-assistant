@@ -6,18 +6,17 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components.switch import (
-    DOMAIN as SWITCH_DOMAIN,
-)
-from homeassistant.components.switch import (
     SwitchDeviceClass,
     SwitchEntity,
 )
+from homeassistant.components.switch.const import (
+    DOMAIN as SWITCH_DOMAIN,
+)
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_ENTITY_ID
+from homeassistant.const import ATTR_ENTITY_ID, EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt
@@ -217,7 +216,7 @@ async def async_setup_entry(
         }
         entity_ids = service.data.get(ATTR_ENTITY_ID)
         component = hass.data.get(SWITCH_DOMAIN)
-        if entity_ids:
+        if entity_ids and component is not None:
             target_switches = [component.get_entity(entity) for entity in entity_ids]
         else:
             return

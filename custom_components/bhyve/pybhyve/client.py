@@ -1,9 +1,9 @@
 """Define an object to interact with the REST API."""
 
-from asyncio import ensure_future
 import logging
 import re
 import time
+from asyncio import ensure_future
 from typing import Any
 
 from aiohttp import ClientResponseError
@@ -32,7 +32,7 @@ class Client:
         self._username: str = username
         self._password: str = password
         self._ws_url: str = WS_HOST
-        self._token: str = None
+        self._token: str | None = None
 
         self._websocket = None
         self._session = session
@@ -50,7 +50,7 @@ class Client:
         self._last_poll_landscapes = 0
 
     async def _request(
-        self, method: str, endpoint: str, params: dict = None, json: dict = None
+        self, method: str, endpoint: str, params: dict | None = None, json: dict | None = None
     ) -> list:
         """Make a request against the API."""
         url: str = f"{API_HOST}{endpoint}"

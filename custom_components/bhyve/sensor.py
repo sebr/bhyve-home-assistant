@@ -3,11 +3,10 @@
 import logging
 from datetime import timedelta
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_BATTERY_LEVEL, UnitOfTemperature
+from homeassistant.const import ATTR_BATTERY_LEVEL, EntityCategory, UnitOfTemperature
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.icon import icon_for_battery_level
 
@@ -165,7 +164,7 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         await self._refetch_device()
 
     @staticmethod
-    def parse_battery_level(battery_data):
+    def parse_battery_level(battery_data) -> int:
         """
         Parses the battery level data and returns the battery level as a percentage.
 
@@ -180,8 +179,8 @@ class BHyveBatterySensor(BHyveDeviceEntity):
 
         Returns:
         float: The battery level as a percentage.
-        """
 
+        """  # noqa: D401, E501
         if not isinstance(battery_data, dict):
             _LOGGER.warning("Unexpected battery data, returning 0: %s", battery_data)
             return 0
@@ -201,7 +200,7 @@ class BHyveZoneHistorySensor(BHyveDeviceEntity):
         self._zone = zone
         self._zone_id = zone.get("station")
 
-        name = "{} zone history".format(zone_name)
+        name = f"{zone_name} zone history"
         _LOGGER.info("Creating history sensor: %s", name)
 
         super().__init__(

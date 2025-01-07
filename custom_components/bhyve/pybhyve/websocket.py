@@ -1,10 +1,10 @@
-import logging
 import json
-import aiohttp
-
-from aiohttp import WSMsgType
+import logging
 from asyncio import ensure_future
 from math import ceil
+
+import aiohttp
+from aiohttp import WSMsgType
 
 _LOGGER = logging.getLogger(__name__)
 
