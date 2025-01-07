@@ -1,6 +1,7 @@
-colorlog==6.7.0
-pip>=21.0,<23.2
-ruff==0.0.265
+colorlog==6.9.0
+homeassistant==2024.11.0
+pip>=21.3.1
+ruff==0.7.2
 pre-commit
 
 # Install HA and test dependencies (pytest, coverage)

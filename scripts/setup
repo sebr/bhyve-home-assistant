@@ -4,5 +4,4 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-ruff format .
-ruff check . --fix
+python3 -m pip install --requirement requirements.txt
