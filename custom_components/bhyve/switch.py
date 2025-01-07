@@ -1,13 +1,14 @@
 """Support for Orbit BHyve switch (toggle zone)."""
 import datetime
-from datetime import timedelta
 import logging
+from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components.switch import (
     DOMAIN as SWITCH_DOMAIN,
+)
+from homeassistant.components.switch import (
     SwitchDeviceClass,
     SwitchEntity,
 )
@@ -142,7 +143,6 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the BHyve switch platform from a config entry."""
-
     bhyve = hass.data[DOMAIN][entry.entry_id][CONF_CLIENT]
 
     switches = []

@@ -1,7 +1,7 @@
 """Support for Orbit BHyve sensors."""
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
