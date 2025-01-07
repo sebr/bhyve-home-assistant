@@ -1,10 +1,16 @@
-.DS_Store
+# artifacts
 __pycache__
-*.pyc
-.venv
-core
+.pytest*
+*.egg-info
+*/build/*
+*/dist/*
 
-tmp
+
+# misc
+.coverage
+.vscode
+coverage.xml
+.ruff_cache
 
 debug/[0-9]*
 debug/sync

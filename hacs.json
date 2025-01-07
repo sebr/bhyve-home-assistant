@@ -2,6 +2,6 @@
   "name": "Orbit BHyve",
   "domains": ["binary_sensor", "sensor", "switch"],
   "iot_class": "Cloud Push",
-  "homeassistant": "2023.3",
+  "homeassistant": "2025.1",
   "render_readme": true
 }
