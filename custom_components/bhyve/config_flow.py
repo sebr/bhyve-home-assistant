@@ -1,9 +1,10 @@
 """Config flow for BHyve integration."""
+
 from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -13,11 +14,8 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import CONF_DEVICES, DEVICE_BRIDGE, DOMAIN
-from .pybhyve import Client
+from .pybhyve import BHyveClient
 from .pybhyve.errors import AuthenticationError, BHyveError
-
-if TYPE_CHECKING:
-    from homeassistant.data_entry_flow import FlowResult
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,17 +25,17 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the config flow."""
         self.data: dict = {}
-        self.client: Client | None = None
+        self.client: BHyveClient | None = None
         self.devices: list[Any] | None = None
         self.programs: list[Any] | None = None
         self._reauth_username: str | None = None
 
     async def async_auth(self, user_input: dict[str, str]) -> dict[str, str] | None:
         """Reusable Auth Helper."""
-        self.client = Client(
+        self.client = BHyveClient(
             user_input[CONF_USERNAME],
             user_input[CONF_PASSWORD],
             session=async_get_clientsession(self.hass),
@@ -47,29 +45,25 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             result = await self.client.login()
             if result is False:
                 return {"base": "invalid_auth"}
-            return None
+            return None  # noqa: TRY300
         except AuthenticationError:
             return {"base": "invalid_auth"}
-        except Exception:  # pylint: disable=broad-except
+        except Exception:  # pylint: disable=broad-except  # noqa: BLE001
             return {"base": "cannot_connect"}
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None):
         """Handle the initial step."""
-
         errors: dict[str, str] | None = None
 
-        if user_input is not None:
-            if not (errors := await self.async_auth(user_input)):
-                await self.async_set_unique_id(user_input[CONF_USERNAME].lower())
-                self._abort_if_unique_id_configured()
+        if user_input is not None and not (errors := await self.async_auth(user_input)):
+            await self.async_set_unique_id(user_input[CONF_USERNAME].lower())
+            self._abort_if_unique_id_configured()
 
-                self.data = user_input
-                self.devices = await self.client.devices  # type: ignore[union-attr]
-                self.programs = await self.client.timer_programs  # type: ignore[union-attr]
+            self.data = user_input
+            self.devices = await self.client.devices  # type: ignore[union-attr]
+            self.programs = await self.client.timer_programs  # type: ignore[union-attr]
 
-                return await self.async_step_device()
+            return await self.async_step_device()
 
         return self.async_show_form(
             step_id="user",
@@ -82,9 +76,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_device(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_device(self, user_input: dict[str, Any] | None = None):
         """Handle the optional device selection step."""
         if user_input is not None:
             return self.async_create_entry(
@@ -93,7 +85,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         device_options = {
             str(d.get("id")): f'{d.get("name", "Unnamed device")}'
-            for d in self.devices
+            for d in (self.devices or [])
             if d.get("type") != DEVICE_BRIDGE
         }
         return self.async_show_form(
@@ -108,9 +100,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=None,
         )
 
-    async def async_step_reauth(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_reauth(self, user_input: dict[str, Any] | None = None):
         """Handle reauth."""
         errors: dict[str, str] | None = None
         if user_input and user_input.get(CONF_USERNAME):
@@ -146,7 +136,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_import(self, config):
         """Handle import of BHyve config from YAML."""
-
         username = config[CONF_USERNAME]
         password = config[CONF_PASSWORD]
 
@@ -155,7 +144,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_PASSWORD: password,
         }
 
-        if not (errors := await self.async_auth(credentials)):
+        if not (_errors := await self.async_auth(credentials)):
             await self.async_set_unique_id(credentials[CONF_USERNAME].lower())
             self._abort_if_unique_id_configured()
 
@@ -185,7 +174,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         """Initialize options flow."""
         self.config_entry = config_entry
 
-    async def async_step_init(self, user_input=None):
+    async def async_step_init(self, user_input: dict | None = None):
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)

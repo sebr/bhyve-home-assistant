@@ -10,19 +10,17 @@ if not zone_entity_id:
 zone = hass.states.get(zone_entity_id)
 
 if not zone:
-    raise Exception("Entity with id {} does not exist".format(zone_entity_id))
+    raise Exception(f"Entity with id {zone_entity_id} does not exist")
 
 device_name = zone.attributes.get("device_name")
 zone_name = zone.attributes.get("zone_name")
 
 if not device_name:
     raise Exception(
-        "Could not find zone's device name on entity {}. Is this a BHyve zone switch entity?".format(
-            zone_entity_id
-        )
+        f"Could not find zone's device name on entity {zone_entity_id}. Is this a BHyve zone switch entity?"
     )
 
-logger.info("updating next_watering for zone: ({}: {})".format(zone_name, zone))
+logger.info(f"updating next_watering for zone: ({zone_name}: {zone})")
 
 next_watering_entity = (
     f"sensor.{zone_name}_next_watering".replace(" ", "_").replace("-", "_").lower()
