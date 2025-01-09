@@ -1,9 +1,10 @@
 """Define an object to interact with the REST API."""
 
+import asyncio
 import logging
 import re
 import time
-from asyncio import AbstractEventLoop, ensure_future
+from asyncio import AbstractEventLoop
 from collections.abc import Callable
 from typing import Any
 
@@ -20,7 +21,7 @@ from .const import (
     WS_HOST,
 )
 from .errors import AuthenticationError, BHyveError, RequestError
-from .typings import BHyveDevice, BHyveTimerProgram, BHyveZoneLandscape
+from .typings import BHyveApiData, BHyveDevice, BHyveTimerProgram, BHyveZoneLandscape
 from .websocket import OrbitWebsocket
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,20 +37,28 @@ class BHyveClient:
         self._ws_url: str = WS_HOST
         self._token: str | None = None
 
+        self._data_update_cbs: list = []
+        self._loop: AbstractEventLoop = asyncio.get_running_loop()
         self._websocket: OrbitWebsocket | None = None
         self._session = session
 
-        self._devices: list[BHyveDevice] = []
-        self._last_poll_devices = 0
+        self._last_poll_devices: float = 0
+        self._last_poll_programs: float = 0
+        self._last_poll_device_histories: float = 0
+        self._last_poll_landscapes: float = 0
 
-        self._timer_programs: list[BHyveTimerProgram] = []
-        self._last_poll_programs = 0
+        self.data: BHyveApiData = BHyveApiData(
+            devices=[], programs=[], histories={}, landscapes=[]
+        )
 
-        self._device_histories: dict[str, Any] = {}
-        self._last_poll_device_histories = 0
+    async def get_data(self) -> BHyveApiData:
+        """Get the current data."""
+        if self._token is None:
+            await self.login()
 
-        self._landscapes: list[BHyveZoneLandscape] = []
-        self._last_poll_landscapes = 0
+        await self._refresh_devices()
+        await self._refresh_timer_programs()
+        return self.data
 
     async def _request(
         self,
@@ -93,7 +102,7 @@ class BHyveClient:
         elif now - self._last_poll_devices < API_POLL_PERIOD:
             return
 
-        self._devices: list[BHyveDevice] = await self._request(
+        self.data.devices = await self._request(
             "get", DEVICES_PATH, params={"t": str(time.time())}
         )
 
@@ -106,7 +115,7 @@ class BHyveClient:
         elif now - self._last_poll_programs < API_POLL_PERIOD:
             return
 
-        self._timer_programs: list[BHyveTimerProgram] = await self._request(
+        self.data.programs = await self._request(
             "get", TIMER_PROGRAMS_PATH, params={"t": str(time.time())}
         )
         self._last_poll_programs = now
@@ -130,7 +139,7 @@ class BHyveClient:
             },
         )
 
-        self._device_histories.update({device_id: device_history})
+        self.data.histories.update({device_id: device_history})
 
         self._last_poll_device_histories = now
 
@@ -143,17 +152,13 @@ class BHyveClient:
         elif now - self._last_poll_landscapes < API_POLL_PERIOD:
             return
 
-        self._landscapes: list[BHyveZoneLandscape] = await self._request(
+        self.data.landscapes = await self._request(
             "get",
             f"{LANDSCAPE_DESCRIPTIONS_PATH}/{device_id}",
             params={"t": str(time.time())},
         )
 
         self._last_poll_landscapes = now
-
-    async def _async_ws_handler(self, async_callback: Callable, data: Any) -> None:
-        """Process incoming websocket message."""
-        ensure_future(async_callback(data))  # noqa: RUF006
 
     async def login(self) -> bool:
         """Log in with username & password and save the token."""
@@ -177,7 +182,7 @@ class BHyveClient:
 
         return self._token is not None
 
-    def listen(self, loop: AbstractEventLoop, async_callback: Callable) -> None:
+    async def listen(self, async_callback: Callable) -> None:
         """Start listening to the Orbit event stream."""
         if self._token is None:
             msg = "Client is not logged in"
@@ -185,12 +190,16 @@ class BHyveClient:
 
         self._websocket = OrbitWebsocket(
             token=self._token,
-            loop=loop,
+            loop=asyncio.get_event_loop(),
             session=self._session,
             url=self._ws_url,
             async_callback=async_callback,
         )
-        self._websocket.start()
+
+    async def start(self) -> None:
+        """Start the websocket."""
+        if self._websocket is not None:
+            self._websocket.start()
 
     async def stop(self) -> None:
         """Stop the websocket."""
@@ -201,20 +210,20 @@ class BHyveClient:
     async def devices(self) -> list[BHyveDevice]:
         """Get all devices."""
         await self._refresh_devices()
-        return self._devices
+        return self.data.devices
 
     @property
     async def timer_programs(self) -> list[BHyveTimerProgram]:
         """Get timer programs."""
         await self._refresh_timer_programs()
-        return self._timer_programs
+        return self.data.programs
 
     async def get_device(
         self, device_id: str, *, force_update: bool = False
     ) -> BHyveDevice | None:
         """Get device by id."""
         await self._refresh_devices(force_update=force_update)
-        for device in self._devices:
+        for device in self.data.devices:
             if device.get("id") == device_id:
                 return device
         return None
@@ -224,14 +233,14 @@ class BHyveClient:
     ) -> dict | None:
         """Get device watering history by id."""
         await self._refresh_device_history(device_id, force_update=force_update)
-        return self._device_histories.get(device_id)
+        return self.data.histories.get(device_id)
 
     async def get_landscape(
         self, device_id: str, zone_id: str, *, force_update: bool = False
     ) -> BHyveZoneLandscape | None:
         """Get landscape by zone id."""
         await self._refresh_landscapes(device_id, force_update=force_update)
-        for zone in self._landscapes:
+        for zone in self.data.landscapes:
             if zone.get("station") == zone_id:
                 return zone
         return None

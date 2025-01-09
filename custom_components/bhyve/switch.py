@@ -29,7 +29,6 @@ from custom_components.bhyve.pybhyve.typings import (
     BHyveZone,
 )
 
-from . import BHyveDeviceEntity, BHyveWebsocketEntity
 from .const import (
     CONF_CLIENT,
     DEVICE_SPRINKLER,
@@ -43,6 +42,7 @@ from .const import (
     EVENT_WATERING_IN_PROGRESS,
     SIGNAL_UPDATE_PROGRAM,
 )
+from .entities import BHyveDeviceEntity
 from .pybhyve.errors import BHyveError
 from .util import filter_configured_devices, orbit_time_to_local_time
 
@@ -664,7 +664,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
         if self._smart_watering_enabled:
             landscape = None
             try:
-                landscape = await self._bhyve.get_landscape(
+                landscape = await self.coordinator.api.get_landscape(
                     self._device_id, self._zone_id
                 )
 
@@ -705,7 +705,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
                 try:
                     _LOGGER.debug("Landscape update %s", landscape_update)
-                    await self._bhyve.update_landscape(landscape_update)
+                    await self.coordinator.api.update_landscape(landscape_update)
 
                 except BHyveError as err:
                     _LOGGER.warning(

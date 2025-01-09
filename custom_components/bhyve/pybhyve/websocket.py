@@ -2,7 +2,7 @@
 
 import json
 import logging
-from asyncio import AbstractEventLoop, ensure_future
+from asyncio import AbstractEventLoop
 from collections.abc import Callable
 from math import ceil
 from typing import Any
@@ -38,15 +38,17 @@ class OrbitWebsocket:
     ) -> None:
         """Create resources for websocket communication."""
         self._token: str = token
-        self._loop = loop
+        self._loop: AbstractEventLoop = loop
         self._session: aiohttp.ClientSession = session
         self._url: str = url
-        self._async_callback: Callable = async_callback
         self._state: str = STATE_STOPPED
+        self._async_callback: Callable = async_callback
 
         self._heartbeat_cb = None
         self._heartbeat: int = 25
         self._ws: ClientWebSocketResponse | None = None
+
+        self._data_received_cbs: list = []
 
     def _cancel_heartbeat(self) -> None:
         if self._heartbeat_cb is not None:
@@ -68,7 +70,7 @@ class OrbitWebsocket:
 
     async def _ping(self) -> None:
         if self._ws is not None:
-            await self._ws.send_str(json.dumps({"event": "ping"}))
+            await self.send({"event": "ping"})
             self._reset_heartbeat()
 
     @property
@@ -84,14 +86,13 @@ class OrbitWebsocket:
         """Start the websocket."""
         if self.state != STATE_RUNNING:
             self.state = STATE_STARTING
-        self._loop.create_task(self.running())
+        self._loop.create_task(self.start_listening())
 
-    async def running(self) -> None:  # noqa: PLR0912
+    async def start_listening(self) -> None:  # noqa: PLR0912
         """Start websocket connection."""
         try:
             if self._ws is None or self._ws.closed or self.state != STATE_RUNNING:
                 async with self._session.ws_connect(self._url) as self._ws:
-                    _LOGGER.info("Authenticating websocket")
                     await self._ws.send_str(
                         json.dumps(
                             {
@@ -117,9 +118,10 @@ class OrbitWebsocket:
                         _LOGGER.debug(f"msg received {msg!s}")  # noqa: G004
 
                         if msg.type == WSMsgType.TEXT:
-                            ensure_future(self._async_callback(json.loads(msg.data)))
+                            await self._async_callback(json.loads(msg.data))
 
                         elif msg.type == WSMsgType.PING:
+                            _LOGGER.debug("Websocket received PING")
                             await self._ws.pong()
 
                         elif msg.type == WSMsgType.CLOSE:
@@ -182,6 +184,7 @@ class OrbitWebsocket:
     async def send(self, payload: Any) -> None:
         """Send a websocket message."""
         if self._ws is not None and not self._ws.closed:
+            _LOGGER.debug("Sending message: %s", payload)
             await self._ws.send_str(json.dumps(payload))
         else:
             _LOGGER.warning(
