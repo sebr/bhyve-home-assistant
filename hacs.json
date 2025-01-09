@@ -1,6 +1,5 @@
 {
   "name": "Orbit BHyve",
-  "domains": ["binary_sensor", "sensor", "switch"],
   "homeassistant": "2025.1",
   "render_readme": true
 }
