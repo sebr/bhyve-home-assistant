@@ -601,7 +601,9 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
             current_station = data.get("current_station")
 
             # Normalize ids
-            if current_station is not None and str(current_station) == str(self._zone_id):
+            if current_station is not None and str(current_station) == str(
+                self._zone_id
+            ):
                 # This is *my* zone running
                 self._is_on = True
                 started_watering_at = data.get("started_watering_station_at")
@@ -614,18 +616,17 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
                     current_program,
                     current_runtime,
                 )
-            else:
-                # Only turn off on watering_in_progress if another station is *actually active*
-                if current_station is not None and self._is_on:
-                    if str(current_station) != str(self._zone_id):
-                        _LOGGER.debug(
-                            "%s: Another station (%s) is watering, marking this zone (%s) off",
-                            self.name,
-                            current_station,
-                            self._zone_id,
-                        )
-                        self._is_on = False
-                        self._set_watering_started(None, None, None, None)
+            # Only turn off on watering_in_progress if another station is active
+            elif current_station is not None and self._is_on:
+                if str(current_station) != str(self._zone_id):
+                    _LOGGER.debug(
+                        "%s: Another station (%s) is watering, marking this zone (%s) off",  # noqa: E501
+                        self.name,
+                        current_station,
+                        self._zone_id,
+                    )
+                    self._is_on = False
+                    self._set_watering_started(None, None, None, None)
         elif event == EVENT_SET_MANUAL_PRESET_TIME:
             manual_preset_runtime = data.get("seconds")
             if manual_preset_runtime is not None:
