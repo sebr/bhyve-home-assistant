@@ -1,4 +1,3 @@
-# ruff: noqa
 # pylint: disable=undefined-variable
 now = dt_util.now()
 UNKNOWN = "unknown"

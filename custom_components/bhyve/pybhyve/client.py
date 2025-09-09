@@ -82,7 +82,7 @@ class BHyveClient:
             try:
                 resp.raise_for_status()
                 return await resp.json(content_type=None)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 msg = f"Error requesting data from {url}: {err}"
                 raise RequestError(msg) from err
 
@@ -171,7 +171,7 @@ class BHyveClient:
                 if response_err.status == 400:  # noqa: PLR2004
                     raise AuthenticationError from response_err
                 raise RequestError from response_err
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 msg = f"Error requesting data from {url}: {err}"
                 raise RequestError(msg) from err
 

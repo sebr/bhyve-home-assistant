@@ -1,4 +1,3 @@
-# ruff: noqa
 import datetime
 import logging
 

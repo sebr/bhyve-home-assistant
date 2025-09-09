@@ -6,7 +6,6 @@ target-version = "py312"
 select = ["ALL"]
 
 ignore = [
-    "ANN101",  # Missing type annotation for `self` in method
     "ANN401",  # Dynamically typed expressions (typing.Any) are disallowed
     "D203",    # no-blank-line-before-class (incompatible with formatter)
     "D212",    # multi-line-summary-first-line (incompatible with formatter)
@@ -14,6 +13,8 @@ ignore = [
     "ISC001",  # incompatible with formatter
     "PLR0913",
 ]
+
+exclude = ["python_scripts/*", "debug/*"]
 
 [lint.flake8-pytest-style]
 fixture-parentheses = false
