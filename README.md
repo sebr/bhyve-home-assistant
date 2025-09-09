@@ -45,7 +45,7 @@ Recommended installation is via the [Home Assistant Community Store (HACS)](http
 If you do not wish to use HACS, then please download the latest version from the [releases page](https://github.com/sebr/bhyve-home-assistant/releases) and proceed to Step 2.
 
 1. Navigate to the HACS add-on
-2. Search for the `Orbit B-hyve` integration and install it
+2. Search for the `Orbit BHyve` integration and install it
 3. Restart Home Assistant
 
 <img width="450" alt="Install B-hyve from HACS" src="https://user-images.githubusercontent.com/81972/177079621-a66a8ab3-ceee-44de-b539-4c65ad921640.png">

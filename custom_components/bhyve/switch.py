@@ -331,7 +331,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
         except BHyveError as err:
             _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise (err)
+            raise
 
     async def async_added_to_hass(self) -> None:
         """Register callbacks."""
@@ -358,7 +358,7 @@ class BHyveProgramSwitch(BHyveWebsocketEntity, SwitchEntity):
 
     def _on_ws_data(self, data: dict) -> None:
         #
-        # {'event': 'program_changed' }  # noqa: ERA001
+        # {'event': 'program_changed' } # noqa: ERA001
         #
         _LOGGER.info("Received program data update %s", data)
 
@@ -656,7 +656,7 @@ class BHyveZoneSwitch(BHyveDeviceEntity, SwitchEntity):
 
         except BHyveError as err:
             _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise (err)
+            raise
 
     @property
     def entity_picture(self) -> str | None:
