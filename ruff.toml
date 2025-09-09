@@ -3,18 +3,18 @@
 target-version = "py312"
 
 [lint]
-select = [
-    "ALL",
-]
+select = ["ALL"]
 
 ignore = [
-    "ANN101", # Missing type annotation for `self` in method
-    "ANN401", # Dynamically typed expressions (typing.Any) are disallowed
-    "D203", # no-blank-line-before-class (incompatible with formatter)
-    "D212", # multi-line-summary-first-line (incompatible with formatter)
-    "COM812", # incompatible with formatter
-    "ISC001", # incompatible with formatter
+    "ANN401",  # Dynamically typed expressions (typing.Any) are disallowed
+    "D203",    # no-blank-line-before-class (incompatible with formatter)
+    "D212",    # multi-line-summary-first-line (incompatible with formatter)
+    "COM812",  # incompatible with formatter
+    "ISC001",  # incompatible with formatter
+    "PLR0913",
 ]
+
+exclude = ["python_scripts/*", "debug/*"]
 
 [lint.flake8-pytest-style]
 fixture-parentheses = false
