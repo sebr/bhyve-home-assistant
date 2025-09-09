@@ -88,7 +88,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         device_options = {
-            str(d.get("id")): f'{d.get("name", "Unnamed device")}'
+            str(d.get("id")): f"{d.get('name', 'Unnamed device')}"
             for d in (self.devices or [])
             if d.get("type") != DEVICE_BRIDGE
         }
@@ -208,7 +208,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         _LOGGER.debug("Devices: %s", json.dumps(devices))
 
         device_options = {
-            str(d.get("id")): f'{d.get("name", "Unnamed device")}'
+            str(d.get("id")): f"{d.get('name', 'Unnamed device')}"
             for d in devices
             if d.get("type") != DEVICE_BRIDGE
         }

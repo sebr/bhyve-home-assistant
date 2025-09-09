@@ -86,7 +86,7 @@ class OrbitWebsocket:
             self.state = STATE_STARTING
         self._loop.create_task(self.running())
 
-    async def running(self) -> None: # noqa: PLR0912
+    async def running(self) -> None:  # noqa: PLR0912
         """Start websocket connection."""
         background_tasks = set()
         try:
