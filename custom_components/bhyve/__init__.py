@@ -233,6 +233,7 @@ class BHyveWebsocketEntity(BHyveEntity):
         icon: str,
         device_class: Any = None,
     ) -> None:
+        """Initialise the websocket entity."""
         self._async_unsub_dispatcher_connect = None
         self._ws_unprocessed_events = []
         super().__init__(hass, bhyve, device, name, icon, device_class)
@@ -264,7 +265,7 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
         name: str,
         icon: str,
         device_class: str | None = None,
-    ):
+    ) -> None:
         """Initialize the sensor."""
         self._mac_address = device.get("mac_address")
 

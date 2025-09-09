@@ -88,6 +88,7 @@ class OrbitWebsocket:
 
     async def running(self) -> None:  # noqa: PLR0912
         """Start websocket connection."""
+        background_tasks = set()
         try:
             if self._ws is None or self._ws.closed or self.state != STATE_RUNNING:
                 async with self._session.ws_connect(self._url) as self._ws:
@@ -117,7 +118,13 @@ class OrbitWebsocket:
                         _LOGGER.debug(f"msg received {msg!s}")  # noqa: G004
 
                         if msg.type == WSMsgType.TEXT:
-                            ensure_future(self._async_callback(json.loads(msg.data)))
+                            task = ensure_future(
+                                self._async_callback(json.loads(msg.data))
+                            )
+                            # Add task to the set to create a strong reference, and
+                            # discard when finished so it can be garbage collected
+                            background_tasks.add(task)
+                            task.add_done_callback(background_tasks.discard)
 
                         elif msg.type == WSMsgType.PING:
                             await self._ws.pong()
