@@ -18,3 +18,5 @@ debug/sync
 # Home Assistant configuration
 config/*
 !config/configuration.yaml
+core
+.venv

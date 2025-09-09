@@ -182,9 +182,11 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         for all types of batteries. YMMV
 
         Args:
+        ----
         battery_data (dict): A dictionary containing the battery data.
 
         Returns:
+        -------
         float: The battery level as a percentage.
 
         """  # noqa: D401, E501

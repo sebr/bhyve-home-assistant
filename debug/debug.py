@@ -1,3 +1,4 @@
+# ruff: noqa
 #! /usr/bin/env python3
 # Script utility to debug device/program info from logs
 
