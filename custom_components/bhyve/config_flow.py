@@ -8,7 +8,7 @@ from typing import Any
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant import config_entries, data_entry_flow
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -51,7 +51,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except Exception:  # pylint: disable=broad-except  # noqa: BLE001
             return {"base": "cannot_connect"}
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
         """Handle the initial step."""
         errors: dict[str, str] | None = None
 
@@ -76,7 +78,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_device(self, user_input: dict[str, Any] | None = None):
+    async def async_step_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
         """Handle the optional device selection step."""
         if user_input is not None:
             return self.async_create_entry(
@@ -100,7 +104,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=None,
         )
 
-    async def async_step_reauth(self, user_input: dict[str, Any] | None = None):
+    async def async_step_reauth(
+        self, user_input: dict[str, Any] | None = None
+    ) -> data_entry_flow.FlowResult:
         """Handle reauth."""
         errors: dict[str, str] | None = None
         if user_input and user_input.get(CONF_USERNAME):
@@ -134,7 +140,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_import(self, config):
+    async def async_step_import(
+        self, config: dict[str, Any] | None
+    ) -> data_entry_flow.FlowResult:
         """Handle import of BHyve config from YAML."""
         username = config[CONF_USERNAME]
         password = config[CONF_PASSWORD]
@@ -174,7 +182,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         """Initialize options flow."""
         self.config_entry = config_entry
 
-    async def async_step_init(self, user_input: dict | None = None):
+    async def async_step_init(
+        self, user_input: dict | None = None
+    ) -> data_entry_flow.FlowResult:
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
@@ -196,9 +206,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             return self.async_abort(reason="cannot_connect")
 
         _LOGGER.debug("Devices: %s", json.dumps(devices))
-
-        # _LOGGER.debug("ALL DEVICES")
-        # _LOGGER.debug(str(self.config_entry.options))
 
         device_options = {
             str(d.get("id")): f'{d.get("name", "Unnamed device")}'
