@@ -192,7 +192,7 @@ class BHyveClient:
         )
         self._websocket.start()
 
-    async def stop(self) -> None:
+    async def stop(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003, ARG002
         """Stop the websocket."""
         if self._websocket is not None:
             await self._websocket.stop()
