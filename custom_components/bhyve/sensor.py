@@ -4,9 +4,15 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_BATTERY_LEVEL, EntityCategory, UnitOfTemperature
+from homeassistant.const import (
+    ATTR_BATTERY_LEVEL,
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfTemperature,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.icon import icon_for_battery_level
@@ -76,7 +82,7 @@ async def async_setup_entry(
     async_add_entities(sensors)
 
 
-class BHyveBatterySensor(BHyveDeviceEntity):
+class BHyveBatterySensor(BHyveDeviceEntity, SensorEntity):
     """Define a BHyve sensor."""
 
     _state: int | None = None
@@ -96,7 +102,9 @@ class BHyveBatterySensor(BHyveDeviceEntity):
             SensorDeviceClass.BATTERY,
         )
 
-        self._unit = "%"
+        self._state_class = SensorStateClass.MEASUREMENT
+        self._attr_native_unit_of_measurement = PERCENTAGE
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def _setup(self, device: Any) -> None:
         self._state = None
@@ -119,14 +127,9 @@ class BHyveBatterySensor(BHyveDeviceEntity):
         return self._state
 
     @property
-    def unit_of_measurement(self) -> str:
-        """Return the unit of measurement for the sensor."""
-        return self._unit
-
-    @property
     def icon(self) -> str:
         """Icon to use in the frontend, if any."""
-        if self._device_class == SensorDeviceClass.BATTERY and self._state is not None:
+        if self._state is not None:
             return icon_for_battery_level(
                 battery_level=int(self._state), charging=False
             )
@@ -146,11 +149,6 @@ class BHyveBatterySensor(BHyveDeviceEntity):
     def unique_id(self) -> str:
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:battery"
-
-    @property
-    def entity_category(self) -> EntityCategory:
-        """Battery is a diagnostic category."""
-        return EntityCategory.DIAGNOSTIC
 
     def _should_handle_event(self, event_name: str, _data: dict) -> bool:
         return event_name in [EVENT_BATTERY_STATUS, EVENT_CHANGE_MODE]
@@ -350,10 +348,8 @@ class BHyveStateSensor(BHyveDeviceEntity):
         return event_name in [EVENT_CHANGE_MODE]
 
 
-class BHyveTemperatureSensor(BHyveDeviceEntity):
+class BHyveTemperatureSensor(BHyveDeviceEntity, SensorEntity):
     """Define a BHyve sensor."""
-
-    _state: str
 
     def __init__(
         self, hass: HomeAssistant, bhyve: BHyveClient, device: BHyveDevice
@@ -367,8 +363,8 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
 
     def _setup(self, device: BHyveDevice) -> None:
         self._available = device.get("is_connected", False)
-        self._state = device.get("status", {}).get("temp_f")
-        self._unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+        self._attr_native_value = device.get("status", {}).get("temp_f")
+        self._attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
         self._state_class = SensorStateClass.MEASUREMENT
 
         self._attrs = {
@@ -377,21 +373,21 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
             "temperature_alarm": device.get("status", {}).get("temp_alarm_status"),
         }
         _LOGGER.debug(
-            "Temperature sensor %s setup: State: %s | Available: %s",
+            "Temperature sensor %s setup: Value: %s | Available: %s",
             self._name,
-            self._state,
+            self._attr_native_value,
             self._available,
         )
-
-    @property
-    def state(self) -> str:
-        """Return the state of the entity."""
-        return self._state
 
     @property
     def unique_id(self) -> str:
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:temp"
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return super().available and self._attr_native_value is not None
 
     def _on_ws_data(self, data: dict) -> None:
         #
@@ -400,7 +396,8 @@ class BHyveTemperatureSensor(BHyveDeviceEntity):
         _LOGGER.info("Received program data update %s", data)
         event = data.get("event")
         if event == EVENT_FS_ALARM:
-            self._state = data.get("temp_f", "unavailable")
+            temp = data.get("temp_f")
+            self._attr_native_value = float(temp) if temp is not None else None
             self._attrs["rssi"] = data.get("rssi")
             self._attrs["temperature_alarm"] = data.get("temp_alarm_status")
 
