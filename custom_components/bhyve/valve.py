@@ -26,7 +26,6 @@ from custom_components.bhyve.pybhyve.typings import (
     BHyveDevice,
     BHyveTimerProgram,
     BHyveZone,
-    BHyveZoneLandscape,
 )
 
 from . import BHyveDeviceEntity
