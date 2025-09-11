@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import pytest_asyncio
 from homeassistant.core import HomeAssistant
 
 from custom_components.bhyve.pybhyve.client import BHyveClient
@@ -14,13 +13,15 @@ from custom_components.bhyve.valve import BHyveZoneValve
 @pytest.fixture
 def mock_zone_data() -> BHyveZone:
     """Mock zone data for testing."""
-    return BHyveZone({
-        "station": "1",
-        "name": "Front Yard",
-        "enabled": True,
-        "smart_watering_enabled": True,
-        "image_url": "https://example.com/front_yard.jpg",
-    })
+    return BHyveZone(
+        {
+            "station": "1",
+            "name": "Front Yard",
+            "enabled": True,
+            "smart_watering_enabled": True,
+            "image_url": "https://example.com/front_yard.jpg",
+        }
+    )
 
 
 @pytest.fixture
@@ -59,7 +60,12 @@ async def test_zone_valve_initialization(
 
     # Test basic properties
     assert valve.name == f"{zone_name} zone"
-    assert valve.unique_id == f"{mock_sprinkler_device['mac_address']}:{mock_sprinkler_device['id']}:{mock_zone_data['station']}:valve"
+    expected_unique_id = (
+        f"{mock_sprinkler_device['mac_address']}:"
+        f"{mock_sprinkler_device['id']}:"
+        f"{mock_zone_data['station']}:valve"
+    )
+    assert valve.unique_id == expected_unique_id
     assert valve.device_class == "water"
     assert valve.is_closed is True
     assert valve.reports_position is False
@@ -123,7 +129,9 @@ async def test_zone_valve_open_close(
     assert sent_message["event"] == "change_mode"
     assert sent_message["device_id"] == mock_sprinkler_device["id"]
     assert sent_message["mode"] == "manual"
-    assert sent_message["stations"] == [{"station": mock_zone_data["station"], "run_time": 5.0}]
+    assert sent_message["stations"] == [
+        {"station": mock_zone_data["station"], "run_time": 5.0}
+    ]
 
     # Reset mock
     mock_bhyve_client.send_message.reset_mock()
