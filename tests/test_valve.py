@@ -25,7 +25,7 @@ def mock_zone_data() -> BHyveZone:
 
 
 @pytest.fixture
-def mock_bhyve_client() -> BHyveClient:
+def mock_bhyve_client() -> MagicMock:
     """Mock BHyve client."""
     client = MagicMock(spec=BHyveClient)
     client.login = AsyncMock(return_value=True)
@@ -41,7 +41,7 @@ async def test_zone_valve_initialization(
     hass: HomeAssistant,
     mock_sprinkler_device: BHyveDevice,
     mock_zone_data: BHyveZone,
-    mock_bhyve_client: BHyveClient,
+    mock_bhyve_client: MagicMock,
 ) -> None:
     """Test zone valve entity initialization."""
     zone_name = "Front Yard"
@@ -81,7 +81,7 @@ async def test_zone_valve_attributes(
     hass: HomeAssistant,
     mock_sprinkler_device: BHyveDevice,
     mock_zone_data: BHyveZone,
-    mock_bhyve_client: BHyveClient,
+    mock_bhyve_client: MagicMock,
 ) -> None:
     """Test zone valve entity attributes."""
     valve = BHyveZoneValve(
@@ -109,7 +109,7 @@ async def test_zone_valve_open_close(
     hass: HomeAssistant,
     mock_sprinkler_device: BHyveDevice,
     mock_zone_data: BHyveZone,
-    mock_bhyve_client: BHyveClient,
+    mock_bhyve_client: MagicMock,
 ) -> None:
     """Test zone valve open/close functionality."""
     valve = BHyveZoneValve(
@@ -150,12 +150,13 @@ async def test_zone_valve_availability(
     hass: HomeAssistant,
     mock_sprinkler_device: BHyveDevice,
     mock_zone_data: BHyveZone,
-    mock_bhyve_client: BHyveClient,
+    mock_bhyve_client: MagicMock,
 ) -> None:
     """Test zone valve availability based on device connection."""
     # Create device with connected status
-    connected_device = mock_sprinkler_device.copy()
-    connected_device["is_connected"] = True
+    connected_device_data = dict(mock_sprinkler_device)
+    connected_device_data["is_connected"] = True
+    connected_device = BHyveDevice(connected_device_data)
 
     valve = BHyveZoneValve(
         hass=hass,
@@ -171,8 +172,9 @@ async def test_zone_valve_availability(
     assert valve.available is True
 
     # Test with disconnected device
-    disconnected_device = mock_sprinkler_device.copy()
-    disconnected_device["is_connected"] = False
+    disconnected_device_data = dict(mock_sprinkler_device)
+    disconnected_device_data["is_connected"] = False
+    disconnected_device = BHyveDevice(disconnected_device_data)
 
     valve._setup(disconnected_device)
     assert valve.available is False
