@@ -20,10 +20,10 @@ jobs:
       - name: "ZIP the integration directory"
         shell: "bash"
         run: |
-          cd "${{ github.workspace }}/custom_components/inception"
-          zip inception.zip -r ./
+          cd "${{ github.workspace }}/custom_components/bhyve"
+          zip bhyve.zip -r ./
 
       - name: "Upload the ZIP file to the release"
         uses: "softprops/action-gh-release@v2.2.1"
         with:
-          files: ${{ github.workspace }}/custom_components/inception/inception.zip
+          files: ${{ github.workspace }}/custom_components/bhyve/bhyve.zip
