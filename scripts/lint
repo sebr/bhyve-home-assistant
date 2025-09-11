@@ -2,7 +2,7 @@
 
 set -e
 
-cd "$(dirname "$0")/../custom_components"
+cd "$(dirname "$0")/.."
 
 ruff format .
 ruff check . --fix

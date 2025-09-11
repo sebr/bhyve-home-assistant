@@ -16,6 +16,12 @@ ignore = [
 
 exclude = ["python_scripts/*", "debug/*"]
 
+[lint.per-file-ignores]
+"tests/*" = [
+    "S101",    # Use of assert detected (allowed in tests)
+    "SLF001",  # Private member accessed (allowed in tests)
+]
+
 [lint.flake8-pytest-style]
 fixture-parentheses = false
 
