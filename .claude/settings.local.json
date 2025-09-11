@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_valve.py -v)",
+      "Bash(./scripts/lint:*)",
+      "Bash(./scripts/test:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
