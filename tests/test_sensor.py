@@ -18,6 +18,7 @@ from custom_components.bhyve.sensor import (
 
 # Test constants
 TEST_BATTERY_LEVEL = 85
+TEST_BATTERY_LEVEL_UPDATED = 50
 TEST_TEMPERATURE_FAHRENHEIT = 72.5
 
 
@@ -174,7 +175,7 @@ class TestBHyveBatterySensor:
         sensor._on_ws_data(battery_event)
 
         # Battery level should be updated
-        assert sensor.state == 50
+        assert sensor.state == TEST_BATTERY_LEVEL_UPDATED
 
 
 class TestBHyveStateSensor:
@@ -273,7 +274,7 @@ class TestBHyveZoneHistorySensor:
         """Test zone history sensor entity initialization."""
         zone_data = {"station": "1", "name": "Front Yard"}
         zone_name = "Front Yard"
-        
+
         sensor = BHyveZoneHistorySensor(
             hass=hass,
             bhyve=mock_bhyve_client,
@@ -296,7 +297,7 @@ class TestBHyveZoneHistorySensor:
         """Test zone history sensor attributes."""
         zone_data = {"station": "1", "name": "Front Yard"}
         zone_name = "Front Yard"
-        
+
         sensor = BHyveZoneHistorySensor(
             hass=hass,
             bhyve=mock_bhyve_client,
@@ -313,7 +314,7 @@ class TestBHyveZoneHistorySensor:
 
         # Test that history data is processed
         attrs = sensor.extra_state_attributes
-        
+
         # Check that watering event attributes are set
         irrigation_event = mock_zone_history_data[0]["irrigation"][0]
         assert attrs.get("budget") == irrigation_event["budget"]
@@ -322,7 +323,9 @@ class TestBHyveZoneHistorySensor:
         assert attrs.get("run_time") == irrigation_event["run_time"]
         assert attrs.get("status") == irrigation_event["status"]
         assert attrs.get("consumption_gallons") == irrigation_event["water_volume_gal"]
-        assert attrs.get("consumption_litres") == round(irrigation_event["water_volume_gal"] * 3.785, 2)
+        assert attrs.get("consumption_litres") == round(
+            irrigation_event["water_volume_gal"] * 3.785, 2
+        )
 
 
 class TestSensorWebsocketEvents:
@@ -340,7 +343,7 @@ class TestSensorWebsocketEvents:
             bhyve=mock_bhyve_client,
             device=mock_sprinkler_device_with_battery,
         )
-        
+
         state_sensor = BHyveStateSensor(
             hass=hass,
             bhyve=mock_bhyve_client,
@@ -350,7 +353,7 @@ class TestSensorWebsocketEvents:
         # Initially available
         battery_sensor._setup(mock_sprinkler_device_with_battery)
         state_sensor._setup(mock_sprinkler_device_with_battery)
-        
+
         assert battery_sensor.available is True
         assert state_sensor.available is True
 
