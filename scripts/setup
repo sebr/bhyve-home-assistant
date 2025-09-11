@@ -5,3 +5,8 @@ set -e
 cd "$(dirname "$0")/.."
 
 python3 -m pip install --requirement requirements.txt
+
+# Install Claude Code
+curl -fsSL https://claude.ai/install.sh -o /tmp/claude-install.sh
+bash /tmp/claude-install.sh
+rm /tmp/claude-install.sh
