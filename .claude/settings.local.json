@@ -1,9 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -m pytest tests/test_valve.py -v)",
+      "Bash(python -m pytest *)",
       "Bash(./scripts/lint:*)",
-      "Bash(./scripts/test:*)"
+      "Bash(./scripts/test:*)",
+      "Bash(git add:*)",
+      "Bash(python -m pytest tests/test_sensor.py -v)"
     ],
     "deny": [],
     "ask": []

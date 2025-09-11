@@ -40,9 +40,13 @@
     "features": {
         "ghcr.io/devcontainers-extra/features/apt-packages:1": {
             "packages": "ffmpeg,libturbojpeg0,libpcap-dev"
-        }
+        },
+        "ghcr.io/devcontainers/features/git:1": {}
     },
     "remoteEnv": {
         "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin"
-    }
+    },
+    "mounts": [
+        "source=claude-config,target=/home/vscode/.config/claude,type=volume"
+    ]
 }
