@@ -18,6 +18,7 @@ from homeassistant.exceptions import (
     HomeAssistantError,
 )
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import (
@@ -30,6 +31,7 @@ from homeassistant.helpers.typing import ConfigType
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
 
 from .const import (
+    CONF_DEVICES,
     DOMAIN,
     EVENT_PROGRAM_CHANGED,
     EVENT_RAIN_DELAY,
@@ -140,8 +142,41 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+async def remove_devices_from_registry(
+    hass: HomeAssistant, device_ids: set[str]
+) -> None:
+    """Remove devices from the device registry."""
+    device_registry = dr.async_get(hass)
+
+    for device_id in device_ids:
+        # Find the device in the registry by its identifiers
+        device = device_registry.async_get_device(identifiers={(DOMAIN, device_id)})
+        if device:
+            _LOGGER.info("Removing device %s from registry", device_id)
+            device_registry.async_remove_device(device.id)
+
+
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload to update options."""
+    """Reload to update options and remove filtered devices."""
+    # Get the current client and all devices before reload
+    data = hass.data[DOMAIN].get(entry.entry_id)
+    if data:
+        client = data["client"]
+        try:
+            all_devices = await client.devices
+            # Get currently configured device IDs
+            configured_ids = set(entry.options.get(CONF_DEVICES, []))
+
+            # Find devices that were removed from configuration
+            all_device_ids = {str(d["id"]) for d in all_devices}
+            removed_device_ids = all_device_ids - configured_ids
+
+            if removed_device_ids:
+                # Remove devices from Home Assistant
+                await remove_devices_from_registry(hass, removed_device_ids)
+        except (BHyveError, KeyError) as err:
+            _LOGGER.warning("Error checking for removed devices: %s", err)
+
     await hass.config_entries.async_reload(entry.entry_id)
 
 

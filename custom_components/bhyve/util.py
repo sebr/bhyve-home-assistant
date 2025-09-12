@@ -19,9 +19,8 @@ def orbit_time_to_local_time(timestamp: str | None) -> datetime | None:
 
 def filter_configured_devices(entry: ConfigEntry, all_devices: list) -> list:
     """Filter the device list to those that are enabled in options."""
-    filtered_devices = [
-        d for d in all_devices if str(d["id"]) in entry.options[CONF_DEVICES]
-    ]
+    configured_devices = entry.options.get(CONF_DEVICES, [])
+    filtered_devices = [d for d in all_devices if str(d["id"]) in configured_devices]
 
     # Ensure that all devices have a name
     for device in filtered_devices:
