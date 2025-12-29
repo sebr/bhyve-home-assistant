@@ -12,13 +12,13 @@ jobs:
   test:
     name: "Test"
     runs-on: "ubuntu-latest"
-    
+
     steps:
       - name: "Checkout the repository"
-        uses: "actions/checkout@v4.2.2"
+        uses: "actions/checkout@v6.0.1"
 
       - name: "Set up Python"
-        uses: "actions/setup-python@v5.5.0"
+        uses: "actions/setup-python@v6.1.0"
         with:
           python-version: "3.13"
           cache: "pip"
@@ -32,13 +32,13 @@ jobs:
   lint:
     name: "Lint and Format Check"
     runs-on: "ubuntu-latest"
-    
+
     steps:
       - name: "Checkout the repository"
-        uses: "actions/checkout@v4.2.2"
+        uses: "actions/checkout@v6.0.1"
 
       - name: "Set up Python"
-        uses: "actions/setup-python@v5.5.0"
+        uses: "actions/setup-python@v6.1.0"
         with:
           python-version: "3.13"
           cache: "pip"
