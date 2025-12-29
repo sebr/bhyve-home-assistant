@@ -82,16 +82,14 @@ async def test_update_listener_removes_filtered_devices(hass: HomeAssistant) -> 
     # Create mock client with all devices
     mock_client = MagicMock()
 
-    # Create a coroutine that returns the devices list
-    async def mock_devices() -> list[dict[str, Any]]:
-        return [
+    # Make devices an awaitable attribute returning the devices list
+    mock_client.devices = AsyncMock(
+        return_value=[
             {"id": "device1", "name": "Device 1"},
             {"id": "device2", "name": "Device 2"},
             {"id": "device3", "name": "Device 3"},
         ]
-
-    mock_client.devices = mock_devices()
-
+    )
     # Setup mock data in hass
     hass.data[DOMAIN] = {
         "test_entry": {
@@ -186,14 +184,12 @@ async def test_device_recreation_after_filtering_back_in(hass: HomeAssistant) ->
     # Create mock client with all devices
     mock_client = MagicMock()
 
-    async def mock_devices() -> list[dict[str, Any]]:
-        return [
+    mock_client.devices = AsyncMock(
+        return_value=[
             {"id": "device1", "name": "Device 1"},
             {"id": "device2", "name": "Device 2"},
         ]
-
-    mock_client.devices = mock_devices()
-
+    )
     # Setup mock data in hass
     hass.data[DOMAIN] = {
         "test_entry": {
