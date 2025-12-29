@@ -1,29 +1,129 @@
 name: "Release"
 
 on:
-  release:
-    types:
-      - "published"
-
-permissions: {}
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: 'Create as draft release?'
+        required: false
+        default: false
+        type: boolean
+      custom_notes:
+        description: 'Custom release notes (optional, prepended to auto-generated)'
+        required: false
+        type: string
 
 jobs:
   release:
-    name: "Release"
+    name: "Create Release"
     runs-on: "ubuntu-latest"
     permissions:
       contents: write
     steps:
       - name: "Checkout the repository"
-        uses: "actions/checkout@v4.2.2"
-
-      - name: "ZIP the integration directory"
-        shell: "bash"
-        run: |
-          cd "${{ github.workspace }}/custom_components/bhyve"
-          zip bhyve.zip -r ./
-
-      - name: "Upload the ZIP file to the release"
-        uses: "softprops/action-gh-release@v2.2.1"
+        uses: "actions/checkout@v6.0.1"
         with:
-          files: ${{ github.workspace }}/custom_components/bhyve/bhyve.zip
+          fetch-depth: 0  # Fetch all history for release notes
+
+      - name: "Read version from manifest"
+        id: version
+        run: |
+          # Extract version from manifest.json
+          VERSION=$(jq -r '.version' custom_components/bhyve/manifest.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+          # Validate version format (semver with optional prerelease)
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$'; then
+            echo "❌ ERROR: Invalid version format: $VERSION"
+            echo "Expected format: X.Y.Z or X.Y.Z-suffix (e.g., 4.1.0 or 4.1.0-beta1)"
+            exit 1
+          fi
+
+          # Detect prerelease
+          if [[ "$VERSION" =~ -beta|-alpha|-rc ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "🔶 This will be marked as a prerelease"
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+            echo "✅ This will be a stable release"
+          fi
+
+      - name: "Check if tag exists"
+        id: check_tag
+        run: |
+          if git rev-parse "${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+            echo "❌ ERROR: Tag ${{ steps.version.outputs.version }} already exists"
+            echo "Please update the version in manifest.json or delete the existing tag"
+            exit 1
+          fi
+          echo "✅ Tag does not exist, safe to proceed"
+
+      - name: "Create and push tag"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.version }}" -m "Release ${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.version }}"
+          echo "🏷️ Created and pushed tag: ${{ steps.version.outputs.version }}"
+
+      - name: "Generate release notes"
+        id: notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.version.outputs.version }}';
+
+            try {
+              // Generate release notes using GitHub's API
+              const { data } = await github.rest.repos.generateReleaseNotes({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: version,
+              });
+
+              // Optionally prepend custom notes
+              const customNotes = `${{ inputs.custom_notes }}`.trim();
+              let fullNotes = data.body;
+
+              if (customNotes) {
+                fullNotes = customNotes + '\n\n---\n\n' + data.body;
+              }
+
+              core.setOutput('notes', fullNotes);
+              console.log('✅ Release notes generated successfully');
+            } catch (error) {
+              // Fallback if release notes generation fails
+              console.log('⚠️ Could not generate release notes, using fallback');
+              const customNotes = `${{ inputs.custom_notes }}`.trim();
+              const fallbackNotes = customNotes || `Release ${version}`;
+              core.setOutput('notes', fallbackNotes);
+            }
+
+      - name: "Create ZIP file"
+        run: |
+          cd custom_components/bhyve
+          zip -r ../../bhyve.zip ./ -x "*.pyc" -x "__pycache__/*" -x "*.pyo"
+          cd ../..
+          echo "📦 ZIP file created:"
+          ls -lh bhyve.zip
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v2.5.0
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: ${{ steps.notes.outputs.notes }}
+          files: bhyve.zip
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
+
+      - name: "Release summary"
+        run: |
+          echo "## ✅ Release Created Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type:** ${{ steps.version.outputs.prerelease == 'true' && 'Prerelease' || 'Stable' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Draft:** ${{ inputs.draft }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View Release](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
