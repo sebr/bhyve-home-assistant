@@ -113,12 +113,13 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         program: BHyveTimerProgram,
     ) -> None:
         """Initialize the switch."""
+        super().__init__(coordinator, device)
+
         device_name = device.get("name", "Unknown switch")
         program_name = program.get("name", "unknown")
-        name = f"{device_name} {program_name} program"
 
-        super().__init__(coordinator, device, name, "bulletin-board")
-
+        self._attr_name = f"{device_name} {program_name} program"
+        self._attr_icon = "mdi:bulletin-board"
         self._program_id = program.get("id", "0")
 
     @property
@@ -200,10 +201,13 @@ class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):
         self, coordinator: BHyveDataUpdateCoordinator, device: BHyveDevice
     ) -> None:
         """Initialize the switch."""
+        super().__init__(coordinator, device)
+
         name = f"{device.get('name')} rain delay"
         _LOGGER.info("Creating switch: %s", name)
 
-        super().__init__(coordinator, device, name, "weather-pouring")
+        self._attr_name = name
+        self._attr_icon = "mdi:weather-pouring"
 
     @property
     def is_on(self) -> bool:

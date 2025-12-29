@@ -229,12 +229,13 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         device_programs: list[BHyveTimerProgram],
     ) -> None:
         """Initialize the valve."""
+        super().__init__(coordinator, device)
+
         name = f"{zone_name} zone"
         _LOGGER.info("Creating valve: %s", name)
 
-        super().__init__(
-            coordinator, device, name, "water-pump", ValveDeviceClass.WATER
-        )
+        self._attr_name = name
+        self._attr_icon = "mdi:water-pump"
 
         self._zone: BHyveZone = zone
         self._zone_id: str = zone.get("station", "")

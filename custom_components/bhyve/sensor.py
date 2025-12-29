@@ -222,13 +222,10 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
         description: BHyveSensorEntityDescription,
     ) -> None:
         """Initialize the sensor."""
+        super().__init__(coordinator, device)
         self.entity_description = description
-        super().__init__(
-            coordinator,
-            device,
-            f"{device.get('name')} {description.name}",
-            description.icon_key,
-        )
+        self._attr_name = f"{device.get('name')} {description.name}"
+        self._attr_icon = f"mdi:{description.icon_key}"
         self._attr_unique_id = (
             f"{self._mac_address}:{self._device_id}:{description.unique_id_suffix}"
         )
@@ -278,13 +275,15 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
         zone_name: str,
     ) -> None:
         """Initialize the sensor."""
+        super().__init__(coordinator, device)
         self._zone = zone
         self._zone_id = zone.get("station")
 
         name = f"{zone_name} zone history"
         _LOGGER.info("Creating history sensor: %s", name)
 
-        super().__init__(coordinator, device, name, "history")
+        self._attr_name = name
+        self._attr_icon = "mdi:history"
 
     @property
     def native_value(self) -> str | None:
