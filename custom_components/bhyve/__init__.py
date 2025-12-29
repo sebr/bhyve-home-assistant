@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-import voluptuous as vol
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.const import (
     CONF_PASSWORD,
@@ -17,7 +16,6 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
     HomeAssistantError,
 )
-from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -47,19 +45,6 @@ from .pybhyve.errors import AuthenticationError, BHyveError
 from .util import filter_configured_devices
 
 _LOGGER = logging.getLogger(__name__)
-
-CONFIG_SCHEMA: vol.Schema = vol.Schema(
-    cv.deprecated(DOMAIN),
-    {
-        DOMAIN: vol.Schema(
-            {
-                vol.Required(CONF_USERNAME): cv.string,
-                vol.Required(CONF_PASSWORD): cv.string,
-            }
-        )
-    },
-    extra=vol.ALLOW_EXTRA,
-)
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
