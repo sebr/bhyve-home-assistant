@@ -7,7 +7,12 @@ from homeassistant import data_entry_flow
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
-from custom_components.bhyve.config_flow import ConfigFlow, OptionsFlowHandler
+from custom_components.bhyve.config_flow import (
+    BHyveConfigFlow as ConfigFlow,
+)
+from custom_components.bhyve.config_flow import (
+    BhyveOptionsFlowHandler,
+)
 from custom_components.bhyve.const import CONF_DEVICES, DEVICE_BRIDGE
 from custom_components.bhyve.pybhyve.errors import AuthenticationError, BHyveError
 
@@ -364,7 +369,7 @@ class TestOptionsFlow:
         with patch(
             "homeassistant.helpers.frame.report_usage"
         ):  # Suppress the deprecation warning
-            options_flow = OptionsFlowHandler(mock_config_entry)
+            options_flow = BhyveOptionsFlowHandler(mock_config_entry)
             options_flow.hass = hass
 
         result = await options_flow.async_step_init()
@@ -398,7 +403,7 @@ class TestOptionsFlow:
         with patch(
             "homeassistant.helpers.frame.report_usage"
         ):  # Suppress the deprecation warning
-            options_flow = OptionsFlowHandler(mock_config_entry)
+            options_flow = BhyveOptionsFlowHandler(mock_config_entry)
             options_flow.hass = hass
 
         result = await options_flow.async_step_init()
@@ -426,7 +431,7 @@ class TestOptionsFlow:
         with patch(
             "homeassistant.helpers.frame.report_usage"
         ):  # Suppress the deprecation warning
-            options_flow = OptionsFlowHandler(mock_config_entry)
+            options_flow = BhyveOptionsFlowHandler(mock_config_entry)
             options_flow.hass = hass
 
         result = await options_flow.async_step_init()
@@ -442,7 +447,7 @@ class TestOptionsFlow:
         with patch(
             "homeassistant.helpers.frame.report_usage"
         ):  # Suppress the deprecation warning
-            options_flow = OptionsFlowHandler(mock_config_entry)
+            options_flow = BhyveOptionsFlowHandler(mock_config_entry)
             options_flow.hass = hass
 
         result = await options_flow.async_step_init()
@@ -470,7 +475,7 @@ class TestOptionsFlow:
         with patch(
             "homeassistant.helpers.frame.report_usage"
         ):  # Suppress the deprecation warning
-            options_flow = OptionsFlowHandler(mock_config_entry)
+            options_flow = BhyveOptionsFlowHandler(mock_config_entry)
             options_flow.hass = hass
 
         result = await options_flow.async_step_init()
@@ -557,7 +562,7 @@ class TestConfigFlowHelpers:
         mock_entry = MagicMock()
 
         with patch(
-            "custom_components.bhyve.config_flow.OptionsFlowHandler"
+            "custom_components.bhyve.config_flow.BhyveOptionsFlowHandler"
         ) as mock_handler:
             ConfigFlow.async_get_options_flow(mock_entry)
-            mock_handler.assert_called_once_with(mock_entry)
+            mock_handler.assert_called_once_with()
