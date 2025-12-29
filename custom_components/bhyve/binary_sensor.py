@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
+    BinarySensorEntityDescription,
 )
 
 from . import BHyveCoordinatorEntity
@@ -24,6 +26,33 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True, kw_only=True)
+class BHyveBinarySensorEntityDescription(BinarySensorEntityDescription):
+    """Describes BHyve binary sensor entity."""
+
+    unique_id_suffix: str
+
+
+BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
+    BHyveBinarySensorEntityDescription(
+        key="flood",
+        translation_key="flood",
+        name="flood sensor",
+        device_class=BinarySensorDeviceClass.MOISTURE,
+        icon="mdi:water",
+        unique_id_suffix="water",
+    ),
+    BHyveBinarySensorEntityDescription(
+        key="temperature_alert",
+        translation_key="temperature_alert",
+        name="temperature alert",
+        device_class=BinarySensorDeviceClass.HEAT,
+        icon="mdi:alert",
+        unique_id_suffix="tempalert",
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
@@ -31,66 +60,63 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     devices = hass.data[DOMAIN][entry.entry_id]["devices"]
 
-    entities = []
-
-    for device in devices:
-        if device.get("type") == DEVICE_FLOOD:
-            entities.append(BHyveFloodSensor(coordinator, device))
-            entities.append(BHyveTemperatureBinarySensor(coordinator, device))
+    entities = [
+        BHyveBinarySensor(coordinator, device, description)
+        for device in devices
+        if device.get("type") == DEVICE_FLOOD
+        for description in BINARY_SENSOR_TYPES
+    ]
 
     async_add_entities(entities)
 
 
-class BHyveFloodSensor(BHyveCoordinatorEntity, BinarySensorEntity):
-    """Define a BHyve flood sensor."""
+class BHyveBinarySensor(BHyveCoordinatorEntity, BinarySensorEntity):
+    """Define a BHyve binary sensor."""
 
-    _attr_device_class = BinarySensorDeviceClass.MOISTURE
+    entity_description: BHyveBinarySensorEntityDescription
 
     def __init__(
-        self, coordinator: BHyveDataUpdateCoordinator, device: BHyveDevice
+        self,
+        coordinator: BHyveDataUpdateCoordinator,
+        device: BHyveDevice,
+        description: BHyveBinarySensorEntityDescription,
     ) -> None:
         """Initialize the sensor."""
-        name = f"{device.get('name')} flood sensor"
-        _LOGGER.info("Creating flood sensor: %s", name)
-        super().__init__(coordinator, device, name, "water")
-        self._attr_unique_id = f"{self._mac_address}:{self._device_id}:water"
+        self.entity_description = description
+        super().__init__(
+            coordinator,
+            device,
+            f"{device.get('name')} {description.name}",
+            description.icon.replace("mdi:", "") if description.icon else "alert",
+        )
+        self._attr_unique_id = (
+            f"{self._mac_address}:{self._device_id}:{description.unique_id_suffix}"
+        )
 
     @property
     def is_on(self) -> bool:
-        """Return true if flood detected."""
+        """Return true if the binary sensor is on."""
         status = self.device_data.get("status", {})
-        return status.get("flood_alarm_status") == "alarm"
+
+        if self.entity_description.key == "flood":
+            return status.get("flood_alarm_status") == "alarm"
+        if self.entity_description.key == "temperature_alert":
+            return "alarm" in status.get("temp_alarm_status", "")
+
+        return False
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the state attributes."""
-        device = self.device_data
-        status = device.get("status", {})
-        return {
-            "location": device.get("location_name"),
-            "shutoff": device.get("auto_shutoff"),
-            "rssi": status.get("rssi"),
-        }
+        if self.entity_description.key == "flood":
+            device = self.device_data
+            status = device.get("status", {})
+            return {
+                "location": device.get("location_name"),
+                "shutoff": device.get("auto_shutoff"),
+                "rssi": status.get("rssi"),
+            }
+        if self.entity_description.key == "temperature_alert":
+            return self.device_data.get("temp_alarm_thresholds", {})
 
-
-class BHyveTemperatureBinarySensor(BHyveCoordinatorEntity, BinarySensorEntity):
-    """Define a BHyve temperature sensor."""
-
-    def __init__(
-        self, coordinator: BHyveDataUpdateCoordinator, device: BHyveDevice
-    ) -> None:
-        """Initialize the sensor."""
-        name = f"{device.get('name')} temperature alert"
-        super().__init__(coordinator, device, name, "alert")
-        self._attr_unique_id = f"{self._mac_address}:{self._device_id}:tempalert"
-
-    @property
-    def is_on(self) -> bool:
-        """Return true if temperature alarm detected."""
-        status = self.device_data.get("status", {})
-        return "alarm" in status.get("temp_alarm_status", "")
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the state attributes."""
-        return self.device_data.get("temp_alarm_thresholds", {})
+        return {}

@@ -7,7 +7,8 @@
       "Bash(python -m mypy:*)",
       "Bash(ruff check:*)",
       "Bash(ruff format:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []

@@ -8,8 +8,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from custom_components.bhyve.binary_sensor import (
-    BHyveFloodSensor,
-    BHyveTemperatureBinarySensor,
+    BINARY_SENSOR_TYPES,
+    BHyveBinarySensor,
     async_setup_entry,
 )
 from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
@@ -147,8 +147,10 @@ class TestAsyncSetupEntry:
 
         # Should create 2 entities: flood sensor and temperature binary sensor
         assert len(entities) == EXPECTED_FLOOD_ENTITIES
-        assert isinstance(entities[0], BHyveFloodSensor)
-        assert isinstance(entities[1], BHyveTemperatureBinarySensor)
+        assert isinstance(entities[0], BHyveBinarySensor)
+        assert isinstance(entities[1], BHyveBinarySensor)
+        assert entities[0].entity_description.key == "flood"
+        assert entities[1].entity_description.key == "temperature_alert"
 
     async def test_setup_entry_no_flood_devices(
         self,
@@ -201,9 +203,10 @@ class TestBHyveFloodSensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test flood sensor entity initialization."""
-        sensor = BHyveFloodSensor(
+        sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
+            description=BINARY_SENSOR_TYPES[0],
         )
 
         # Test basic properties
@@ -217,9 +220,10 @@ class TestBHyveFloodSensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test flood sensor in normal (not flooded) state."""
-        sensor = BHyveFloodSensor(
+        sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
+            description=BINARY_SENSOR_TYPES[0],
         )
 
         # Test state
@@ -247,9 +251,10 @@ class TestBHyveFloodSensor:
             }
         )
 
-        sensor = BHyveFloodSensor(
+        sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=mock_flood_device_alarming,
+            description=BINARY_SENSOR_TYPES[0],
         )
 
         # Test state
@@ -262,9 +267,10 @@ class TestBHyveFloodSensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test flood sensor response to websocket events."""
-        sensor = BHyveFloodSensor(
+        sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
+            description=BINARY_SENSOR_TYPES[0],
         )
 
         # Initial state should be normal
@@ -288,9 +294,10 @@ class TestBHyveFloodSensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test flood sensor handles all events via coordinator."""
-        sensor = BHyveFloodSensor(
+        sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
+            description=BINARY_SENSOR_TYPES[0],
         )
 
         # Coordinator-based entities don't need event filtering
@@ -317,9 +324,10 @@ class TestBHyveFloodSensor:
             }
         )
 
-        sensor = BHyveFloodSensor(
+        sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=disconnected_device,
+            description=BINARY_SENSOR_TYPES[0],
         )
 
         # Should be unavailable
@@ -335,9 +343,10 @@ class TestBHyveTemperatureBinarySensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test temperature binary sensor entity initialization."""
-        sensor = BHyveTemperatureBinarySensor(
+        sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
+            description=BINARY_SENSOR_TYPES[1],
         )
 
         # Test basic properties
@@ -350,9 +359,10 @@ class TestBHyveTemperatureBinarySensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test temperature sensor in normal state."""
-        sensor = BHyveTemperatureBinarySensor(
+        sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
+            description=BINARY_SENSOR_TYPES[1],
         )
 
         # Test state
@@ -379,9 +389,10 @@ class TestBHyveTemperatureBinarySensor:
             }
         )
 
-        sensor = BHyveTemperatureBinarySensor(
+        sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=mock_flood_device_alarming,
+            description=BINARY_SENSOR_TYPES[1],
         )
 
         # Test state
@@ -394,9 +405,10 @@ class TestBHyveTemperatureBinarySensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test temperature sensor response to websocket events."""
-        sensor = BHyveTemperatureBinarySensor(
+        sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
+            description=BINARY_SENSOR_TYPES[1],
         )
 
         # Initial state should be normal
@@ -416,9 +428,10 @@ class TestBHyveTemperatureBinarySensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test temperature sensor handles all events via coordinator."""
-        sensor = BHyveTemperatureBinarySensor(
+        sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
+            description=BINARY_SENSOR_TYPES[1],
         )
 
         # Coordinator-based entities don't need event filtering
@@ -454,14 +467,16 @@ class TestBinarySensorEdgeCases:
             }
         )
 
-        flood_sensor = BHyveFloodSensor(
+        flood_sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=minimal_device,
+            description=BINARY_SENSOR_TYPES[0],
         )
 
-        temp_sensor = BHyveTemperatureBinarySensor(
+        temp_sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=minimal_device,
+            description=BINARY_SENSOR_TYPES[1],
         )
 
         # Should default to "off" state
@@ -492,14 +507,16 @@ class TestBinarySensorEdgeCases:
             }
         )
 
-        flood_sensor = BHyveFloodSensor(
+        flood_sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=partial_device,
+            description=BINARY_SENSOR_TYPES[0],
         )
 
-        temp_sensor = BHyveTemperatureBinarySensor(
+        temp_sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=partial_device,
+            description=BINARY_SENSOR_TYPES[1],
         )
 
         # Flood sensor should detect alarm, temp sensor should default to off
