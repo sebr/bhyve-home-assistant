@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -11,6 +12,7 @@ import voluptuous as vol
 from homeassistant.components.valve import (
     ValveDeviceClass,
     ValveEntity,
+    ValveEntityDescription,
     ValveEntityFeature,
 )
 from homeassistant.components.valve.const import DOMAIN as VALVE_DOMAIN
@@ -131,6 +133,21 @@ SERVICE_TO_METHOD = {
 }
 
 
+@dataclass(frozen=True, kw_only=True)
+class BHyveValveEntityDescription(ValveEntityDescription):
+    """Describes BHyve valve entity."""
+
+    icon_key: str
+
+
+VALVE_DESCRIPTION = BHyveValveEntityDescription(
+    key="zone",
+    icon_key="water-pump",
+    device_class=ValveDeviceClass.WATER,
+    reports_position=False,
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
@@ -216,8 +233,7 @@ async def async_setup_entry(
 class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
     """Define a BHyve zone valve."""
 
-    _attr_device_class = ValveDeviceClass.WATER
-    _attr_reports_position = False
+    entity_description: BHyveValveEntityDescription
     _attr_supported_features = ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE
 
     def __init__(
@@ -230,12 +246,13 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
     ) -> None:
         """Initialize the valve."""
         super().__init__(coordinator, device)
+        self.entity_description = VALVE_DESCRIPTION
 
         name = f"{zone_name} zone"
         _LOGGER.info("Creating valve: %s", name)
 
         self._attr_name = name
-        self._attr_icon = "mdi:water-pump"
+        self._attr_icon = f"mdi:{self.entity_description.icon_key}"
 
         self._zone: BHyveZone = zone
         self._zone_id: str = zone.get("station", "")

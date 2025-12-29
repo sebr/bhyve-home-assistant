@@ -28,6 +28,7 @@ from .const import (
     CONF_DEVICES,
     DOMAIN,
     EVENT_PROGRAM_CHANGED,
+    LOGGER,
     MANUFACTURER,
 )
 from .coordinator import BHyveDataUpdateCoordinator
@@ -174,15 +175,7 @@ class BHyveCoordinatorEntity(CoordinatorEntity[BHyveDataUpdateCoordinator]):
         coordinator: BHyveDataUpdateCoordinator,
         device: BHyveDevice,
     ) -> None:
-        """
-        Initialize the entity.
-
-        Args:
-        ----
-            coordinator: The data update coordinator.
-            device: The device data.
-
-        """
+        """Initialize the entity."""
         super().__init__(coordinator)
         self._device_id = device.get("id", "")
         self._device_type = device.get("type", "")
@@ -198,6 +191,13 @@ class BHyveCoordinatorEntity(CoordinatorEntity[BHyveDataUpdateCoordinator]):
             model=device.get("hardware_version"),
             hw_version=device.get("hardware_version"),
             sw_version=device.get("firmware_version"),
+        )
+
+        LOGGER.debug(
+            "Creating %s: %s - %s",
+            self.__class__.__name__,
+            self._device_name,
+            self._device_type,
         )
 
     @property

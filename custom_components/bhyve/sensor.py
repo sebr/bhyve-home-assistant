@@ -79,7 +79,6 @@ class BHyveSensorEntityDescription(SensorEntityDescription):
     """Describes BHyve sensor entity."""
 
     unique_id_suffix: str
-    icon_key: str
     # Callable that takes device_data and returns value
     value_fn: Any = None
     # Callable that takes device_data and returns attributes
@@ -95,7 +94,7 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
         key="state",
         translation_key="state",
         name="state",
-        icon_key="information",
+        icon="mdi:information",
         unique_id_suffix="state",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.get("status", {}).get("run_mode", "unavailable"),
@@ -107,7 +106,7 @@ SENSOR_TYPES_FLOOD: tuple[BHyveSensorEntityDescription, ...] = (
         key="temperature",
         translation_key="temperature",
         name="temperature sensor",
-        icon_key="thermometer",
+        icon="mdi:thermometer",
         unique_id_suffix="temp",
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -131,7 +130,7 @@ SENSOR_TYPES_BATTERY: tuple[BHyveSensorEntityDescription, ...] = (
         key="battery",
         translation_key="battery",
         name="battery level",
-        icon_key="battery",
+        icon="mdi:battery",
         unique_id_suffix="battery",
         device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -167,14 +166,26 @@ async def async_setup_entry(
     sensors = []
 
     for device in devices:
+        device_name = device.get("name", "Unknown Device")
+
         if device.get("type") == DEVICE_SPRINKLER:
             # Add state sensors
-            sensors.extend(
-                BHyveSensor(coordinator, device, description)
-                for description in SENSOR_TYPES_SPRINKLER
-            )
+            for base_description in SENSOR_TYPES_SPRINKLER:
+                description = BHyveSensorEntityDescription(
+                    key=base_description.key,
+                    translation_key=base_description.translation_key,
+                    name=f"{device_name} {base_description.name}",
+                    icon=base_description.icon,
+                    unique_id_suffix=base_description.unique_id_suffix,
+                    entity_category=base_description.entity_category,
+                    value_fn=base_description.value_fn,
+                    attributes_fn=base_description.attributes_fn,
+                    icon_fn=base_description.icon_fn,
+                    available_fn=base_description.available_fn,
+                )
+                sensors.append(BHyveSensor(coordinator, device, description))
 
-            # Add zone history sensors (these don't use descriptions)
+            # Add zone history sensors
             all_zones = device.get("zones", [])
             for zone in all_zones:
                 # if the zone doesn't have a name, set it to the device's name if
@@ -185,27 +196,77 @@ async def async_setup_entry(
                     else "Unnamed Zone"
                 )
                 sensors.append(
-                    BHyveZoneHistorySensor(coordinator, device, zone, zone_name)
+                    BHyveZoneHistorySensor(
+                        coordinator,
+                        device,
+                        zone,
+                        SensorEntityDescription(
+                            key="zone_history",
+                            name=f"{zone_name} zone history",
+                            icon="mdi:history",
+                            device_class=SensorDeviceClass.TIMESTAMP,
+                            entity_category=EntityCategory.DIAGNOSTIC,
+                        ),
+                    )
                 )
 
             # Add battery sensor if device has battery
             if device.get("battery", None) is not None:
-                sensors.extend(
-                    BHyveSensor(coordinator, device, description)
-                    for description in SENSOR_TYPES_BATTERY
-                )
+                for base_description in SENSOR_TYPES_BATTERY:
+                    description = BHyveSensorEntityDescription(
+                        key=base_description.key,
+                        translation_key=base_description.translation_key,
+                        name=f"{device_name} {base_description.name}",
+                        icon=base_description.icon,
+                        unique_id_suffix=base_description.unique_id_suffix,
+                        device_class=base_description.device_class,
+                        state_class=base_description.state_class,
+                        native_unit_of_measurement=base_description.native_unit_of_measurement,
+                        entity_category=base_description.entity_category,
+                        value_fn=base_description.value_fn,
+                        attributes_fn=base_description.attributes_fn,
+                        icon_fn=base_description.icon_fn,
+                        available_fn=base_description.available_fn,
+                    )
+                    sensors.append(BHyveSensor(coordinator, device, description))
 
         if device.get("type") == DEVICE_FLOOD:
             # Add temperature sensor
-            sensors.extend(
-                BHyveSensor(coordinator, device, description)
-                for description in SENSOR_TYPES_FLOOD
-            )
+            for base_description in SENSOR_TYPES_FLOOD:
+                description = BHyveSensorEntityDescription(
+                    key=base_description.key,
+                    translation_key=base_description.translation_key,
+                    name=f"{device_name} {base_description.name}",
+                    icon=base_description.icon,
+                    unique_id_suffix=base_description.unique_id_suffix,
+                    device_class=base_description.device_class,
+                    state_class=base_description.state_class,
+                    native_unit_of_measurement=base_description.native_unit_of_measurement,
+                    value_fn=base_description.value_fn,
+                    attributes_fn=base_description.attributes_fn,
+                    icon_fn=base_description.icon_fn,
+                    available_fn=base_description.available_fn,
+                )
+                sensors.append(BHyveSensor(coordinator, device, description))
+
             # Add battery sensor
-            sensors.extend(
-                BHyveSensor(coordinator, device, description)
-                for description in SENSOR_TYPES_BATTERY
-            )
+            for base_description in SENSOR_TYPES_BATTERY:
+                description = BHyveSensorEntityDescription(
+                    key=base_description.key,
+                    translation_key=base_description.translation_key,
+                    name=f"{device_name} {base_description.name}",
+                    icon=base_description.icon,
+                    unique_id_suffix=base_description.unique_id_suffix,
+                    device_class=base_description.device_class,
+                    state_class=base_description.state_class,
+                    native_unit_of_measurement=base_description.native_unit_of_measurement,
+                    entity_category=base_description.entity_category,
+                    value_fn=base_description.value_fn,
+                    attributes_fn=base_description.attributes_fn,
+                    icon_fn=base_description.icon_fn,
+                    available_fn=base_description.available_fn,
+                )
+                sensors.append(BHyveSensor(coordinator, device, description))
 
     async_add_entities(sensors)
 
@@ -222,10 +283,8 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
         description: BHyveSensorEntityDescription,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device)
         self.entity_description = description
-        self._attr_name = f"{device.get('name')} {description.name}"
-        self._attr_icon = f"mdi:{description.icon_key}"
+        super().__init__(coordinator, device)
         self._attr_unique_id = (
             f"{self._mac_address}:{self._device_id}:{description.unique_id_suffix}"
         )
@@ -242,7 +301,7 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
         """Icon to use in the frontend, if any."""
         if self.entity_description.icon_fn:
             return self.entity_description.icon_fn(self.device_data, self.native_value)
-        return self._attr_icon
+        return super().icon
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -264,26 +323,24 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
 class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
     """Define a BHyve zone history sensor."""
 
-    _attr_device_class = SensorDeviceClass.TIMESTAMP
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    entity_description: SensorEntityDescription
 
     def __init__(
         self,
         coordinator: BHyveDataUpdateCoordinator,
         device: BHyveDevice,
         zone: dict,
-        zone_name: str,
+        description: SensorEntityDescription,
     ) -> None:
         """Initialize the sensor."""
+        self.entity_description = description
         super().__init__(coordinator, device)
+
         self._zone = zone
         self._zone_id = zone.get("station")
-
-        name = f"{zone_name} zone history"
-        _LOGGER.info("Creating history sensor: %s", name)
-
-        self._attr_name = name
-        self._attr_icon = "mdi:history"
+        self._attr_unique_id = (
+            f"{self._mac_address}:{self._device_id}:{self._zone_id}:history"
+        )
 
     @property
     def native_value(self) -> str | None:
@@ -349,8 +406,3 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
             .get(self._device_id, {})
             .get("history", [])
         )
-
-    @property
-    def unique_id(self) -> str:
-        """Return a unique, unchanging string that represents this sensor."""
-        return f"{self._mac_address}:{self._device_id}:{self._zone_id}:history"
