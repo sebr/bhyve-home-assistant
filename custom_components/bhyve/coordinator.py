@@ -51,7 +51,6 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             data: dict[str, Any] = {
                 "devices": {},
                 "programs": {},
-                "client": self.client,  # Reference for entity actions
             }
 
             # Process each device - fetch history and landscapes in parallel per device
@@ -229,7 +228,9 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
 
         elif event == "watering_complete":
             # Clear watering status
-            if "status" in device_data and "watering_status" in device_data["status"]:
+            if "status" not in device_data:
+                device_data["status"] = {}
+            if "watering_status" in device_data["status"]:
                 del device_data["status"]["watering_status"]
             device_data["status"]["run_mode"] = "off"
 

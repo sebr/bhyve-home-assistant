@@ -463,5 +463,5 @@ class BHyveCoordinatorEntity(CoordinatorEntity[BHyveDataUpdateCoordinator]):
 
     @property
     def available(self) -> bool:
-        """Entity available when coordinator available and device connected."""
-        return super().available and self.device_data.get("is_connected", False)
+        """Entity available when device connected."""
+        return self.device_data.get("is_connected", False)
