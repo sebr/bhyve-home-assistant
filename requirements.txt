@@ -1,7 +1,7 @@
-colorlog==6.9.0
-homeassistant==2025.9.0
+colorlog==6.10.1
+homeassistant==2025.12.0
 pip>=21.3.1
-ruff==0.11.12
+ruff==0.14.10
 pre-commit
 
 # Install HA and test dependencies (pytest, coverage)
@@ -9,3 +9,7 @@ pre-commit
 # to the adequate version (add `==<version>`) and rebuild the dev container.
 # See https://github.com/MatthewFlamm/pytest-homeassistant-custom-component/releases for version mappings.
 pytest-homeassistant-custom-component
+pytest-asyncio
+
+# Pin pycares to avoid incompatibility with aiodns
+pycares<5.0.0
