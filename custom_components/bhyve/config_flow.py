@@ -149,10 +149,40 @@ class BHyveConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_import(
+        self, config: dict[str, Any] | None
+    ) -> ConfigFlowResult:
+        """Handle import of BHyve config from YAML."""
+        if config is None:
+            return self.async_abort(reason="cannot_connect")
+        username = config[CONF_USERNAME]
+        password = config[CONF_PASSWORD]
+
+        credentials = {
+            CONF_USERNAME: username,
+            CONF_PASSWORD: password,
+        }
+
+        if not (_errors := await self.async_auth(credentials)):
+            await self.async_set_unique_id(credentials[CONF_USERNAME].lower())
+            self._abort_if_unique_id_configured()
+
+            self.data = credentials
+            self.devices = await self.client.devices  # type: ignore[union-attr]
+            self.programs = await self.client.timer_programs  # type: ignore[union-attr]
+
+            devices = [
+                str(d["id"]) for d in (self.devices or []) if d["type"] != DEVICE_BRIDGE
+            ]
+
+            return await self.async_step_device(user_input={CONF_DEVICES: devices})
+
+        return self.async_abort(reason="cannot_connect")
+
     @staticmethod
     @callback
     def async_get_options_flow(
-        _config_entry: ConfigEntry,
+        config_entry: ConfigEntry,  # noqa: ARG004
     ) -> BhyveOptionsFlowHandler:
         """Get the options flow for this handler."""
         return BhyveOptionsFlowHandler()
