@@ -336,9 +336,9 @@ class TestFilterConfiguredDevices:
         entry = MagicMock(spec=ConfigEntry)
         entry.options = {}  # Missing CONF_DEVICES
 
-        # Should raise KeyError when trying to access missing key
-        with pytest.raises(KeyError):
-            filter_configured_devices(entry, sample_devices)
+        # Should return empty list when key is missing (graceful handling)
+        result = filter_configured_devices(entry, sample_devices)
+        assert result == []
 
     def test_filter_configured_devices_preserves_order(self) -> None:
         """Test that device filtering preserves the order of filtered devices."""
