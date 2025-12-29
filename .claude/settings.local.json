@@ -3,7 +3,10 @@
     "allow": [
       "Bash(./scripts/lint:*)",
       "Bash(pytest:*)",
-      "Bash(./scripts/test:*)"
+      "Bash(./scripts/test:*)",
+      "Bash(python -m mypy:*)",
+      "Bash(ruff check:*)",
+      "Bash(ruff format:*)"
     ],
     "deny": [],
     "ask": []
