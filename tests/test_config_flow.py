@@ -13,7 +13,7 @@ from custom_components.bhyve.pybhyve.errors import AuthenticationError, BHyveErr
 
 # Test constants
 TEST_USERNAME = "test@example.com"
-TEST_PASSWORD = "test_password"  # noqa: S105
+TEST_PASSWORD = "test_password"
 TEST_DEVICE_ID = "test-device-123"
 TEST_DEVICE_NAME = "Test Sprinkler"
 TEST_BRIDGE_DEVICE_ID = "bridge-456"
