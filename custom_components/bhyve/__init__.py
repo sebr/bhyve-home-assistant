@@ -145,7 +145,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def remove_devices_from_registry(
     hass: HomeAssistant, device_ids: set[str]
 ) -> None:
-    """Remove devices from the device registry by their domain-specific string identifiers."""
+    """Remove devices from registry by domain-specific string identifiers."""
     device_registry = dr.async_get(hass)
 
     for device_id in device_ids:
@@ -155,10 +155,8 @@ async def remove_devices_from_registry(
             _LOGGER.info("Removing device %s from registry", device_id)
             try:
                 device_registry.async_remove_device(device.id)
-            except HomeAssistantError as err:
-                _LOGGER.error(
-                    "Failed to remove device %s from registry: %s", device_id, err
-                )
+            except HomeAssistantError:
+                _LOGGER.exception("Failed to remove device %s from registry", device_id)
 
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:

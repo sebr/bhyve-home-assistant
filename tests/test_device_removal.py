@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 from homeassistant.helpers import device_registry as dr
@@ -17,6 +17,7 @@ from custom_components.bhyve import (
     update_listener,
 )
 from custom_components.bhyve.const import CONF_DEVICES, DOMAIN
+from custom_components.bhyve.util import filter_configured_devices
 
 
 @pytest.mark.asyncio
@@ -82,14 +83,16 @@ async def test_update_listener_removes_filtered_devices(hass: HomeAssistant) -> 
     # Create mock client with all devices
     mock_client = MagicMock()
 
-    # Make devices an awaitable attribute returning the devices list
-    mock_client.devices = AsyncMock(
-        return_value=[
+    # Mock the async property behavior - each access returns a new coroutine
+    async def mock_devices() -> list[dict[str, Any]]:
+        return [
             {"id": "device1", "name": "Device 1"},
             {"id": "device2", "name": "Device 2"},
             {"id": "device3", "name": "Device 3"},
         ]
-    )
+
+    # Use PropertyMock to return a new coroutine each time the property is accessed
+    type(mock_client).devices = PropertyMock(side_effect=lambda: mock_devices())
     # Setup mock data in hass
     hass.data[DOMAIN] = {
         "test_entry": {
@@ -145,12 +148,13 @@ async def test_update_listener_handles_errors_gracefully(hass: HomeAssistant) ->
     # Create mock client that raises an error
     mock_client = MagicMock()
 
-    # Create a coroutine that raises an error
+    # Mock the async property to raise an error
     async def mock_devices_error() -> None:
         msg = "API Error"
         raise KeyError(msg)
 
-    mock_client.devices = mock_devices_error()
+    # Use PropertyMock to return a new coroutine each time
+    type(mock_client).devices = PropertyMock(side_effect=lambda: mock_devices_error())
 
     # Setup mock data in hass
     hass.data[DOMAIN] = {
@@ -184,12 +188,15 @@ async def test_device_recreation_after_filtering_back_in(hass: HomeAssistant) ->
     # Create mock client with all devices
     mock_client = MagicMock()
 
-    mock_client.devices = AsyncMock(
-        return_value=[
+    # Mock the async property behavior - each access returns a new coroutine
+    async def mock_devices() -> list[dict[str, Any]]:
+        return [
             {"id": "device1", "name": "Device 1"},
             {"id": "device2", "name": "Device 2"},
         ]
-    )
+
+    # Use PropertyMock to return a new coroutine each time the property is accessed
+    type(mock_client).devices = PropertyMock(side_effect=lambda: mock_devices())
     # Setup mock data in hass
     hass.data[DOMAIN] = {
         "test_entry": {
@@ -228,8 +235,6 @@ async def test_filter_configured_devices_with_missing_options(
     hass: HomeAssistant,
 ) -> None:
     """Test that filter_configured_devices handles missing options gracefully."""
-    from custom_components.bhyve.util import filter_configured_devices
-
     # Create a config entry with no options
     config_entry = MockConfigEntry(
         domain=DOMAIN,
