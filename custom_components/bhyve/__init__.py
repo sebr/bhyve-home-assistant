@@ -27,6 +27,7 @@ from homeassistant.helpers.dispatcher import (
 )
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
 
@@ -40,6 +41,7 @@ from .const import (
     SIGNAL_UPDATE_DEVICE,
     SIGNAL_UPDATE_PROGRAM,
 )
+from .coordinator import BHyveDataUpdateCoordinator
 from .pybhyve import BHyveClient
 from .pybhyve.errors import AuthenticationError, BHyveError
 from .util import filter_configured_devices
@@ -85,27 +87,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up BHyve from a config entry."""
-
-    async def async_update_callback(data: dict) -> None:
-        event = data.get("event")
-        device_id = None
-        program_id = None
-
-        if event == EVENT_PROGRAM_CHANGED:
-            device_id = data.get("program", {}).get("device_id")
-            program_id = data.get("program", {}).get("id")
-        else:
-            device_id = data.get("device_id")
-
-        if device_id is not None:
-            async_dispatcher_send(
-                hass, SIGNAL_UPDATE_DEVICE.format(device_id), device_id, data
-            )
-        if program_id is not None:
-            async_dispatcher_send(
-                hass, SIGNAL_UPDATE_PROGRAM.format(program_id), program_id, data
-            )
-
     client = BHyveClient(
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],
@@ -116,20 +97,54 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if await client.login() is False:
             msg = "Invalid credentials"
             raise ConfigEntryAuthFailed(msg)
-
-        client.listen(hass.loop, async_update_callback)
-        all_devices = await client.devices
-        programs = await client.timer_programs
     except AuthenticationError as err:
         raise ConfigEntryAuthFailed(err) from err
     except BHyveError as err:
         raise ConfigEntryNotReady(err) from err
 
+    # Create coordinator
+    coordinator = BHyveDataUpdateCoordinator(hass, client, entry)
+
+    # Initial data fetch
+    await coordinator.async_config_entry_first_refresh()
+
+    # WebSocket callback routes to both coordinator and dispatcher
+    async def async_update_callback(data: dict) -> None:
+        event = data.get("event")
+        device_id = None
+        program_id = None
+
+        # Route to coordinator
+        if event == EVENT_PROGRAM_CHANGED:
+            await coordinator.async_handle_program_event(data)
+            device_id = data.get("program", {}).get("device_id")
+            program_id = data.get("program", {}).get("id")
+        else:
+            await coordinator.async_handle_device_event(data)
+            device_id = data.get("device_id")
+
+        # TEMPORARY: Also dispatch for un-migrated entities
+        # Will be removed after all platforms are migrated
+        if device_id is not None:
+            async_dispatcher_send(
+                hass, SIGNAL_UPDATE_DEVICE.format(device_id), device_id, data
+            )
+        if program_id is not None:
+            async_dispatcher_send(
+                hass, SIGNAL_UPDATE_PROGRAM.format(program_id), program_id, data
+            )
+
+    # Start WebSocket
+    client.listen(hass.loop, async_update_callback)
+
     # Filter the device list to those that are enabled in options
+    all_devices = await client.devices
+    programs = await client.timer_programs
     devices = filter_configured_devices(entry, all_devices)
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "client": client,
+        "coordinator": coordinator,
         "devices": devices,
         "programs": programs,
     }
@@ -417,3 +432,51 @@ class BHyveDeviceEntity(BHyveWebsocketEntity):
         except BHyveError as err:
             _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
             raise BHyveError(err) from err
+
+
+class BHyveCoordinatorEntity(CoordinatorEntity[BHyveDataUpdateCoordinator]):
+    """Base entity for coordinator-based B-hyve entities."""
+
+    def __init__(
+        self,
+        coordinator: BHyveDataUpdateCoordinator,
+        device: BHyveDevice,
+        name: str,
+        icon: str,
+        device_class: str | None = None,
+    ) -> None:
+        """Initialize the entity."""
+        super().__init__(coordinator)
+        self._device_id = device.get("id", "")
+        self._device_type = device.get("type", "")
+        self._device_name = device.get("name", "")
+        self._mac_address = device.get("mac_address")
+        self._attr_name = name
+        self._attr_icon = f"mdi:{icon}"
+        if device_class:
+            self._attr_device_class = device_class
+
+        # Device info for grouping
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self._device_id)},
+            manufacturer=MANUFACTURER,
+            configuration_url=f"https://techsupport.orbitbhyve.com/dashboard/support/device/{self._device_id}",
+            name=self._device_name,
+            model=device.get("hardware_version"),
+            hw_version=device.get("hardware_version"),
+            sw_version=device.get("firmware_version"),
+        )
+
+    @property
+    def device_data(self) -> dict[str, Any]:
+        """Get device data from coordinator."""
+        return (
+            self.coordinator.data.get("devices", {})
+            .get(self._device_id, {})
+            .get("device", {})
+        )
+
+    @property
+    def available(self) -> bool:
+        """Entity available when coordinator available and device connected."""
+        return super().available and self.device_data.get("is_connected", False)
