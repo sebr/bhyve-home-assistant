@@ -31,6 +31,10 @@ class BHyveBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes BHyve binary sensor entity."""
 
     unique_id_suffix: str
+    # Callable that takes device_data and returns bool
+    value_fn: Any = None
+    # Callable that takes device_data and returns attributes
+    attributes_fn: Any = None
 
 
 BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
@@ -39,16 +43,26 @@ BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
         translation_key="flood",
         name="flood sensor",
         device_class=BinarySensorDeviceClass.MOISTURE,
-        icon="mdi:water",
         unique_id_suffix="water",
+        value_fn=lambda data: (
+            data.get("status", {}).get("flood_alarm_status") == "alarm"
+        ),
+        attributes_fn=lambda data: {
+            "location": data.get("location_name"),
+            "shutoff": data.get("auto_shutoff"),
+            "rssi": data.get("status", {}).get("rssi"),
+        },
     ),
     BHyveBinarySensorEntityDescription(
         key="temperature_alert",
         translation_key="temperature_alert",
         name="temperature alert",
         device_class=BinarySensorDeviceClass.HEAT,
-        icon="mdi:alert",
         unique_id_suffix="tempalert",
+        value_fn=lambda data: (
+            "alarm" in data.get("status", {}).get("temp_alarm_status", "")
+        ),
+        attributes_fn=lambda data: data.get("temp_alarm_thresholds", {}),
     ),
 )
 
@@ -96,27 +110,13 @@ class BHyveBinarySensor(BHyveCoordinatorEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         """Return true if the binary sensor is on."""
-        status = self.device_data.get("status", {})
-
-        if self.entity_description.key == "flood":
-            return status.get("flood_alarm_status") == "alarm"
-        if self.entity_description.key == "temperature_alert":
-            return "alarm" in status.get("temp_alarm_status", "")
-
+        if self.entity_description.value_fn:
+            return self.entity_description.value_fn(self.device_data)
         return False
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the state attributes."""
-        if self.entity_description.key == "flood":
-            device = self.device_data
-            status = device.get("status", {})
-            return {
-                "location": device.get("location_name"),
-                "shutoff": device.get("auto_shutoff"),
-                "rssi": status.get("rssi"),
-            }
-        if self.entity_description.key == "temperature_alert":
-            return self.device_data.get("temp_alarm_thresholds", {})
-
+        if self.entity_description.attributes_fn:
+            return self.entity_description.attributes_fn(self.device_data)
         return {}

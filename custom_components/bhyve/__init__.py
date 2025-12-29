@@ -173,19 +173,34 @@ class BHyveCoordinatorEntity(CoordinatorEntity[BHyveDataUpdateCoordinator]):
         self,
         coordinator: BHyveDataUpdateCoordinator,
         device: BHyveDevice,
-        name: str,
-        icon: str,
+        name: str | None = None,
+        icon: str | None = None,
         device_class: str | None = None,
     ) -> None:
-        """Initialize the entity."""
+        """
+        Initialize the entity.
+
+        Args:
+        ----
+            coordinator: The data update coordinator.
+            device: The device data.
+            name: Entity name (optional, can be set via entity_description).
+            icon: Entity icon without mdi: prefix (optional).
+            device_class: Entity device class (optional).
+
+        """
         super().__init__(coordinator)
         self._device_id = device.get("id", "")
         self._device_type = device.get("type", "")
         self._device_name = device.get("name", "")
         self._mac_address = device.get("mac_address")
-        self._attr_name = name
-        self._attr_icon = f"mdi:{icon}"
-        if device_class:
+
+        # Set attributes if provided (for entities not using descriptions)
+        if name is not None:
+            self._attr_name = name
+        if icon is not None:
+            self._attr_icon = f"mdi:{icon}"
+        if device_class is not None:
             self._attr_device_class = device_class
 
         # Device info for grouping

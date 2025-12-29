@@ -9,9 +9,10 @@ from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTemperature
 from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
 from custom_components.bhyve.sensor import (
-    BHyveBatterySensor,
-    BHyveStateSensor,
-    BHyveTemperatureSensor,
+    SENSOR_TYPES_BATTERY,
+    SENSOR_TYPES_FLOOD,
+    SENSOR_TYPES_SPRINKLER,
+    BHyveSensor,
     BHyveZoneHistorySensor,
 )
 
@@ -125,17 +126,18 @@ class TestBHyveBatterySensor:
             }
         )
 
-        sensor = BHyveBatterySensor(
+        sensor = BHyveSensor(
             coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
+            description=SENSOR_TYPES_BATTERY[0],
         )
 
         # Test basic properties
         assert sensor.name == "Test Sprinkler battery level"
         assert sensor.device_class == SensorDeviceClass.BATTERY
-        assert sensor._attr_state_class == SensorStateClass.MEASUREMENT
-        assert sensor._attr_native_unit_of_measurement == PERCENTAGE
-        assert sensor._attr_entity_category == EntityCategory.DIAGNOSTIC
+        assert sensor.entity_description.state_class == SensorStateClass.MEASUREMENT
+        assert sensor.entity_description.native_unit_of_measurement == PERCENTAGE
+        assert sensor.entity_description.entity_category == EntityCategory.DIAGNOSTIC
 
     async def test_battery_sensor_state(
         self,
@@ -152,9 +154,10 @@ class TestBHyveBatterySensor:
             }
         )
 
-        sensor = BHyveBatterySensor(
+        sensor = BHyveSensor(
             coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
+            description=SENSOR_TYPES_BATTERY[0],
         )
 
         # Test state
@@ -180,9 +183,10 @@ class TestBHyveBatterySensor:
             }
         )
 
-        sensor = BHyveBatterySensor(
+        sensor = BHyveSensor(
             coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
+            description=SENSOR_TYPES_BATTERY[0],
         )
 
         # Initial state
@@ -215,14 +219,15 @@ class TestBHyveStateSensor:
             }
         )
 
-        sensor = BHyveStateSensor(
+        sensor = BHyveSensor(
             coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
+            description=SENSOR_TYPES_SPRINKLER[0],
         )
 
         # Test basic properties
         assert sensor.name == "Test Sprinkler state"
-        assert sensor._attr_entity_category == EntityCategory.DIAGNOSTIC
+        assert sensor.entity_description.entity_category == EntityCategory.DIAGNOSTIC
 
     async def test_state_sensor_values(
         self,
@@ -239,9 +244,10 @@ class TestBHyveStateSensor:
             }
         )
 
-        sensor = BHyveStateSensor(
+        sensor = BHyveSensor(
             coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
+            description=SENSOR_TYPES_SPRINKLER[0],
         )
 
         # Test initial state
@@ -273,16 +279,20 @@ class TestBHyveTemperatureSensor:
             }
         )
 
-        sensor = BHyveTemperatureSensor(
+        sensor = BHyveSensor(
             coordinator=coordinator,
             device=mock_flood_device,
+            description=SENSOR_TYPES_FLOOD[0],
         )
 
         # Test basic properties
         assert sensor.name == "Test Flood Sensor temperature sensor"
         assert sensor.device_class == SensorDeviceClass.TEMPERATURE
-        assert sensor._attr_state_class == SensorStateClass.MEASUREMENT
-        assert sensor._attr_native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT
+        assert sensor.entity_description.state_class == SensorStateClass.MEASUREMENT
+        assert (
+            sensor.entity_description.native_unit_of_measurement
+            == UnitOfTemperature.FAHRENHEIT
+        )
 
     async def test_temperature_sensor_state(
         self,
@@ -299,9 +309,10 @@ class TestBHyveTemperatureSensor:
             }
         )
 
-        sensor = BHyveTemperatureSensor(
+        sensor = BHyveSensor(
             coordinator=coordinator,
             device=mock_flood_device,
+            description=SENSOR_TYPES_FLOOD[0],
         )
 
         # Test state
@@ -405,14 +416,16 @@ class TestSensorWebsocketEvents:
             }
         )
 
-        battery_sensor = BHyveBatterySensor(
+        battery_sensor = BHyveSensor(
             coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
+            description=SENSOR_TYPES_BATTERY[0],
         )
 
-        state_sensor = BHyveStateSensor(
+        state_sensor = BHyveSensor(
             coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
+            description=SENSOR_TYPES_SPRINKLER[0],
         )
 
         # Initial state - sensors should be available
