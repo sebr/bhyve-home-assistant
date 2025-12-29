@@ -1,9 +1,11 @@
 """Support for Orbit BHyve valve (toggle zone)."""
 
+from __future__ import annotations
+
 import datetime
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant.components.valve import (
@@ -11,37 +13,23 @@ from homeassistant.components.valve import (
     ValveEntity,
     ValveEntityFeature,
 )
-from homeassistant.components.valve.const import (
-    DOMAIN as VALVE_DOMAIN,
-)
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.components.valve.const import DOMAIN as VALVE_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt
 
-from custom_components.bhyve.pybhyve.client import BHyveClient
-from custom_components.bhyve.pybhyve.typings import (
-    BHyveDevice,
-    BHyveTimerProgram,
-    BHyveZone,
-)
-
-from . import BHyveDeviceEntity
-from .const import (
-    CONF_CLIENT,
-    DEVICE_SPRINKLER,
-    DOMAIN,
-    EVENT_CHANGE_MODE,
-    EVENT_DEVICE_IDLE,
-    EVENT_PROGRAM_CHANGED,
-    EVENT_SET_MANUAL_PRESET_TIME,
-    EVENT_WATERING_COMPLETE,
-    EVENT_WATERING_IN_PROGRESS,
-)
+from . import BHyveCoordinatorEntity
+from .const import DEVICE_SPRINKLER, DOMAIN, EVENT_CHANGE_MODE
 from .pybhyve.errors import BHyveError
-from .util import filter_configured_devices, orbit_time_to_local_time
+from .util import orbit_time_to_local_time
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+    from .coordinator import BHyveDataUpdateCoordinator
+    from .pybhyve.typings import BHyveDevice, BHyveTimerProgram, BHyveZone
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -147,51 +135,49 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the BHyve valve platform from a config entry."""
-    bhyve = hass.data[DOMAIN][entry.entry_id][CONF_CLIENT]
+    coordinator: BHyveDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id][
+        "coordinator"
+    ]
+    devices: list[BHyveDevice] = hass.data[DOMAIN][entry.entry_id]["devices"]
 
     valves = []
-    devices = filter_configured_devices(entry, await bhyve.devices)
-    programs = await bhyve.timer_programs
-
-    device_by_id = {}
 
     for device in devices:
         device_id = device.get("id")
-        device_by_id[device_id] = device
         if device.get("type") == DEVICE_SPRINKLER:
             if not device.get("status"):
                 _LOGGER.warning(
-                    "Unable to configure device %s: the 'status' attribute is missing. Has it been paired with the wifi hub?",  # noqa: E501
+                    "Unable to configure device %s: the 'status' attribute is missing. "
+                    "Has it been paired with the wifi hub?",
                     device.get("name"),
                 )
                 continue
 
-            # Filter out any programs which are not for this device
+            # Get programs for this device from coordinator
             device_programs = [
-                program for program in programs if program.get("device_id") == device_id
+                program
+                for program in coordinator.data.get("programs", {}).values()
+                if program.get("device_id") == device_id
             ]
 
-            all_zones = device.get("zones")
+            all_zones = device.get("zones", [])
             for zone in all_zones:
-                zone_name = zone.get("name")
-                # if the zone doesn't have a name, set it to the device's name if there is only one (eg a hose timer)  # noqa: E501
-                if zone_name is None:
-                    zone_name = (
-                        device.get("name") if len(all_zones) == 1 else "Unnamed Zone"
-                    )
+                zone_name: str = zone.get("name") or (
+                    device.get("name", "Unnamed Zone")
+                    if len(all_zones) == 1
+                    else "Unnamed Zone"
+                )
                 valves.append(
                     BHyveZoneValve(
-                        hass,
-                        bhyve,
+                        coordinator,
                         device,
                         zone,
                         zone_name,
                         device_programs,
-                        "water-pump",
                     )
                 )
 
-    async_add_entities(valves, True)  # noqa: FBT003
+    async_add_entities(valves)
 
     async def async_service_handler(service: Any) -> None:
         """Map services to method of BHyve devices."""
@@ -227,140 +213,144 @@ async def async_setup_entry(
         )
 
 
-class BHyveZoneValve(BHyveDeviceEntity, ValveEntity):
+class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
     """Define a BHyve zone valve."""
+
+    _attr_device_class = ValveDeviceClass.WATER
+    _attr_reports_position = False
+    _attr_supported_features = ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE
 
     def __init__(
         self,
-        hass: HomeAssistant,
-        bhyve: BHyveClient,
+        coordinator: BHyveDataUpdateCoordinator,
         device: BHyveDevice,
         zone: BHyveZone,
         zone_name: str,
         device_programs: list[BHyveTimerProgram],
-        icon: str,
     ) -> None:
         """Initialize the valve."""
+        name = f"{zone_name} zone"
+        _LOGGER.info("Creating valve: %s", name)
+
+        super().__init__(
+            coordinator, device, name, "water-pump", ValveDeviceClass.WATER
+        )
+
         self._zone: BHyveZone = zone
         self._zone_id: str = zone.get("station", "")
         self._entity_picture: str | None = zone.get("image_url")
-
-        self._attr_is_closed: bool = True
-        self._attr_reports_position = False
-        self._attr_supported_features = (
-            ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE
-        )
-
         self._zone_name: str = zone_name
         self._smart_watering_enabled: bool = zone.get("smart_watering_enabled", False)
         self._manual_preset_runtime: int = device.get(
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
-
         self._initial_programs = device_programs
 
-        name = f"{self._zone_name} zone"
-        _LOGGER.info("Creating valve: %s", name)
+    @property
+    def is_closed(self) -> bool:
+        """Return if valve is closed."""
+        status = self.device_data.get("status", {})
+        watering_status = status.get("watering_status")
 
-        super().__init__(hass, bhyve, device, name, icon, ValveDeviceClass.WATER)
+        if watering_status:
+            current_station = watering_status.get("current_station")
+            # Valve is open (watering) if current_station matches this zone
+            return str(current_station) != str(self._zone_id)
+        return True
 
-    def _setup(self, device: BHyveDevice) -> None:
-        self._attr_is_closed = True
-        self._attrs = {
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the device state attributes."""
+        attrs: dict[str, Any] = {
             "device_name": self._device_name,
             "device_id": self._device_id,
             "zone_name": self._zone_name,
             "station": self._zone_id,
             ATTR_SMART_WATERING_ENABLED: self._smart_watering_enabled,
+            ATTR_MANUAL_RUNTIME: self._manual_preset_runtime,
         }
-        self._available = device.get("is_connected", False)
 
-        status = device.get("status", {})
+        status = self.device_data.get("status", {})
         watering_status = status.get("watering_status")
 
-        _LOGGER.info("%s watering_status: %s", self.name, watering_status)
-
-        zones = device.get("zones", [])
-
+        # Get zone data from coordinator
+        zones = self.device_data.get("zones", [])
         zone = next(filter(lambda z: z.get("station") == self._zone_id, zones), None)
 
         if zone is not None:
-            is_watering = (
-                watering_status is not None
-                and watering_status.get("current_station") == self._zone_id
-            )
-            self._attr_is_closed = not is_watering
-            self._attrs[ATTR_MANUAL_RUNTIME] = self._manual_preset_runtime
-
-            next_start_time = orbit_time_to_local_time(status.get("next_start_time"))
-            if next_start_time is not None:
-                next_start_programs = status.get("next_start_programs")
-                self._attrs.update(
-                    {
-                        ATTR_NEXT_START_TIME: next_start_time.isoformat(),
-                        ATTR_NEXT_START_PROGRAMS: next_start_programs,
-                    }
-                )
-
+            # Add zone-specific attributes
             sprinkler_type = zone.get("sprinkler_type")
             if sprinkler_type is not None:
-                self._attrs[ATTR_SPRINKLER_TYPE] = sprinkler_type
+                attrs[ATTR_SPRINKLER_TYPE] = sprinkler_type
 
             image_url = zone.get("image_url")
             if image_url is not None:
-                self._attrs[ATTR_IMAGE_URL] = image_url
+                attrs[ATTR_IMAGE_URL] = image_url
 
-            if is_watering:
-                started_watering_at = watering_status.get("started_watering_station_at")
-                current_station = watering_status.get("current_station")
-                current_program = watering_status.get("program", None)
-                stations = watering_status.get("stations")
-                current_runtime = stations[0].get("run_time") if stations else None
-                self._set_watering_started(
-                    started_watering_at,
-                    current_station,
-                    current_program,
-                    current_runtime,
-                )
+        # Add next start time if available
+        next_start_time = orbit_time_to_local_time(status.get("next_start_time"))
+        if next_start_time is not None:
+            next_start_programs = status.get("next_start_programs")
+            attrs.update(
+                {
+                    ATTR_NEXT_START_TIME: next_start_time.isoformat(),
+                    ATTR_NEXT_START_PROGRAMS: next_start_programs,
+                }
+            )
 
-        if self._initial_programs is not None:
-            programs = self._initial_programs
-            for program in programs:
-                self._set_watering_program(program)
-            self._initial_programs = None
+        # Add watering status if actively watering this zone
+        if watering_status and str(watering_status.get("current_station")) == str(
+            self._zone_id
+        ):
+            started_watering_at = watering_status.get("started_watering_station_at")
+            started_watering_at_timestamp = (
+                orbit_time_to_local_time(started_watering_at)
+                if started_watering_at is not None
+                else None
+            )
+            current_program = watering_status.get("program")
+            stations = watering_status.get("stations")
+            current_runtime = stations[0].get("run_time") if stations else None
 
-    def _set_watering_started(
-        self,
-        timestamp: str | None,
-        station: str | None,
-        program: str | None,
-        runtime: int | None,
+            attrs.update(
+                {
+                    ATTR_CURRENT_STATION: watering_status.get("current_station"),
+                    ATTR_CURRENT_PROGRAM: current_program,
+                    ATTR_CURRENT_RUNTIME: current_runtime,
+                    ATTR_STARTED_WATERING_AT: started_watering_at_timestamp,
+                }
+            )
+
+        # Add program information
+        for program in self.coordinator.data.get("programs", {}).values():
+            if program.get("device_id") == self._device_id:
+                self._add_program_attrs(attrs, program)
+
+        # Get landscape data from coordinator
+        landscapes = (
+            self.coordinator.data.get("devices", {})
+            .get(self._device_id, {})
+            .get("landscapes", {})
+        )
+        landscape = landscapes.get(str(self._zone_id))
+        if landscape:
+            if landscape.get("image_url"):
+                attrs["landscape_image"] = landscape["image_url"]
+            if landscape.get("sprinkler_type"):
+                attrs[ATTR_SPRINKLER_TYPE] = landscape["sprinkler_type"]
+
+        return attrs
+
+    def _add_program_attrs(
+        self, attrs: dict[str, Any], program: BHyveTimerProgram
     ) -> None:
-        started_watering_at_timestamp = (
-            orbit_time_to_local_time(timestamp) if timestamp is not None else None
-        )
-
-        self._attrs.update(
-            {
-                ATTR_CURRENT_STATION: station,
-                ATTR_CURRENT_PROGRAM: program,
-                ATTR_CURRENT_RUNTIME: runtime,
-                ATTR_STARTED_WATERING_AT: started_watering_at_timestamp,
-            }
-        )
-
-    def _set_watering_program(self, program: BHyveTimerProgram | None) -> None:
-        if program is None:
-            return
-
+        """Add program attributes to the attrs dict."""
         program_name = program.get("name", "Unknown")
         program_id = program.get("program")
         program_enabled = program.get("enabled", False)
 
         if program_id is None:
             return
-
-        program_attr = ATTR_PROGRAM.format(program_id)
 
         # Filter out any run times which are not for this valve
         active_program_run_times = list(
@@ -370,32 +360,18 @@ class BHyveZoneValve(BHyveDeviceEntity, ValveEntity):
             )
         )
 
-        is_smart_program = program.get("is_smart_program", False)
+        # Skip if program is disabled or has no run times for this zone
+        if not program_enabled or not active_program_run_times:
+            return
 
-        self._attrs[program_attr] = {
+        is_smart_program = program.get("is_smart_program", False)
+        program_attr = ATTR_PROGRAM.format(program_id)
+
+        attrs[program_attr] = {
             "enabled": program_enabled,
             "name": program_name,
             "is_smart_program": is_smart_program,
         }
-
-        if not program_enabled or not active_program_run_times:
-            _LOGGER.info(
-                "%s Zone: Watering program %s (%s) is not enabled, skipping",
-                self._zone_name,
-                program_name,
-                program_id,
-            )
-
-            return
-
-        """
-        #    "name": "Backyard",
-        #    "frequency": { "type": "days", "days": [1, 4] },
-        #    "start_times": ["07:30"],
-        #    "budget": 100,
-        #    "program": "a",
-        #    "run_times": [{ "run_time": 20, "station": 1 }],
-        """
 
         if is_smart_program is True:
             upcoming_run_times = []
@@ -417,104 +393,15 @@ class BHyveZoneValve(BHyveDeviceEntity, ValveEntity):
                                         minutes=upcoming_time.minute,
                                     )
                                 )
-            self._attrs[program_attr].update(
-                {ATTR_SMART_WATERING_PLAN: upcoming_run_times}
-            )
+            attrs[program_attr].update({ATTR_SMART_WATERING_PLAN: upcoming_run_times})
         else:
-            self._attrs[program_attr].update(
+            attrs[program_attr].update(
                 {
                     "start_times": program.get("start_times", []),
                     "frequency": program.get("frequency", []),
                     "run_times": active_program_run_times,
                 }
             )
-
-    def _should_handle_event(self, event_name: str, _data: dict) -> bool:
-        return event_name in [
-            EVENT_CHANGE_MODE,
-            EVENT_DEVICE_IDLE,
-            EVENT_PROGRAM_CHANGED,
-            EVENT_SET_MANUAL_PRESET_TIME,
-            EVENT_WATERING_COMPLETE,
-            EVENT_WATERING_IN_PROGRESS,
-        ]
-
-    def _on_ws_data(self, data: dict) -> None:
-        """
-        Handle websocket data.
-
-        # {'event': 'watering_in_progress_notification', 'program': 'e', 'current_station': 1, 'run_time': 14, 'started_watering_station_at': '2020-01-09T20:29:59.000Z', 'rain_sensor_hold': False, 'device_id': 'id', 'timestamp': '2020-01-09T20:29:59.000Z'}
-        # {'event': 'device_idle', 'device_id': 'id', 'timestamp': '2020-01-10T12:32:06.000Z'}
-        # {'event': 'set_manual_preset_runtime', 'device_id': 'id', 'seconds': 480, 'timestamp': '2020-01-18T17:00:35.000Z'}
-        # {'event': 'program_changed' }
-        """  # noqa: E501
-        event = data.get("event")
-        if event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE) or (
-            event == EVENT_CHANGE_MODE and data.get("mode") in ("off", "auto")
-        ):
-            self._attr_is_closed = True
-            self._set_watering_started(None, None, None, None)
-        elif event == EVENT_WATERING_IN_PROGRESS:
-            current_station = data.get("current_station")
-
-            # Normalize ids
-            if current_station is not None and str(current_station) == str(
-                self._zone_id
-            ):
-                # This is *my* zone running
-                self._attr_is_closed = False
-                started_watering_at = data.get("started_watering_station_at")
-                current_program = data.get("program")
-                current_runtime = data.get("run_time")
-
-                self._set_watering_started(
-                    started_watering_at,
-                    current_station,
-                    current_program,
-                    current_runtime,
-                )
-            # Only turn off on watering_in_progress if another station is active
-            elif current_station is not None and not self._attr_is_closed:
-                if str(current_station) != str(self._zone_id):
-                    _LOGGER.debug(
-                        "%s: Another station (%s) is watering, marking this zone (%s) off",  # noqa: E501
-                        self.name,
-                        current_station,
-                        self._zone_id,
-                    )
-                    self._attr_is_closed = True
-                    self._set_watering_started(None, None, None, None)
-        elif event == EVENT_SET_MANUAL_PRESET_TIME:
-            manual_preset_runtime = data.get("seconds")
-            if manual_preset_runtime is not None:
-                self._manual_preset_runtime = manual_preset_runtime
-                self._attrs[ATTR_MANUAL_RUNTIME] = manual_preset_runtime
-        elif event == EVENT_PROGRAM_CHANGED:
-            watering_program = data.get("program")
-            lifecycle_phase = data.get("lifecycle_phase")
-            if lifecycle_phase != "destroy":
-                self._set_watering_program(watering_program)
-            else:
-                self._attrs[ATTR_SMART_WATERING_PLAN] = None
-
-    async def _send_station_message(self, station_payload: Any) -> None:
-        try:
-            now = datetime.datetime.now()  # noqa: DTZ005 - be timezone aware?
-            iso_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-            payload = {
-                "event": EVENT_CHANGE_MODE,
-                "mode": "manual",
-                "device_id": self._device_id,
-                "timestamp": iso_time,
-                "stations": station_payload,
-            }
-            _LOGGER.debug("Sending message %s", payload)
-            await self._bhyve.send_message(payload)
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise
 
     @property
     def entity_picture(self) -> str | None:
@@ -526,12 +413,33 @@ class BHyveZoneValve(BHyveDeviceEntity, ValveEntity):
         """Return a unique, unchanging string that represents this valve."""
         return f"{self._mac_address}:{self._device_id}:{self._zone_id}:valve"
 
+    async def _send_station_message(self, station_payload: Any) -> None:
+        """Send a station control message via WebSocket."""
+        try:
+            now = datetime.datetime.now()  # noqa: DTZ005
+            iso_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            payload = {
+                "event": EVENT_CHANGE_MODE,
+                "mode": "manual",
+                "device_id": self._device_id,
+                "timestamp": iso_time,
+                "stations": station_payload,
+            }
+            _LOGGER.debug("Sending message %s", payload)
+            await self.coordinator.client.send_message(payload)
+            # Coordinator updates via WebSocket event
+
+        except BHyveError as err:
+            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
+            raise
+
     async def set_smart_watering_soil_moisture(self, percentage: float) -> None:
         """Set the soil moisture percentage for the zone."""
         if self._smart_watering_enabled:
             landscape = None
             try:
-                landscape = await self._bhyve.get_landscape(
+                landscape = await self.coordinator.client.get_landscape(
                     self._device_id, self._zone_id
                 )
 
@@ -572,7 +480,7 @@ class BHyveZoneValve(BHyveDeviceEntity, ValveEntity):
 
                 try:
                     _LOGGER.debug("Landscape update %s", landscape_update)
-                    await self._bhyve.update_landscape(landscape_update)
+                    await self.coordinator.client.update_landscape(landscape_update)
 
                 except BHyveError as err:
                     _LOGGER.warning(

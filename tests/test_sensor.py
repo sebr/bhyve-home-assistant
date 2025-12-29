@@ -5,9 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTemperature
-from homeassistant.core import HomeAssistant
 
-from custom_components.bhyve.pybhyve.client import BHyveClient
+from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
 from custom_components.bhyve.sensor import (
     BHyveBatterySensor,
@@ -22,18 +21,18 @@ TEST_BATTERY_LEVEL_UPDATED = 50
 TEST_TEMPERATURE_FAHRENHEIT = 72.5
 
 
-@pytest.fixture
-def mock_bhyve_client() -> MagicMock:
-    """Mock BHyve client."""
-    client = MagicMock(spec=BHyveClient)
-    client.login = AsyncMock(return_value=True)
-    client.devices = AsyncMock(return_value=[])
-    client.timer_programs = AsyncMock(return_value=[])
-    client.get_device = AsyncMock()
-    client.send_message = AsyncMock()
-    client.get_device_history = AsyncMock()
-    client.stop = MagicMock()
-    return client
+def create_mock_coordinator(devices: dict) -> MagicMock:
+    """Create a mock coordinator with the given devices."""
+    coordinator = MagicMock(spec=BHyveDataUpdateCoordinator)
+    coordinator.data = {
+        "devices": devices,
+        "programs": {},
+    }
+    coordinator.last_update_success = True
+    coordinator.async_set_updated_data = MagicMock()
+    coordinator.client = MagicMock()
+    coordinator.client.send_message = AsyncMock()
+    return coordinator
 
 
 @pytest.fixture
@@ -56,6 +55,7 @@ def mock_sprinkler_device_with_battery() -> BHyveDevice:
                 "run_mode": "auto",
                 "watering_status": None,
             },
+            "zones": [{"station": "1", "name": "Front Lawn"}],
         }
     )
 
@@ -78,7 +78,10 @@ def mock_flood_device() -> BHyveDevice:
             },
             "status": {
                 "temp_f": TEST_TEMPERATURE_FAHRENHEIT,
+                "rssi": -45,
+                "temp_alarm_status": "ok",
             },
+            "location_name": "Basement",
         }
     )
 
@@ -109,73 +112,89 @@ class TestBHyveBatterySensor:
 
     async def test_battery_sensor_initialization(
         self,
-        hass: HomeAssistant,
         mock_sprinkler_device_with_battery: BHyveDevice,
-        mock_bhyve_client: MagicMock,
     ) -> None:
         """Test battery sensor entity initialization."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_battery,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
         sensor = BHyveBatterySensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
         )
 
         # Test basic properties
         assert sensor.name == "Test Sprinkler battery level"
         assert sensor.device_class == SensorDeviceClass.BATTERY
-        assert sensor._state_class == SensorStateClass.MEASUREMENT
+        assert sensor._attr_state_class == SensorStateClass.MEASUREMENT
         assert sensor._attr_native_unit_of_measurement == PERCENTAGE
         assert sensor._attr_entity_category == EntityCategory.DIAGNOSTIC
 
     async def test_battery_sensor_state(
         self,
-        hass: HomeAssistant,
         mock_sprinkler_device_with_battery: BHyveDevice,
-        mock_bhyve_client: MagicMock,
     ) -> None:
         """Test battery sensor state and attributes."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_battery,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
         sensor = BHyveBatterySensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
         )
 
-        # Setup device to populate state
-        sensor._setup(mock_sprinkler_device_with_battery)
-
         # Test state
-        assert sensor.state == TEST_BATTERY_LEVEL
+        assert sensor.native_value == TEST_BATTERY_LEVEL
         assert sensor.available is True
 
         # Test icon changes based on battery level
+        assert sensor.icon is not None
         assert "battery" in sensor.icon
 
     async def test_battery_sensor_websocket_event(
         self,
-        hass: HomeAssistant,
         mock_sprinkler_device_with_battery: BHyveDevice,
-        mock_bhyve_client: MagicMock,
     ) -> None:
         """Test battery sensor response to websocket events."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_battery,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
         sensor = BHyveBatterySensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
         )
 
-        # Simulate battery status update
-        battery_event = {
-            "event": "battery_status",
-            "device_id": "test-device-123",
-            "percent": 50,
-            "timestamp": "2020-01-09T21:00:00.000Z",
-        }
+        # Initial state
+        assert sensor.native_value == TEST_BATTERY_LEVEL
 
-        # Process the websocket event
-        sensor._on_ws_data(battery_event)
+        # Simulate coordinator update with new battery level
+        coordinator.data["devices"]["test-device-123"]["device"]["battery"][
+            "percent"
+        ] = TEST_BATTERY_LEVEL_UPDATED
 
-        # Battery level should be updated
-        assert sensor.state == TEST_BATTERY_LEVEL_UPDATED
+        # State should be updated
+        assert sensor.native_value == TEST_BATTERY_LEVEL_UPDATED
 
 
 class TestBHyveStateSensor:
@@ -183,40 +202,57 @@ class TestBHyveStateSensor:
 
     async def test_state_sensor_initialization(
         self,
-        hass: HomeAssistant,
         mock_sprinkler_device_with_battery: BHyveDevice,
-        mock_bhyve_client: MagicMock,
     ) -> None:
         """Test state sensor entity initialization."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_battery,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
         sensor = BHyveStateSensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
         )
 
         # Test basic properties
         assert sensor.name == "Test Sprinkler state"
-        assert sensor.device_class is None
+        assert sensor._attr_entity_category == EntityCategory.DIAGNOSTIC
 
     async def test_state_sensor_values(
         self,
-        hass: HomeAssistant,
         mock_sprinkler_device_with_battery: BHyveDevice,
-        mock_bhyve_client: MagicMock,
     ) -> None:
-        """Test state sensor state values."""
+        """Test state sensor with different run modes."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_battery,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
         sensor = BHyveStateSensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
         )
 
-        # Setup device to populate state
-        sensor._setup(mock_sprinkler_device_with_battery)
-
         # Test initial state
-        assert sensor.state == "auto"
-        assert sensor.available is True
+        assert sensor.native_value == "auto"
+
+        # Simulate coordinator update
+        coordinator.data["devices"]["test-device-123"]["device"]["status"][
+            "run_mode"
+        ] = "manual"
+
+        assert sensor.native_value == "manual"
 
 
 class TestBHyveTemperatureSensor:
@@ -224,42 +260,59 @@ class TestBHyveTemperatureSensor:
 
     async def test_temperature_sensor_initialization(
         self,
-        hass: HomeAssistant,
         mock_flood_device: BHyveDevice,
-        mock_bhyve_client: MagicMock,
     ) -> None:
         """Test temperature sensor entity initialization."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-flood-456": {
+                    "device": mock_flood_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
         sensor = BHyveTemperatureSensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_flood_device,
         )
 
         # Test basic properties
         assert sensor.name == "Test Flood Sensor temperature sensor"
         assert sensor.device_class == SensorDeviceClass.TEMPERATURE
+        assert sensor._attr_state_class == SensorStateClass.MEASUREMENT
+        assert sensor._attr_native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT
 
     async def test_temperature_sensor_state(
         self,
-        hass: HomeAssistant,
         mock_flood_device: BHyveDevice,
-        mock_bhyve_client: MagicMock,
     ) -> None:
-        """Test temperature sensor state."""
+        """Test temperature sensor state and attributes."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-flood-456": {
+                    "device": mock_flood_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
         sensor = BHyveTemperatureSensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_flood_device,
         )
 
-        # Setup device to populate state
-        sensor._setup(mock_flood_device)
-
-        # Test state after setup
-        assert sensor._attr_native_value == TEST_TEMPERATURE_FAHRENHEIT
-        assert sensor._attr_native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT
-        assert sensor._state_class == SensorStateClass.MEASUREMENT
+        # Test state
+        assert sensor.native_value == TEST_TEMPERATURE_FAHRENHEIT
         assert sensor.available is True
+
+        # Test attributes
+        attrs = sensor.extra_state_attributes
+        assert attrs["location"] == "Basement"
+        assert attrs["rssi"] == -45
+        assert attrs["temperature_alarm"] == "ok"
 
 
 class TestBHyveZoneHistorySensor:
@@ -267,103 +320,107 @@ class TestBHyveZoneHistorySensor:
 
     async def test_zone_history_sensor_initialization(
         self,
-        hass: HomeAssistant,
         mock_sprinkler_device_with_battery: BHyveDevice,
-        mock_bhyve_client: MagicMock,
     ) -> None:
         """Test zone history sensor entity initialization."""
-        zone_data = {"station": "1", "name": "Front Yard"}
-        zone_name = "Front Yard"
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_battery,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
+        zone = {"station": "1", "name": "Front Lawn"}
 
         sensor = BHyveZoneHistorySensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
-            zone=zone_data,
-            zone_name=zone_name,
+            zone=zone,
+            zone_name="Front Lawn",
         )
 
         # Test basic properties
-        assert sensor.name == "Front Yard zone history"
-        assert sensor.device_class == "timestamp"
+        assert sensor.name == "Front Lawn zone history"
+        assert sensor._attr_device_class == SensorDeviceClass.TIMESTAMP
+        assert sensor._attr_entity_category == EntityCategory.DIAGNOSTIC
 
     async def test_zone_history_sensor_attributes(
         self,
-        hass: HomeAssistant,
         mock_sprinkler_device_with_battery: BHyveDevice,
-        mock_bhyve_client: MagicMock,
         mock_zone_history_data: list,
     ) -> None:
-        """Test zone history sensor attributes."""
-        zone_data = {"station": "1", "name": "Front Yard"}
-        zone_name = "Front Yard"
+        """Test zone history sensor with history data."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_battery,
+                    "history": mock_zone_history_data,
+                    "landscapes": {},
+                }
+            }
+        )
+
+        zone = {"station": "1", "name": "Front Lawn"}
 
         sensor = BHyveZoneHistorySensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
-            zone=zone_data,
-            zone_name=zone_name,
+            zone=zone,
+            zone_name="Front Lawn",
         )
 
-        # Mock the device history fetch
-        mock_bhyve_client.get_device_history.return_value = mock_zone_history_data
+        # Test state (should be ISO timestamp)
+        assert sensor.native_value is not None
+        assert "2020-01-09" in sensor.native_value
 
-        # Update sensor to fetch history
-        await sensor.async_update()
-
-        # Test that history data is processed
+        # Test attributes
         attrs = sensor.extra_state_attributes
-
-        # Check that watering event attributes are set
-        irrigation_event = mock_zone_history_data[0]["irrigation"][0]
-        assert attrs.get("budget") == irrigation_event["budget"]
-        assert attrs.get("program") == irrigation_event["program"]
-        assert attrs.get("program_name") == irrigation_event["program_name"]
-        assert attrs.get("run_time") == irrigation_event["run_time"]
-        assert attrs.get("status") == irrigation_event["status"]
-        assert attrs.get("consumption_gallons") == irrigation_event["water_volume_gal"]
-        assert attrs.get("consumption_litres") == round(
-            irrigation_event["water_volume_gal"] * 3.785, 2
-        )
+        assert attrs["budget"] == 100
+        assert attrs["program"] == "a"
+        assert attrs["program_name"] == "Morning Schedule"
+        assert attrs["run_time"] == 15
+        assert attrs["status"] == "completed"
+        assert attrs["consumption_gallons"] == 25.5
+        assert attrs["consumption_litres"] == 96.52
 
 
 class TestSensorWebsocketEvents:
-    """Test sensor responses to websocket events."""
+    """Test sensor response to websocket events."""
 
     async def test_sensors_handle_device_connection_events(
         self,
-        hass: HomeAssistant,
         mock_sprinkler_device_with_battery: BHyveDevice,
-        mock_bhyve_client: MagicMock,
     ) -> None:
         """Test sensors handle device connection/disconnection events."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_battery,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
         battery_sensor = BHyveBatterySensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
         )
 
         state_sensor = BHyveStateSensor(
-            hass=hass,
-            bhyve=mock_bhyve_client,
+            coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
         )
 
-        # Initially available
-        battery_sensor._setup(mock_sprinkler_device_with_battery)
-        state_sensor._setup(mock_sprinkler_device_with_battery)
-
+        # Initial state - sensors should be available
         assert battery_sensor.available is True
         assert state_sensor.available is True
 
         # Simulate device disconnection
-        disconnected_device_data = dict(mock_sprinkler_device_with_battery)
-        disconnected_device_data["is_connected"] = False
-        disconnected_device = BHyveDevice(disconnected_device_data)
-
-        battery_sensor._setup(disconnected_device)
-        state_sensor._setup(disconnected_device)
+        coordinator.data["devices"]["test-device-123"]["device"]["is_connected"] = False
 
         # Sensors should be unavailable
         assert battery_sensor.available is False

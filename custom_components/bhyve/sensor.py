@@ -1,37 +1,35 @@
 """Support for Orbit BHyve sensors."""
 
+from __future__ import annotations
+
 import logging
-from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_BATTERY_LEVEL,
     PERCENTAGE,
     EntityCategory,
     UnitOfTemperature,
 )
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.icon import icon_for_battery_level
 
-from . import BHyveDeviceEntity
+from . import BHyveCoordinatorEntity
 from .const import (
-    CONF_CLIENT,
     DEVICE_FLOOD,
     DEVICE_SPRINKLER,
     DOMAIN,
-    EVENT_BATTERY_STATUS,
-    EVENT_CHANGE_MODE,
-    EVENT_DEVICE_IDLE,
-    EVENT_FS_ALARM,
 )
-from .pybhyve.client import BHyveClient
-from .pybhyve.errors import BHyveError
-from .pybhyve.typings import BHyveDevice
-from .util import filter_configured_devices, orbit_time_to_local_time
+from .util import orbit_time_to_local_time
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+    from .coordinator import BHyveDataUpdateCoordinator
+    from .pybhyve.typings import BHyveDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,128 +43,91 @@ ATTR_RUN_TIME = "run_time"
 ATTR_START_TIME = "start_time"
 ATTR_STATUS = "status"
 
-SCAN_INTERVAL = timedelta(minutes=5)
-
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the BHyve sensor platform from a config entry."""
-    bhyve = hass.data[DOMAIN][entry.entry_id][CONF_CLIENT]
+    coordinator: BHyveDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id][
+        "coordinator"
+    ]
+    devices: list[BHyveDevice] = hass.data[DOMAIN][entry.entry_id]["devices"]
 
     sensors = []
-    devices = filter_configured_devices(entry, await bhyve.devices)
 
     for device in devices:
         if device.get("type") == DEVICE_SPRINKLER:
-            sensors.append(BHyveStateSensor(hass, bhyve, device))
-            all_zones = device.get("zones")
+            sensors.append(BHyveStateSensor(coordinator, device))
+            all_zones = device.get("zones", [])
             for zone in all_zones:
                 # if the zone doesn't have a name, set it to the device's name if
                 # there is only one (eg a hose timer)
-                zone_name = zone.get("name", None)
-                if zone_name is None:
-                    zone_name = (
-                        device.get("name") if len(all_zones) == 1 else "Unnamed Zone"
-                    )
+                zone_name: str = zone.get("name") or (
+                    device.get("name", "Unnamed Zone")
+                    if len(all_zones) == 1
+                    else "Unnamed Zone"
+                )
                 sensors.append(
-                    BHyveZoneHistorySensor(hass, bhyve, device, zone, zone_name)
+                    BHyveZoneHistorySensor(coordinator, device, zone, zone_name)
                 )
 
             if device.get("battery", None) is not None:
-                sensors.append(BHyveBatterySensor(hass, bhyve, device))
+                sensors.append(BHyveBatterySensor(coordinator, device))
         if device.get("type") == DEVICE_FLOOD:
-            sensors.append(BHyveTemperatureSensor(hass, bhyve, device))
-            sensors.append(BHyveBatterySensor(hass, bhyve, device))
+            sensors.append(BHyveTemperatureSensor(coordinator, device))
+            sensors.append(BHyveBatterySensor(coordinator, device))
 
     async_add_entities(sensors)
 
 
-class BHyveBatterySensor(BHyveDeviceEntity, SensorEntity):
-    """Define a BHyve sensor."""
+class BHyveBatterySensor(BHyveCoordinatorEntity, SensorEntity):
+    """Define a BHyve battery sensor."""
 
-    _state: int | None = None
+    _attr_device_class = SensorDeviceClass.BATTERY
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
-        self, hass: HomeAssistant, bhyve: BHyveClient, device: BHyveDevice
+        self, coordinator: BHyveDataUpdateCoordinator, device: BHyveDevice
     ) -> None:
         """Initialize the sensor."""
-        name = "{} battery level".format(device.get("name"))
+        name = f"{device.get('name')} battery level"
         _LOGGER.info("Creating battery sensor: %s", name)
         super().__init__(
-            hass,
-            bhyve,
-            device,
-            name,
-            "battery",
-            SensorDeviceClass.BATTERY,
+            coordinator, device, name, "battery", SensorDeviceClass.BATTERY
         )
 
-        self._state_class = SensorStateClass.MEASUREMENT
-        self._attr_native_unit_of_measurement = PERCENTAGE
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def _setup(self, device: Any) -> None:
-        self._state = None
-        self._attrs = {}
-        self._available = device.get("is_connected", False)
-
-        battery = device.get("battery")
-
-        _LOGGER.debug("%s battery: %s", self._device_name, battery)
-
-        if battery is not None:
-            battery_level = self.parse_battery_level(battery)
-
-            self._state = battery_level
-            self._attrs[ATTR_BATTERY_LEVEL] = battery_level
+    @property
+    def native_value(self) -> int | None:
+        """Return battery level from coordinator."""
+        battery = self.device_data.get("battery")
+        if battery:
+            return self.parse_battery_level(battery)
+        return None
 
     @property
-    def state(self) -> int | None:
-        """Return the state of the entity."""
-        return self._state
-
-    @property
-    def icon(self) -> str:
+    def icon(self) -> str | None:
         """Icon to use in the frontend, if any."""
-        if self._state is not None:
+        battery_level = self.native_value
+        if battery_level is not None:
             return icon_for_battery_level(
-                battery_level=int(self._state), charging=False
+                battery_level=int(battery_level), charging=False
             )
-        return self._icon
+        return self._attr_icon
 
     @property
-    def should_poll(self) -> bool:
-        """Enable polling."""
-        return True
-
-    @property
-    def scan_interval(self) -> timedelta:
-        """Return the scan interval."""
-        return SCAN_INTERVAL
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the device state attributes."""
+        battery_level = self.native_value
+        if battery_level is not None:
+            return {ATTR_BATTERY_LEVEL: battery_level}
+        return {}
 
     @property
     def unique_id(self) -> str:
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:battery"
-
-    def _should_handle_event(self, event_name: str, _data: dict) -> bool:
-        return event_name in [EVENT_BATTERY_STATUS, EVENT_CHANGE_MODE]
-
-    def _on_ws_data(self, data: dict) -> None:
-        # {'event': 'battery_status', 'mv': 3311, 'charging': false ... }
-        #
-        event: str = data.get("event", "")
-        if event in (EVENT_BATTERY_STATUS):
-            battery_level = self.parse_battery_level(data)
-
-            self._state = battery_level
-            self._attrs[ATTR_BATTERY_LEVEL] = battery_level
-
-    async def async_update(self) -> None:
-        """Retrieve latest state."""
-        await super().async_update()
-        await self._refetch_device()
 
     @staticmethod
     def parse_battery_level(battery_data: dict) -> int:
@@ -195,211 +156,168 @@ class BHyveBatterySensor(BHyveDeviceEntity, SensorEntity):
         battery_level = battery_data.get("percent", 0)
         if "mv" in battery_data and "percent" not in battery_data:
             battery_level = min(battery_data.get("mv", 0) / 3000 * 100, 100)
-        return battery_level
+        return int(battery_level)
 
 
-class BHyveZoneHistorySensor(BHyveDeviceEntity):
-    """Define a BHyve sensor."""
+class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
+    """Define a BHyve zone history sensor."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self,
-        hass: HomeAssistant,
-        bhyve: BHyveClient,
+        coordinator: BHyveDataUpdateCoordinator,
         device: BHyveDevice,
         zone: dict,
         zone_name: str,
     ) -> None:
         """Initialize the sensor."""
-        self._history = None
         self._zone = zone
         self._zone_id = zone.get("station")
 
         name = f"{zone_name} zone history"
         _LOGGER.info("Creating history sensor: %s", name)
 
-        super().__init__(
-            hass,
-            bhyve,
-            device,
-            name,
-            "history",
-            SensorDeviceClass.TIMESTAMP,
-        )
-
-    def _setup(self, device: BHyveDevice) -> None:
-        self._state = None
-        self._attrs = {}
-        self._available = device.get("is_connected", False)
+        super().__init__(coordinator, device, name, "history")
 
     @property
-    def state(self) -> str | None:
+    def native_value(self) -> str | None:
         """Return the state of the entity."""
-        return self._state
+        history = self._get_device_history()
+        if not history:
+            return None
+
+        for history_item in history:
+            zone_irrigation = list(
+                filter(
+                    lambda i: i.get("station") == self._zone_id,
+                    history_item.get(ATTR_IRRIGATION, []),
+                )
+            )
+            if zone_irrigation:
+                # This is a bit crude - assumes the list is ordered by time.
+                latest_irrigation = zone_irrigation[-1]
+                start_time = latest_irrigation.get("start_time")
+                if start_time:
+                    local_time = orbit_time_to_local_time(start_time)
+                    if local_time:
+                        return local_time.isoformat()
+        return None
 
     @property
-    def should_poll(self) -> bool:
-        """Enable polling."""
-        return True
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the device state attributes."""
+        history = self._get_device_history()
+        if not history:
+            return {}
+
+        for history_item in history:
+            zone_irrigation = list(
+                filter(
+                    lambda i: i.get("station") == self._zone_id,
+                    history_item.get(ATTR_IRRIGATION, []),
+                )
+            )
+            if zone_irrigation:
+                # This is a bit crude - assumes the list is ordered by time.
+                latest_irrigation = zone_irrigation[-1]
+
+                gallons = latest_irrigation.get("water_volume_gal")
+                litres = round(gallons * 3.785, 2) if gallons else None
+
+                return {
+                    ATTR_BUDGET: latest_irrigation.get(ATTR_BUDGET),
+                    ATTR_PROGRAM: latest_irrigation.get(ATTR_PROGRAM),
+                    ATTR_PROGRAM_NAME: latest_irrigation.get(ATTR_PROGRAM_NAME),
+                    ATTR_RUN_TIME: latest_irrigation.get(ATTR_RUN_TIME),
+                    ATTR_STATUS: latest_irrigation.get(ATTR_STATUS),
+                    ATTR_CONSUMPTION_GALLONS: gallons,
+                    ATTR_CONSUMPTION_LITRES: litres,
+                    ATTR_START_TIME: latest_irrigation.get(ATTR_START_TIME),
+                }
+        return {}
+
+    def _get_device_history(self) -> list:
+        """Get device history from coordinator."""
+        return (
+            self.coordinator.data.get("devices", {})
+            .get(self._device_id, {})
+            .get("history", [])
+        )
 
     @property
     def unique_id(self) -> str:
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:{self._zone_id}:history"
 
-    @property
-    def entity_category(self) -> EntityCategory:
-        """History is a diagnostic category."""
-        return EntityCategory.DIAGNOSTIC
 
-    def _should_handle_event(self, event_name: str, _data: dict) -> bool:
-        return event_name in [EVENT_DEVICE_IDLE]
+class BHyveStateSensor(BHyveCoordinatorEntity, SensorEntity):
+    """Define a BHyve state sensor."""
 
-    async def async_update(self) -> None:
-        """Retrieve latest state."""
-        force_update = bool(list(self._ws_unprocessed_events))
-        self._ws_unprocessed_events[:] = []  # We don't care about these
-
-        try:
-            history = await self._fetch_device_history(force_update=force_update) or []
-            self._history = history
-
-            for history_item in history:
-                zone_irrigation = list(
-                    filter(
-                        lambda i: i.get("station") == self._zone_id,
-                        history_item.get(ATTR_IRRIGATION, []),
-                    )
-                )
-                if zone_irrigation:
-                    # This is a bit crude - assumes the list is ordered by time.
-                    latest_irrigation = zone_irrigation[-1]
-
-                    gallons = latest_irrigation.get("water_volume_gal")
-                    litres = round(gallons * 3.785, 2) if gallons else None
-
-                    self._state = orbit_time_to_local_time(
-                        latest_irrigation.get("start_time")
-                    ).isoformat()
-
-                    self._attrs = {
-                        ATTR_BUDGET: latest_irrigation.get(ATTR_BUDGET),
-                        ATTR_PROGRAM: latest_irrigation.get(ATTR_PROGRAM),
-                        ATTR_PROGRAM_NAME: latest_irrigation.get(ATTR_PROGRAM_NAME),
-                        ATTR_RUN_TIME: latest_irrigation.get(ATTR_RUN_TIME),
-                        ATTR_STATUS: latest_irrigation.get(ATTR_STATUS),
-                        ATTR_CONSUMPTION_GALLONS: gallons,
-                        ATTR_CONSUMPTION_LITRES: litres,
-                        ATTR_START_TIME: latest_irrigation.get(ATTR_START_TIME),
-                    }
-                    break
-
-        except BHyveError as err:
-            _LOGGER.warning("Unable to retreive data for %s: %s", self._name, err)
-
-
-class BHyveStateSensor(BHyveDeviceEntity):
-    """Define a BHyve sensor."""
-
-    _state: str
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
-        self, hass: HomeAssistant, bhyve: BHyveClient, device: BHyveDevice
+        self, coordinator: BHyveDataUpdateCoordinator, device: BHyveDevice
     ) -> None:
         """Initialize the sensor."""
-        name = "{} state".format(device.get("name"))
+        name = f"{device.get('name')} state"
         _LOGGER.info("Creating state sensor: %s", name)
-        super().__init__(hass, bhyve, device, name, "information")
-
-    def _setup(self, device: BHyveDevice) -> None:
-        self._attrs = {}
-        self._state = device.get("status", {}).get("run_mode", "unavailable")
-        self._available = device.get("is_connected", False)
-        _LOGGER.debug(
-            "State sensor %s setup: State: %s | Available: %s",
-            self._name,
-            self._state,
-            self._available,
-        )
+        super().__init__(coordinator, device, name, "information")
 
     @property
-    def state(self) -> str:
+    def native_value(self) -> str:
         """Return the state of the entity."""
-        return self._state
+        status = self.device_data.get("status", {})
+        return status.get("run_mode", "unavailable")
 
     @property
     def unique_id(self) -> str:
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:state"
 
-    @property
-    def entity_category(self) -> EntityCategory:
-        """Run state is a diagnostic category."""
-        return EntityCategory.DIAGNOSTIC
 
-    def _on_ws_data(self, data: dict) -> None:
-        #
-        # {'event': 'change_mode', 'mode': 'auto', 'device_id': 'id', 'timestamp': '2020-01-09T20:30:00.000Z'}  # noqa: E501, ERA001
-        #
-        event = data.get("event")
-        if event == EVENT_CHANGE_MODE:
-            self._state = data.get("mode", "unavailable")
+class BHyveTemperatureSensor(BHyveCoordinatorEntity, SensorEntity):
+    """Define a BHyve temperature sensor."""
 
-    def _should_handle_event(self, event_name: str, _data: dict) -> bool:
-        return event_name in [EVENT_CHANGE_MODE]
-
-
-class BHyveTemperatureSensor(BHyveDeviceEntity, SensorEntity):
-    """Define a BHyve sensor."""
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
 
     def __init__(
-        self, hass: HomeAssistant, bhyve: BHyveClient, device: BHyveDevice
+        self, coordinator: BHyveDataUpdateCoordinator, device: BHyveDevice
     ) -> None:
         """Initialize the sensor."""
-        name = "{} temperature sensor".format(device.get("name"))
+        name = f"{device.get('name')} temperature sensor"
         _LOGGER.info("Creating temperature sensor: %s", name)
         super().__init__(
-            hass, bhyve, device, name, "thermometer", SensorDeviceClass.TEMPERATURE
+            coordinator, device, name, "thermometer", SensorDeviceClass.TEMPERATURE
         )
 
-    def _setup(self, device: BHyveDevice) -> None:
-        self._available = device.get("is_connected", False)
-        self._attr_native_value = device.get("status", {}).get("temp_f")
-        self._attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
-        self._state_class = SensorStateClass.MEASUREMENT
+    @property
+    def native_value(self) -> float | None:
+        """Return temperature value from coordinator."""
+        status = self.device_data.get("status", {})
+        temp = status.get("temp_f")
+        return float(temp) if temp is not None else None
 
-        self._attrs = {
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the device state attributes."""
+        device = self.device_data
+        status = device.get("status", {})
+        return {
             "location": device.get("location_name"),
-            "rssi": device.get("status", {}).get("rssi"),
-            "temperature_alarm": device.get("status", {}).get("temp_alarm_status"),
+            "rssi": status.get("rssi"),
+            "temperature_alarm": status.get("temp_alarm_status"),
         }
-        _LOGGER.debug(
-            "Temperature sensor %s setup: Value: %s | Available: %s",
-            self._name,
-            self._attr_native_value,
-            self._available,
-        )
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return super().available and self.native_value is not None
 
     @property
     def unique_id(self) -> str:
         """Return a unique, unchanging string that represents this sensor."""
         return f"{self._mac_address}:{self._device_id}:temp"
-
-    @property
-    def available(self) -> bool:
-        """Return True if entity is available."""
-        return super().available and self._attr_native_value is not None
-
-    def _on_ws_data(self, data: dict) -> None:
-        #
-        # {"last_flood_alarm_at":"2021-08-29T16:32:35.585Z","rssi":-60,"onboard_complete":true,"temp_f":75.2,"provisioned":true,"phy":"le_1m_1000","event":"fs_status_update","temp_alarm_status":"ok","status_updated_at":"2021-08-29T16:33:17.089Z","identify_enabled":false,"device_id":"612ad9134f0c6c9c9faddbba","timestamp":"2021-08-29T16:33:17.089Z","flood_alarm_status":"ok","last_temp_alarm_at":null}  # noqa: E501, ERA001
-        #
-        _LOGGER.info("Received program data update %s", data)
-        event = data.get("event")
-        if event == EVENT_FS_ALARM:
-            temp = data.get("temp_f")
-            self._attr_native_value = float(temp) if temp is not None else None
-            self._attrs["rssi"] = data.get("rssi")
-            self._attrs["temperature_alarm"] = data.get("temp_alarm_status")
-
-    def _should_handle_event(self, event_name: str, _data: dict) -> bool:
-        return event_name in [EVENT_FS_ALARM]

@@ -6,7 +6,8 @@
       "Bash(./scripts/test:*)",
       "Bash(python -m mypy:*)",
       "Bash(ruff check:*)",
-      "Bash(ruff format:*)"
+      "Bash(ruff format:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
