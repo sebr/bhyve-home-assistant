@@ -96,11 +96,8 @@ class BHyveBinarySensor(BHyveCoordinatorEntity, BinarySensorEntity):
         description: BHyveBinarySensorEntityDescription,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device)
         self.entity_description = description
-        self._attr_name = f"{device.get('name')} {description.name}"
-        if description.icon:
-            self._attr_icon = description.icon
+        super().__init__(coordinator, device)
         self._attr_unique_id = (
             f"{self._mac_address}:{self._device_id}:{description.unique_id_suffix}"
         )

@@ -9,8 +9,8 @@ on:
       - "main"
 
 jobs:
-  ruff:
-    name: "Ruff"
+  lint:
+    name: "Lint"
     runs-on: "ubuntu-latest"
     steps:
         - name: "Checkout the repository"

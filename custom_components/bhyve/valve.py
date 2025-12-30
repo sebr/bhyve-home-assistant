@@ -20,6 +20,8 @@ from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt
 
+from custom_components.bhyve.pybhyve.typings import BHyveZoneLandscape
+
 from . import BHyveCoordinatorEntity
 from .const import DEVICE_SPRINKLER, DOMAIN, EVENT_CHANGE_MODE
 from .pybhyve.errors import BHyveError
@@ -137,12 +139,9 @@ SERVICE_TO_METHOD = {
 class BHyveValveEntityDescription(ValveEntityDescription):
     """Describes BHyve valve entity."""
 
-    icon_key: str
-
 
 VALVE_DESCRIPTION = BHyveValveEntityDescription(
     key="zone",
-    icon_key="water-pump",
     device_class=ValveDeviceClass.WATER,
     reports_position=False,
 )
@@ -245,17 +244,20 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         device_programs: list[BHyveTimerProgram],
     ) -> None:
         """Initialize the valve."""
-        super().__init__(coordinator, device)
         self.entity_description = VALVE_DESCRIPTION
+        super().__init__(coordinator, device)
 
         name = f"{zone_name} zone"
         _LOGGER.info("Creating valve: %s", name)
 
-        self._attr_name = name
-        self._attr_icon = f"mdi:{self.entity_description.icon_key}"
-
         self._zone: BHyveZone = zone
         self._zone_id: str = zone.get("station", "")
+
+        self._attr_unique_id = (
+            f"{self._mac_address}:{self._device_id}:{self._zone_id}:valve"
+        )
+        self._attr_name = name
+
         self._entity_picture: str | None = zone.get("image_url")
         self._zone_name: str = zone_name
         self._smart_watering_enabled: bool = zone.get("smart_watering_enabled", False)
@@ -426,11 +428,6 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         """Return picture of the entity."""
         return self._entity_picture
 
-    @property
-    def unique_id(self) -> str:
-        """Return a unique, unchanging string that represents this valve."""
-        return f"{self._mac_address}:{self._device_id}:{self._zone_id}:valve"
-
     async def _send_station_message(self, station_payload: Any) -> None:
         """Send a station control message via WebSocket."""
         try:
@@ -470,12 +467,14 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
                 _LOGGER.debug("Landscape data %s", landscape)
 
                 # Define the minimum landscape update json payload
-                landscape_update = {
-                    "current_water_level": 0,
-                    "device_id": "",
-                    "id": "",
-                    "station": 0,
-                }
+                landscape_update = BHyveZoneLandscape(
+                    {
+                        "current_water_level": 0,
+                        "device_id": "",
+                        "id": "",
+                        "station": 0,
+                    }
+                )
 
                 # B-hyve computed value for 0% moisture
                 landscape_moisture_level_0 = landscape["replenishment_point"]
