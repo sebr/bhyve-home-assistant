@@ -13,6 +13,7 @@ from custom_components.bhyve.pybhyve.typings import BHyveDevice, BHyveTimerProgr
 from custom_components.bhyve.switch import (
     BHyveProgramSwitch,
     BHyveRainDelaySwitch,
+    BHyveSwitchEntityDescription,
     async_setup_entry,
 )
 
@@ -37,6 +38,34 @@ def create_mock_coordinator(devices: dict, programs: dict) -> MagicMock:
     coordinator.client.send_message = AsyncMock()
     coordinator.client.update_program = AsyncMock()
     return coordinator
+
+
+def create_program_switch_description(
+    device: BHyveDevice, program: BHyveTimerProgram
+) -> BHyveSwitchEntityDescription:
+    """Create a program switch description for testing."""
+    device_name = device.get("name", "Unknown switch")
+    program_name = program.get("name", "unknown")
+    return BHyveSwitchEntityDescription(
+        key="program",
+        name=f"{device_name} {program_name} program",
+        icon="mdi:bulletin-board",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+    )
+
+
+def create_rain_delay_switch_description(
+    device: BHyveDevice,
+) -> BHyveSwitchEntityDescription:
+    """Create a rain delay switch description for testing."""
+    return BHyveSwitchEntityDescription(
+        key="rain_delay",
+        name=f"{device.get('name')} rain delay",
+        icon="mdi:weather-pouring",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+    )
 
 
 @pytest.fixture
@@ -290,10 +319,14 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch entity initialization."""
+        description = create_program_switch_description(
+            mock_sprinkler_device, mock_timer_program
+        )
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            description=description,
         )
 
         # Test basic properties
@@ -309,10 +342,14 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch in enabled state."""
+        description = create_program_switch_description(
+            mock_sprinkler_device, mock_timer_program
+        )
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            description=description,
         )
 
         # Test state (should be enabled)
@@ -344,10 +381,14 @@ class TestBHyveProgramSwitch:
             {TEST_PROGRAM_ID: mock_timer_program_disabled},
         )
 
+        description = create_program_switch_description(
+            mock_sprinkler_device, mock_timer_program_disabled
+        )
         switch = BHyveProgramSwitch(
             coordinator=coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program_disabled,
+            description=description,
         )
 
         # Test state (should be disabled)
@@ -371,10 +412,14 @@ class TestBHyveProgramSwitch:
             {TEST_PROGRAM_ID: mock_timer_program_disabled},
         )
 
+        description = create_program_switch_description(
+            mock_sprinkler_device, mock_timer_program_disabled
+        )
         switch = BHyveProgramSwitch(
             coordinator=coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program_disabled,
+            description=description,
         )
 
         # Turn on the switch
@@ -393,10 +438,14 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test turning off a program switch."""
+        description = create_program_switch_description(
+            mock_sprinkler_device, mock_timer_program
+        )
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            description=description,
         )
 
         # Turn off the switch
@@ -415,10 +464,14 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test starting a program manually."""
+        description = create_program_switch_description(
+            mock_sprinkler_device, mock_timer_program
+        )
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            description=description,
         )
 
         # Start the program
@@ -439,10 +492,14 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch response to websocket events."""
+        description = create_program_switch_description(
+            mock_sprinkler_device, mock_timer_program
+        )
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            description=description,
         )
 
         # Initial state should be enabled
@@ -461,10 +518,14 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch handles all events via coordinator."""
+        description = create_program_switch_description(
+            mock_sprinkler_device, mock_timer_program
+        )
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            description=description,
         )
 
         # Coordinator-based entities don't need event filtering
@@ -481,9 +542,11 @@ class TestBHyveRainDelaySwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test rain delay switch entity initialization."""
+        description = create_rain_delay_switch_description(mock_sprinkler_device)
         switch = BHyveRainDelaySwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
+            description=description,
         )
 
         # Test basic properties
@@ -501,9 +564,11 @@ class TestBHyveRainDelaySwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test rain delay switch with no active delay."""
+        description = create_rain_delay_switch_description(mock_sprinkler_device)
         switch = BHyveRainDelaySwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
+            description=description,
         )
 
         # Test state
@@ -530,9 +595,13 @@ class TestBHyveRainDelaySwitch:
             {},
         )
 
+        description = create_rain_delay_switch_description(
+            mock_sprinkler_device_with_rain_delay
+        )
         switch = BHyveRainDelaySwitch(
             coordinator=coordinator,
             device=mock_sprinkler_device_with_rain_delay,
+            description=description,
         )
 
         # Test state
@@ -552,9 +621,11 @@ class TestBHyveRainDelaySwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test turning on rain delay switch."""
+        description = create_rain_delay_switch_description(mock_sprinkler_device)
         switch = BHyveRainDelaySwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
+            description=description,
         )
 
         # Turn on the switch
@@ -583,9 +654,13 @@ class TestBHyveRainDelaySwitch:
             {},
         )
 
+        description = create_rain_delay_switch_description(
+            mock_sprinkler_device_with_rain_delay
+        )
         switch = BHyveRainDelaySwitch(
             coordinator=coordinator,
             device=mock_sprinkler_device_with_rain_delay,
+            description=description,
         )
 
         # Turn off the switch
@@ -604,9 +679,11 @@ class TestBHyveRainDelaySwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test rain delay switch response to websocket events."""
+        description = create_rain_delay_switch_description(mock_sprinkler_device)
         switch = BHyveRainDelaySwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
+            description=description,
         )
 
         # Initial state should be off (no delay)
@@ -636,9 +713,13 @@ class TestBHyveRainDelaySwitch:
             {},
         )
 
+        description = create_rain_delay_switch_description(
+            mock_sprinkler_device_with_rain_delay
+        )
         switch = BHyveRainDelaySwitch(
             coordinator=coordinator,
             device=mock_sprinkler_device_with_rain_delay,
+            description=description,
         )
 
         # Initial state should be on (has delay)
@@ -658,9 +739,11 @@ class TestBHyveRainDelaySwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test rain delay switch handles all events via coordinator."""
+        description = create_rain_delay_switch_description(mock_sprinkler_device)
         switch = BHyveRainDelaySwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
+            description=description,
         )
 
         # Coordinator-based entities don't need event filtering
@@ -688,9 +771,11 @@ class TestBHyveRainDelaySwitch:
             {},
         )
 
+        description = create_rain_delay_switch_description(disconnected_device)
         switch = BHyveRainDelaySwitch(
             coordinator=coordinator,
             device=disconnected_device,
+            description=description,
         )
 
         # Should be unavailable
@@ -737,15 +822,19 @@ class TestSwitchEdgeCases:
             {"test-program-minimal": minimal_program},
         )
 
+        description = create_rain_delay_switch_description(minimal_device)
         rain_delay_switch = BHyveRainDelaySwitch(
             coordinator=coordinator,
             device=minimal_device,
+            description=description,
         )
 
+        description = create_program_switch_description(minimal_device, minimal_program)
         program_switch = BHyveProgramSwitch(
             coordinator=coordinator,
             device=minimal_device,
             program=minimal_program,
+            description=description,
         )
 
         # Should handle missing data gracefully
@@ -761,15 +850,21 @@ class TestSwitchEdgeCases:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test switches handle websocket events with missing fields."""
+        description = create_program_switch_description(
+            mock_sprinkler_device, mock_timer_program
+        )
         program_switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            description=description,
         )
 
+        description = create_rain_delay_switch_description(mock_sprinkler_device)
         rain_delay_switch = BHyveRainDelaySwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
+            description=description,
         )
 
         # Entities should work even when data is incomplete

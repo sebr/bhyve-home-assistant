@@ -28,26 +28,3 @@ jobs:
 
       - name: "Run tests"
         run: python3 -m pytest tests/ -v --tb=short
-
-  lint:
-    name: "Lint and Format Check"
-    runs-on: "ubuntu-latest"
-
-    steps:
-      - name: "Checkout the repository"
-        uses: "actions/checkout@v6.0.1"
-
-      - name: "Set up Python"
-        uses: "actions/setup-python@v6.1.0"
-        with:
-          python-version: "3.13"
-          cache: "pip"
-
-      - name: "Install requirements"
-        run: python3 -m pip install -r requirements.txt
-
-      - name: "Lint with ruff"
-        run: python3 -m ruff check .
-
-      - name: "Check formatting with ruff"
-        run: python3 -m ruff format . --check

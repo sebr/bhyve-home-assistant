@@ -86,7 +86,7 @@ class OrbitWebsocket:
             self.state = STATE_STARTING
         self._loop.create_task(self.running())
 
-    async def running(self) -> None:  # noqa: PLR0912
+    async def running(self) -> None:  # noqa: PLR0912, PLR0915
         """Start websocket connection."""
         background_tasks = set()
         try:
@@ -115,12 +115,13 @@ class OrbitWebsocket:
 
                         msg = await self._ws.receive()
                         self._reset_heartbeat()
-                        _LOGGER.debug(f"msg received {msg!s}")  # noqa: G004
 
                         if msg.type == WSMsgType.TEXT:
-                            task = ensure_future(
-                                self._async_callback(json.loads(msg.data))
+                            data = json.loads(msg.data)
+                            _LOGGER.debug(
+                                "msg received:\n%s", json.dumps(data, indent=2)
                             )
+                            task = ensure_future(self._async_callback(data))
                             # Add task to the set to create a strong reference, and
                             # discard when finished so it can be garbage collected
                             background_tasks.add(task)

@@ -9,7 +9,18 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DEVICE_SPRINKLER, DOMAIN
+from .const import (
+    DEVICE_SPRINKLER,
+    DOMAIN,
+    EVENT_BATTERY_STATUS,
+    EVENT_CHANGE_MODE,
+    EVENT_DEVICE_IDLE,
+    EVENT_FS_ALARM,
+    EVENT_RAIN_DELAY,
+    EVENT_SET_MANUAL_PRESET_TIME,
+    EVENT_WATERING_COMPLETE,
+    EVENT_WATERING_IN_PROGRESS,
+)
 from .pybhyve.errors import AuthenticationError, BHyveError
 
 if TYPE_CHECKING:
@@ -200,18 +211,18 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         # Update specific device data based on event type
         device_data = self.data["devices"][device_id]["device"]
 
-        if event == "battery_status":
+        if event == EVENT_BATTERY_STATUS:
             # Update battery information
             if "battery" in event_data:
                 device_data["battery"] = event_data["battery"]
 
-        elif event == "change_mode":
+        elif event == EVENT_CHANGE_MODE:
             # Update device status with mode change data
             if "status" not in device_data:
                 device_data["status"] = {}
             device_data["status"].update(event_data)
 
-        elif event == "device_idle":
+        elif event == EVENT_DEVICE_IDLE:
             # Device went idle, update status
             if "status" not in device_data:
                 device_data["status"] = {}
@@ -219,14 +230,14 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             if "watering_status" in device_data["status"]:
                 del device_data["status"]["watering_status"]
 
-        elif event == "watering_in_progress_notification":
+        elif event == EVENT_WATERING_IN_PROGRESS:
             # Update watering status
             if "status" not in device_data:
                 device_data["status"] = {}
             device_data["status"]["watering_status"] = event_data.get("program", {})
             device_data["status"]["run_mode"] = event_data.get("mode", "manual")
 
-        elif event == "watering_complete":
+        elif event == EVENT_WATERING_COMPLETE:
             # Clear watering status
             if "status" not in device_data:
                 device_data["status"] = {}
@@ -234,19 +245,19 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                 del device_data["status"]["watering_status"]
             device_data["status"]["run_mode"] = "off"
 
-        elif event == "rain_delay":
+        elif event == EVENT_RAIN_DELAY:
             # Update rain delay info
             if "status" not in device_data:
                 device_data["status"] = {}
             device_data["status"]["rain_delay"] = event_data.get("delay", 0)
 
-        elif event == "fs_status_update":
+        elif event == EVENT_FS_ALARM:
             # Update flood sensor status
             if "status" not in device_data:
                 device_data["status"] = {}
             device_data["status"].update(event_data)
 
-        elif event == "set_manual_preset_runtime":
+        elif event == EVENT_SET_MANUAL_PRESET_TIME:
             # Update manual preset runtime
             if "status" not in device_data:
                 device_data["status"] = {}

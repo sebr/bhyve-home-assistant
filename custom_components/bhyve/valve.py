@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -11,12 +12,15 @@ import voluptuous as vol
 from homeassistant.components.valve import (
     ValveDeviceClass,
     ValveEntity,
+    ValveEntityDescription,
     ValveEntityFeature,
 )
 from homeassistant.components.valve.const import DOMAIN as VALVE_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt
+
+from custom_components.bhyve.pybhyve.typings import BHyveZoneLandscape
 
 from . import BHyveCoordinatorEntity
 from .const import DEVICE_SPRINKLER, DOMAIN, EVENT_CHANGE_MODE
@@ -131,6 +135,18 @@ SERVICE_TO_METHOD = {
 }
 
 
+@dataclass(frozen=True, kw_only=True)
+class BHyveValveEntityDescription(ValveEntityDescription):
+    """Describes BHyve valve entity."""
+
+
+VALVE_DESCRIPTION = BHyveValveEntityDescription(
+    key="zone",
+    device_class=ValveDeviceClass.WATER,
+    reports_position=False,
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
@@ -216,8 +232,7 @@ async def async_setup_entry(
 class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
     """Define a BHyve zone valve."""
 
-    _attr_device_class = ValveDeviceClass.WATER
-    _attr_reports_position = False
+    entity_description: BHyveValveEntityDescription
     _attr_supported_features = ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE
 
     def __init__(
@@ -229,15 +244,20 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         device_programs: list[BHyveTimerProgram],
     ) -> None:
         """Initialize the valve."""
+        self.entity_description = VALVE_DESCRIPTION
+        super().__init__(coordinator, device)
+
         name = f"{zone_name} zone"
         _LOGGER.info("Creating valve: %s", name)
 
-        super().__init__(
-            coordinator, device, name, "water-pump", ValveDeviceClass.WATER
-        )
-
         self._zone: BHyveZone = zone
         self._zone_id: str = zone.get("station", "")
+
+        self._attr_unique_id = (
+            f"{self._mac_address}:{self._device_id}:{self._zone_id}:valve"
+        )
+        self._attr_name = name
+
         self._entity_picture: str | None = zone.get("image_url")
         self._zone_name: str = zone_name
         self._smart_watering_enabled: bool = zone.get("smart_watering_enabled", False)
@@ -408,11 +428,6 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         """Return picture of the entity."""
         return self._entity_picture
 
-    @property
-    def unique_id(self) -> str:
-        """Return a unique, unchanging string that represents this valve."""
-        return f"{self._mac_address}:{self._device_id}:{self._zone_id}:valve"
-
     async def _send_station_message(self, station_payload: Any) -> None:
         """Send a station control message via WebSocket."""
         try:
@@ -452,12 +467,14 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
                 _LOGGER.debug("Landscape data %s", landscape)
 
                 # Define the minimum landscape update json payload
-                landscape_update = {
-                    "current_water_level": 0,
-                    "device_id": "",
-                    "id": "",
-                    "station": 0,
-                }
+                landscape_update = BHyveZoneLandscape(
+                    {
+                        "current_water_level": 0,
+                        "device_id": "",
+                        "id": "",
+                        "station": 0,
+                    }
+                )
 
                 # B-hyve computed value for 0% moisture
                 landscape_moisture_level_0 = landscape["replenishment_point"]
