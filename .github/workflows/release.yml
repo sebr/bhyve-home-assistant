@@ -69,7 +69,7 @@ jobs:
 
       - name: "Generate release notes"
         id: notes
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const version = '${{ steps.version.outputs.version }}';
