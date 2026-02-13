@@ -3,7 +3,18 @@
 
 Orbit B-hyve component for [Home Assistant](https://www.home-assistant.io/).
 
-If this integration has been useful to you, please consider chipping in and buying me a coffee!
+> [!IMPORTANT]
+>
+> **Development on hold**
+> 
+> Unfortunately my Wifi gen1 hub has gone to the grave, and I have alternative irrigation options.
+> As a result, development of this integration is on hold. If anybody would like to fund
+> a replacement device I'll continue maintaining this integration. Simply purchase 30 coffees
+> below and I'll use this to buy a new hub.
+>
+> Thanks for your understanding
+
+<!-- If this integration has been useful to you, please consider chipping in and buying me a coffee! -->
 
 <a href="https://www.buymeacoffee.com/sebr" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee"></a>
 
