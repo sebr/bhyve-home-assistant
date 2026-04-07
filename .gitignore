@@ -21,3 +21,5 @@ config/*
 !config/configuration.yaml
 core
 .venv
+
+.claude/settings.local.json
