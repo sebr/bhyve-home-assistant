@@ -256,8 +256,7 @@ class TestBHyveFloodSensor:
         # Test attributes
         attrs = sensor.extra_state_attributes
         assert attrs["location"] == "Basement"
-        assert attrs["shutoff"] is True
-        assert attrs["rssi"] == TEST_RSSI_NORMAL
+        assert attrs["auto_shutoff"] is True
 
     async def test_flood_sensor_alarm_state(
         self,
@@ -309,13 +308,9 @@ class TestBHyveFloodSensor:
         mock_coordinator.data["devices"]["test-flood-123"]["device"]["status"][
             "flood_alarm_status"
         ] = "alarm"
-        mock_coordinator.data["devices"]["test-flood-123"]["device"]["status"][
-            "rssi"
-        ] = TEST_RSSI_ALARM
 
         # State should be updated to alarm
         assert sensor.is_on is True
-        assert sensor.extra_state_attributes["rssi"] == TEST_RSSI_ALARM
 
     async def test_flood_sensor_event_filtering(
         self,
