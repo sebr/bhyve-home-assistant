@@ -25,6 +25,8 @@ from .const import (
 from .util import orbit_time_to_local_time
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -343,7 +345,7 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
         )
 
     @property
-    def native_value(self) -> str | None:
+    def native_value(self) -> datetime | None:
         """Return the state of the entity."""
         history = self._get_device_history()
         if not history:
@@ -363,7 +365,7 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
                 if start_time:
                     local_time = orbit_time_to_local_time(start_time)
                     if local_time:
-                        return local_time.isoformat()
+                        return local_time
         return None
 
     @property

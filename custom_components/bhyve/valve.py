@@ -248,7 +248,6 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         super().__init__(coordinator, device)
 
         name = f"{zone_name} zone"
-        _LOGGER.info("Creating valve: %s", name)
 
         self._zone: BHyveZone = zone
         self._zone_id: str = zone.get("station", "")
