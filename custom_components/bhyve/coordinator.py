@@ -234,7 +234,16 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             # Update watering status
             if "status" not in device_data:
                 device_data["status"] = {}
-            device_data["status"]["watering_status"] = event_data.get("program", {})
+            # Store the full watering status from the event
+            device_data["status"]["watering_status"] = {
+                "current_station": event_data.get("current_station"),
+                "program": event_data.get("program"),
+                "run_time": event_data.get("run_time"),
+                "started_watering_station_at": event_data.get(
+                    "started_watering_station_at"
+                ),
+                "stations": event_data.get("stations", []),
+            }
             device_data["status"]["run_mode"] = event_data.get("mode", "manual")
 
         elif event == EVENT_WATERING_COMPLETE:

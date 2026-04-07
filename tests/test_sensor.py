@@ -449,9 +449,11 @@ class TestBHyveZoneHistorySensor:
             description=description,
         )
 
-        # Test state (should be ISO timestamp)
+        # Test state (should be a datetime object for TIMESTAMP device class)
         assert sensor.native_value is not None
-        assert "2020-01-09" in sensor.native_value
+        assert sensor.native_value.year == 2020
+        assert sensor.native_value.month == 1
+        assert sensor.native_value.day == 9
 
         # Test attributes
         attrs = sensor.extra_state_attributes
