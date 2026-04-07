@@ -4,4 +4,5 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-pre-commit run --all-files
+ruff format .
+ruff check . --fix

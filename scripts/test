@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+# Run tests with verbose output and coverage
+python -m pytest tests/ -v --tb=short
+
+# Optional: Run with coverage if pytest-cov is available
+# python -m pytest tests/ -v --cov=custom_components.bhyve --cov-report=term-missing

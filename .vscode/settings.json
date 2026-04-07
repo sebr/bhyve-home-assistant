@@ -12,6 +12,6 @@
   },
   "python.testing.pytestEnabled": false,
   "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter"
+    "editor.defaultFormatter": "charliermarsh.ruff"
   },
 }

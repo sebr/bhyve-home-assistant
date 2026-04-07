@@ -1,8 +1,17 @@
-.DS_Store
+# artifacts
 __pycache__
-*.pyc
+.pytest*
+*.egg-info
+*/build/*
+*/dist/*
+.DS_Store
 
-tmp
+
+# misc
+.coverage
+.vscode
+coverage.xml
+.ruff_cache
 
 debug/[0-9]*
 debug/sync
@@ -10,3 +19,7 @@ debug/sync
 # Home Assistant configuration
 config/*
 !config/configuration.yaml
+core
+.venv
+
+.claude/settings.local.json

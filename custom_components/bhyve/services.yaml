@@ -3,7 +3,7 @@ enable_rain_delay:
   fields:
     entity_id:
       description: Zone
-      example: "switch.backyard_zone"
+      example: "valve.backyard_zone"
     hours:
       description: Number of hours of rain delay
       example: 24
@@ -13,14 +13,14 @@ disable_rain_delay:
   fields:
     entity_id:
       description: Zone
-      example: "switch.backyard_zone"
+      example: "valve.backyard_zone"
 
 start_watering:
   description: Start watering a zone
   fields:
     entity_id:
       description: Zone
-      example: "switch.backyard_zone"
+      example: "valve.backyard_zone"
     minutes:
       description: Number of minutes to water the zone
       example: 15
@@ -30,14 +30,14 @@ stop_watering:
   fields:
     entity_id:
       description: Zone
-      example: "switch.backyard_zone"
+      example: "valve.backyard_zone"
 
 set_manual_preset_runtime:
   description: Set the manual preset runtime for a device entity
   fields:
     entity_id:
       description: Zone
-      example: "switch.backyard_zone"
+      example: "valve.backyard_zone"
     minutes:
       description: Number of minutes to set the preset runtime
       example: 15
@@ -47,7 +47,7 @@ set_smart_watering_soil_moisture:
   fields:
     entity_id:
       description: Zone
-      example: "switch.backyard_zone"
+      example: "valve.backyard_zone"
     percentage:
       description: Moisture level between 0 - 100 (percent)
       example: 50
@@ -57,4 +57,4 @@ start_program:
   fields:
     entity_id:
       description: Program
-      example: "switch.front_yard_program"
+      example: "valve.front_yard_program"

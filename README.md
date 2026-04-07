@@ -3,7 +3,18 @@
 
 Orbit B-hyve component for [Home Assistant](https://www.home-assistant.io/).
 
-If this integration has been useful to you, please consider chipping in and buying me a coffee!
+> [!IMPORTANT]
+>
+> **Development on hold**
+> 
+> Unfortunately my Wifi gen1 hub has gone to the grave, and I have alternative irrigation options.
+> As a result, development of this integration is on hold. If anybody would like to fund
+> a replacement device I'll continue maintaining this integration. Simply purchase 30 coffees
+> below and I'll use this to buy a new hub.
+>
+> Thanks for your understanding
+
+<!-- If this integration has been useful to you, please consider chipping in and buying me a coffee! -->
 
 <a href="https://www.buymeacoffee.com/sebr" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee"></a>
 
@@ -45,7 +56,7 @@ Recommended installation is via the [Home Assistant Community Store (HACS)](http
 If you do not wish to use HACS, then please download the latest version from the [releases page](https://github.com/sebr/bhyve-home-assistant/releases) and proceed to Step 2.
 
 1. Navigate to the HACS add-on
-2. Search for the `Orbit B-hyve` integration and install it
+2. Search for the `Orbit BHyve` integration and install it
 3. Restart Home Assistant
 
 <img width="450" alt="Install B-hyve from HACS" src="https://user-images.githubusercontent.com/81972/177079621-a66a8ab3-ceee-44de-b539-4c65ad921640.png">
@@ -109,7 +120,12 @@ A **binary_sensor** that turns on if the detected temperature is over or under t
 
 ### Zone Switch
 
-A **zone** `switch` entity is created for each zone of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone. Turning on the switch will enable watering of the zone for the amount of time indicated by the `manual_preset_runtime` attribute. This amount of time can be set using the `set_manual_preset_runtime` service or configured in the B-hyve app.
+A **zone** `switch` entity is created for each zone of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone. Turning on the switch will enable watering of the zone for a "default" amount of time.
+
+This default is often indicated by the `manual_preset_runtime` attribute, and this can be set using the `set_manual_preset_runtime` service or configured in the B-hyve app.
+
+> [!NOTE]  
+> Some BHyve devices do not have the ability to set the default watering time, and it is recommended that you use the `bhyve.start_watering` service to start the watering zone with the desired number of minutes.
 
 The following attributes are set on zone switch entities:
 
@@ -177,11 +193,14 @@ This integration provides the following services:
 | `bhyve.stop_watering`             | `entity_id` - zone(s) entity to stop watering. This should be a reference to a zone switch entity                                                           | Stop watering a zone                                             |
 | `bhyve.enable_rain_delay`         | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch <br/> `hours` - number of hours to enable a rain delay   | Enable a rain delay for a device for a specified number of hours |
 | `bhyve.disable_rain_delay`        | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch                                                          | Cancel a rain delay on a given device                            |
-| `bhyve.set_manual_preset_runtime` | `entity_id` - zone(s) entity to set the preset runtime. This should be a reference to a zone switch entity <br/> `minutes` - number of minutes to water for | Set the default time a switch is activated for when enabled. Support for this service appears to be patchy, and it has been difficult to identify under which conditions it works      |
+| `bhyve.set_manual_preset_runtime` | `entity_id` - zone(s) entity to set the preset runtime. This should be a reference to a zone switch entity <br/> `minutes` - number of minutes to water for | Set the default time a switch is activated for when enabled. Support for this service appears to be patchy, and it has been difficult to identify the devices or under which conditions it works      |
 | `bhyve.set_smart_watering_soil_moisture` | `entity_id` - zone(s) entity to set the moisture level for. This should be a reference to a zone switch entity <br/> `percentage` - soil moisture level between 0 - 100 | Set Smart Watering soil moisture level for a zone     |
 | `bhyve.start_program` | `entity_id` - program entity to start. This should be a reference to a program switch entity | Starts a pre-configured watering program. Watering programs cannot be created nor configured via this integration, and require the B-Hyve app to create or modify |
 
 ## Python Script
+
+> [!CAUTION]
+> These scripts are expermintal and not supported. YMMV and any support issues will be closed as won't fix.
 
 Bundled in this repository is a [`python_script`](https://www.home-assistant.io/integrations/python_script) which calculates a device's next watering time and when a rain delay is scheduled to finish.
 
