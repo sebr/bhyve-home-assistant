@@ -256,7 +256,7 @@ class TestBHyveFloodSensor:
         )
 
         # Test basic properties
-        assert sensor.name == "Basement Flood Sensor flood sensor"
+        assert sensor.name == "Flood sensor"
         assert sensor.device_class == BinarySensorDeviceClass.MOISTURE
         assert sensor.unique_id == "aa:bb:cc:dd:ee:ff:test-flood-123:water"
 
@@ -402,7 +402,7 @@ class TestBHyveTemperatureBinarySensor:
         )
 
         # Test basic properties
-        assert sensor.name == "Basement Flood Sensor temperature alert"
+        assert sensor.name == "Temperature alert"
         assert sensor.unique_id == "aa:bb:cc:dd:ee:ff:test-flood-123:tempalert"
 
     async def test_temperature_sensor_normal_state(

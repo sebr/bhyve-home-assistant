@@ -31,6 +31,7 @@ class BHyveBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes BHyve binary sensor entity."""
 
     unique_id_suffix: str
+    name: str = ""
     # Device types this sensor applies to (e.g., DEVICE_FLOOD, DEVICE_SPRINKLER)
     device_types: tuple[str, ...] = ()
     # Callable that takes device_data and returns bool
@@ -43,7 +44,7 @@ BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
     BHyveBinarySensorEntityDescription(
         key="flood",
         translation_key="flood",
-        name="flood sensor",
+        name="Flood sensor",
         device_class=BinarySensorDeviceClass.MOISTURE,
         unique_id_suffix="water",
         device_types=(DEVICE_FLOOD,),
@@ -59,7 +60,7 @@ BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
     BHyveBinarySensorEntityDescription(
         key="temperature_alert",
         translation_key="temperature_alert",
-        name="temperature alert",
+        name="Temperature alert",
         device_class=BinarySensorDeviceClass.HEAT,
         unique_id_suffix="tempalert",
         device_types=(DEVICE_FLOOD,),
@@ -71,7 +72,7 @@ BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
     BHyveBinarySensorEntityDescription(
         key="fault",
         translation_key="fault",
-        name="fault",
+        name="Fault",
         device_class=BinarySensorDeviceClass.PROBLEM,
         unique_id_suffix="fault",
         device_types=(DEVICE_SPRINKLER,),
@@ -104,6 +105,7 @@ class BHyveBinarySensor(BHyveCoordinatorEntity, BinarySensorEntity):
     """Define a BHyve binary sensor."""
 
     entity_description: BHyveBinarySensorEntityDescription
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -113,11 +115,11 @@ class BHyveBinarySensor(BHyveCoordinatorEntity, BinarySensorEntity):
     ) -> None:
         """Initialize the sensor."""
         self.entity_description = description
+        self._attr_name = description.name
         super().__init__(coordinator, device)
         self._attr_unique_id = (
             f"{self._mac_address}:{self._device_id}:{description.unique_id_suffix}"
         )
-        self._attr_name = f"{self._device_name} {description.name}"
 
     @property
     def is_on(self) -> bool:
