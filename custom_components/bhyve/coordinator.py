@@ -281,6 +281,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Coordinator data not initialized, ignoring event")
             return
 
+        lifecycle_phase = event_data.get("lifecycle_phase")
         program_id = event_data.get("program_id")
 
         if not program_id:
@@ -288,7 +289,39 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             program = event_data.get("program", {})
             program_id = program.get("id") if isinstance(program, dict) else None
 
-        if not program_id or program_id not in self.data["programs"]:
+        if not program_id:
+            _LOGGER.debug("No program_id found in event, ignoring")
+            return
+
+        # Handle program creation
+        if lifecycle_phase == "create":
+            program_data = event_data.get("program")
+            if isinstance(program_data, dict):
+                _LOGGER.debug("Adding new program %s to coordinator data", program_id)
+                self.data["programs"][program_id] = program_data
+                # Fire an event so the switch platform can create a new entity
+                self.hass.bus.async_fire(
+                    "bhyve_program_created",
+                    {"program_id": program_id, "program": program_data},
+                )
+            self.async_set_updated_data(self.data)
+            return
+
+        # Handle program deletion
+        if lifecycle_phase == "delete":
+            if program_id in self.data["programs"]:
+                _LOGGER.debug("Removing program %s from coordinator data", program_id)
+                del self.data["programs"][program_id]
+                # Fire an event so the switch platform can remove the entity
+                self.hass.bus.async_fire(
+                    "bhyve_program_deleted",
+                    {"program_id": program_id},
+                )
+            self.async_set_updated_data(self.data)
+            return
+
+        # For update events, check if program exists
+        if program_id not in self.data["programs"]:
             _LOGGER.debug(
                 "Program %s not found in coordinator data, ignoring event",
                 program_id,
