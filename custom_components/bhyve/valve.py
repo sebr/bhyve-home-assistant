@@ -245,9 +245,9 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
     ) -> None:
         """Initialize the valve."""
         self.entity_description = VALVE_DESCRIPTION
-        super().__init__(coordinator, device)
+        self._attr_name = f"{zone_name} zone"
 
-        name = f"{zone_name} zone"
+        super().__init__(coordinator, device)
 
         self._zone: BHyveZone = zone
         self._zone_id: str = zone.get("station", "")
@@ -255,7 +255,6 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         self._attr_unique_id = (
             f"{self._mac_address}:{self._device_id}:{self._zone_id}:valve"
         )
-        self._attr_name = name
 
         self._entity_picture: str | None = zone.get("image_url")
         self._zone_name: str = zone_name

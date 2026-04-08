@@ -44,11 +44,10 @@ def create_program_switch_description(
     device: BHyveDevice, program: BHyveTimerProgram
 ) -> BHyveSwitchEntityDescription:
     """Create a program switch description for testing."""
-    device_name = device.get("name", "Unknown switch")
     program_name = program.get("name", "unknown")
     return BHyveSwitchEntityDescription(
         key="program",
-        name=f"{device_name} {program_name} program",
+        name=f"{program_name} program",
         icon="mdi:bulletin-board",
         device_class=SwitchDeviceClass.SWITCH,
         entity_category=EntityCategory.CONFIG,
@@ -330,7 +329,7 @@ class TestBHyveProgramSwitch:
         )
 
         # Test basic properties
-        assert switch.name == "Front Yard Sprinkler Morning Schedule program"
+        assert switch.name == "Morning Schedule program"
         assert switch.device_class == SwitchDeviceClass.SWITCH
         assert switch.entity_category == EntityCategory.CONFIG
         assert switch.unique_id == f"bhyve:program:{TEST_PROGRAM_ID}"
@@ -847,7 +846,7 @@ class TestDynamicProgramCreation:
         assert len(all_added_entities[1]) == 1
         new_entity = all_added_entities[1][0]
         assert isinstance(new_entity, BHyveProgramSwitch)
-        assert new_entity.name == "Front Yard Sprinkler New Evening Schedule program"
+        assert new_entity.name == "New Evening Schedule program"
 
     async def test_program_created_event_unknown_device(
         self,
