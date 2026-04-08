@@ -41,7 +41,7 @@ def create_mock_coordinator(devices: dict, programs: dict) -> MagicMock:
 
 
 def create_program_switch_description(
-    device: BHyveDevice, program: BHyveTimerProgram
+    _device: BHyveDevice, program: BHyveTimerProgram
 ) -> BHyveSwitchEntityDescription:
     """Create a program switch description for testing."""
     program_name = program.get("name", "unknown")

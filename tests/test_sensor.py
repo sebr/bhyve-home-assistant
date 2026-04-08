@@ -42,7 +42,7 @@ def create_mock_coordinator(devices: dict) -> MagicMock:
 
 
 def create_sensor_description(
-    device: BHyveDevice, base_description: BHyveSensorEntityDescription
+    _device: BHyveDevice, base_description: BHyveSensorEntityDescription
 ) -> BHyveSensorEntityDescription:
     """Create a sensor description with device name for testing."""
     return BHyveSensorEntityDescription(
