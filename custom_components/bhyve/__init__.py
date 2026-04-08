@@ -197,7 +197,7 @@ class BHyveCoordinatorEntity(CoordinatorEntity[BHyveDataUpdateCoordinator]):
             "Creating %s: %s - %s",
             self.__class__.__name__,
             self._device_name,
-            self._device_type,
+            self.name,
         )
 
     @property

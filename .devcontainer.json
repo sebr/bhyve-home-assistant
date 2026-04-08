@@ -18,7 +18,8 @@
                 "github.vscode-pull-request-github",
                 "ms-python.python",
                 "ms-python.vscode-pylance",
-                "ryanluker.vscode-coverage-gutters"
+                "ryanluker.vscode-coverage-gutters",
+                "Anthropic.claude-code"
             ],
             "settings": {
                 "files.eol": "\n",
@@ -38,15 +39,14 @@
     },
     "remoteUser": "vscode",
     "features": {
-        "ghcr.io/devcontainers-extra/features/apt-packages:1": {
-            "packages": "ffmpeg,libturbojpeg0,libpcap-dev"
-        },
+        "ghcr.io/devcontainers/features/github-cli:1": {},
         "ghcr.io/devcontainers/features/git:1": {}
     },
     "remoteEnv": {
         "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin"
     },
     "mounts": [
-        "source=claude-config,target=/home/vscode/.config/claude,type=volume"
+        "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
     ]
 }

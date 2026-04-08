@@ -69,6 +69,28 @@ ATTR_PROGRAM = "program_{}"
 class BHyveSwitchEntityDescription(SwitchEntityDescription):
     """Describes BHyve switch entity."""
 
+    name: str = ""
+
+
+def _create_program_switch(
+    coordinator: BHyveDataUpdateCoordinator,
+    device: BHyveDevice,
+    program: BHyveTimerProgram,
+) -> BHyveProgramSwitch:
+    """Create a program switch entity."""
+    program_name = program.get("name", "unknown")
+    return BHyveProgramSwitch(
+        coordinator,
+        device,
+        program,
+        BHyveSwitchEntityDescription(
+            key="program",
+            name=f"{program_name} program",
+            icon="mdi:bulletin-board",
+            entity_category=EntityCategory.CONFIG,
+        ),
+    )
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -101,7 +123,7 @@ async def async_setup_entry(
                     device,
                     BHyveSwitchEntityDescription(
                         key="rain_delay",
-                        name=f"{device.get('name')} rain delay",
+                        name="Rain delay",
                         icon="mdi:weather-pouring",
                         entity_category=EntityCategory.CONFIG,
                     ),
@@ -112,31 +134,44 @@ async def async_setup_entry(
     for program in coordinator.data.get("programs", {}).values():
         program_device = device_by_id.get(program.get("device_id"))
         if program_device is not None:
-            device_name = program_device.get("name", "Unknown switch")
-            program_name = program.get("name", "unknown")
-            _LOGGER.info("Creating switch: Program %s", program_name)
-
+            _LOGGER.info("Creating switch: Program %s", program.get("name"))
             switches.append(
-                BHyveProgramSwitch(
-                    coordinator,
-                    program_device,
-                    program,
-                    BHyveSwitchEntityDescription(
-                        key="program",
-                        name=f"{device_name} {program_name} program",
-                        icon="mdi:bulletin-board",
-                        entity_category=EntityCategory.CONFIG,
-                    ),
-                )
+                _create_program_switch(coordinator, program_device, program)
             )
 
     async_add_entities(switches)
+
+    # Listen for new programs created via WebSocket
+    async def async_handle_program_created(event: Any) -> None:
+        """Handle creation of new programs."""
+        program = event.data.get("program")
+        if not program:
+            return
+
+        program_device = device_by_id.get(program.get("device_id"))
+        if program_device is None:
+            _LOGGER.debug(
+                "Program %s belongs to unknown device %s",
+                program.get("id"),
+                program.get("device_id"),
+            )
+            return
+
+        _LOGGER.info("Creating switch for new program: %s", program.get("name"))
+        async_add_entities(
+            [_create_program_switch(coordinator, program_device, program)]
+        )
+
+    entry.async_on_unload(
+        hass.bus.async_listen("bhyve_program_created", async_handle_program_created)
+    )
 
 
 class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
     """Define a BHyve program switch."""
 
     entity_description: BHyveSwitchEntityDescription
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -147,6 +182,8 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
     ) -> None:
         """Initialize the switch."""
         self.entity_description = description
+        self._attr_name = description.name
+
         super().__init__(coordinator, device)
 
         self._program_id = program.get("id", "0")
@@ -220,6 +257,7 @@ class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):
     """Define a BHyve rain delay switch."""
 
     entity_description: BHyveSwitchEntityDescription
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -229,8 +267,10 @@ class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):
     ) -> None:
         """Initialize the switch."""
         self.entity_description = description
+
         super().__init__(coordinator, device)
 
+        self._attr_name = description.name
         self._attr_unique_id = f"{self._mac_address}:{self._device_id}:rain_delay"
 
     @property

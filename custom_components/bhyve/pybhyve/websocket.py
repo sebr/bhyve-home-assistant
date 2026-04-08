@@ -47,6 +47,7 @@ class OrbitWebsocket:
         self._heartbeat_cb = None
         self._heartbeat: int = 25
         self._ws: ClientWebSocketResponse | None = None
+        self._closing: bool = False
 
     def _cancel_heartbeat(self) -> None:
         if self._heartbeat_cb is not None:
@@ -67,9 +68,14 @@ class OrbitWebsocket:
             self._loop.create_task(self._ping())
 
     async def _ping(self) -> None:
-        if self._ws is not None:
-            await self._ws.send_str(json.dumps({"event": "ping"}))
-            self._reset_heartbeat()
+        if self._ws is not None and not self._ws.closed:
+            try:
+                await self._ws.send_str(json.dumps({"event": "ping"}))
+                self._reset_heartbeat()
+            except ConnectionResetError:
+                _LOGGER.debug("Connection reset while sending ping")
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Error sending ping: %s", err)
 
     @property
     def state(self) -> str:
@@ -146,6 +152,7 @@ class OrbitWebsocket:
 
                     if self._ws.closed:
                         _LOGGER.info("Websocket closed? %s", self._ws.closed)
+                        self._cancel_heartbeat()
                         self.state = STATE_STOPPED
 
                     if self._ws.exception():
@@ -166,13 +173,18 @@ class OrbitWebsocket:
             self.retry()
 
         else:
-            _LOGGER.info("Reconnecting websocket; state: %s", self.state)
-            self.retry()
+            if self._closing:
+                _LOGGER.info("Websocket closed intentionally, not reconnecting")
+            else:
+                _LOGGER.info("Reconnecting websocket; state: %s", self.state)
+                self.retry()
 
     async def stop(self) -> None:
         """Close websocket connection."""
         _LOGGER.info("Closing websocket connection; state: %s --> STOPPED", self.state)
+        self._closing = True
         self.state = STATE_STOPPED
+        self._cancel_heartbeat()
         if self._ws is not None:
             await self._ws.close()
 

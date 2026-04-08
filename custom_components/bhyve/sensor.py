@@ -82,6 +82,7 @@ class BHyveSensorEntityDescription(SensorEntityDescription):
     """Describes BHyve sensor entity."""
 
     unique_id_suffix: str
+    name: str = ""
     # Callable that takes device_data and returns value
     value_fn: Any = None
     # Callable that takes device_data and returns attributes
@@ -96,7 +97,7 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
     BHyveSensorEntityDescription(
         key="state",
         translation_key="state",
-        name="state",
+        name="State",
         icon="mdi:information",
         unique_id_suffix="state",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -108,7 +109,7 @@ SENSOR_TYPES_FLOOD: tuple[BHyveSensorEntityDescription, ...] = (
     BHyveSensorEntityDescription(
         key="temperature",
         translation_key="temperature",
-        name="temperature sensor",
+        name="Temperature sensor",
         icon="mdi:thermometer",
         unique_id_suffix="temp",
         device_class=SensorDeviceClass.TEMPERATURE,
@@ -141,7 +142,7 @@ SENSOR_TYPES_BATTERY: tuple[BHyveSensorEntityDescription, ...] = (
     BHyveSensorEntityDescription(
         key="battery",
         translation_key="battery",
-        name="battery level",
+        name="Battery level",
         icon="mdi:battery",
         unique_id_suffix="battery",
         device_class=SensorDeviceClass.BATTERY,
@@ -178,15 +179,13 @@ async def async_setup_entry(
     sensors = []
 
     for device in devices:
-        device_name = device.get("name", "Unknown Device")
-
         if device.get("type") == DEVICE_SPRINKLER:
             # Add state sensors
             for base_description in SENSOR_TYPES_SPRINKLER:
                 description = BHyveSensorEntityDescription(
                     key=base_description.key,
                     translation_key=base_description.translation_key,
-                    name=f"{device_name} {base_description.name}",
+                    name=base_description.name,
                     icon=base_description.icon,
                     unique_id_suffix=base_description.unique_id_suffix,
                     entity_category=base_description.entity_category,
@@ -228,7 +227,7 @@ async def async_setup_entry(
                     description = BHyveSensorEntityDescription(
                         key=base_description.key,
                         translation_key=base_description.translation_key,
-                        name=f"{device_name} {base_description.name}",
+                        name=base_description.name,
                         icon=base_description.icon,
                         unique_id_suffix=base_description.unique_id_suffix,
                         device_class=base_description.device_class,
@@ -248,7 +247,7 @@ async def async_setup_entry(
                 description = BHyveSensorEntityDescription(
                     key=base_description.key,
                     translation_key=base_description.translation_key,
-                    name=f"{device_name} {base_description.name}",
+                    name=base_description.name,
                     icon=base_description.icon,
                     unique_id_suffix=base_description.unique_id_suffix,
                     device_class=base_description.device_class,
@@ -267,7 +266,7 @@ async def async_setup_entry(
                 description = BHyveSensorEntityDescription(
                     key=base_description.key,
                     translation_key=base_description.translation_key,
-                    name=f"{device_name} {base_description.name}",
+                    name=base_description.name,
                     icon=base_description.icon,
                     unique_id_suffix=base_description.unique_id_suffix,
                     device_class=base_description.device_class,
@@ -288,6 +287,7 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
     """Define a BHyve sensor."""
 
     entity_description: BHyveSensorEntityDescription
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -297,6 +297,7 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
     ) -> None:
         """Initialize the sensor."""
         self.entity_description = description
+        self._attr_name = description.name
         super().__init__(coordinator, device)
         self._attr_unique_id = (
             f"{self._mac_address}:{self._device_id}:{description.unique_id_suffix}"
