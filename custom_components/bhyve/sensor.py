@@ -11,6 +11,7 @@ from homeassistant.components.sensor.const import SensorDeviceClass, SensorState
 from homeassistant.const import (
     ATTR_BATTERY_LEVEL,
     PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
     UnitOfTemperature,
 )
@@ -121,10 +122,19 @@ SENSOR_TYPES_FLOOD: tuple[BHyveSensorEntityDescription, ...] = (
         ),
         attributes_fn=lambda data: {
             "location": data.get("location_name"),
-            "rssi": data.get("status", {}).get("rssi"),
-            "temperature_alarm": data.get("status", {}).get("temp_alarm_status"),
         },
         available_fn=lambda _data, value: value is not None,
+    ),
+    BHyveSensorEntityDescription(
+        key="rssi",
+        translation_key="signal_strength",
+        name="Signal strength",
+        unique_id_suffix="rssi",
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("status", {}).get("rssi"),
     ),
 )
 
@@ -232,7 +242,7 @@ async def async_setup_entry(
                     sensors.append(BHyveSensor(coordinator, device, description))
 
         if device.get("type") == DEVICE_FLOOD:
-            # Add temperature sensor
+            # Add temperature and RSSI sensors
             for base_description in SENSOR_TYPES_FLOOD:
                 description = BHyveSensorEntityDescription(
                     key=base_description.key,
@@ -243,6 +253,7 @@ async def async_setup_entry(
                     device_class=base_description.device_class,
                     state_class=base_description.state_class,
                     native_unit_of_measurement=base_description.native_unit_of_measurement,
+                    entity_category=base_description.entity_category,
                     value_fn=base_description.value_fn,
                     attributes_fn=base_description.attributes_fn,
                     icon_fn=base_description.icon_fn,

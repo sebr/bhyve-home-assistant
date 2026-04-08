@@ -369,8 +369,6 @@ class TestBHyveTemperatureSensor:
         # Test attributes
         attrs = sensor.extra_state_attributes
         assert attrs["location"] == "Basement"
-        assert attrs["rssi"] == -45
-        assert attrs["temperature_alarm"] == "ok"
 
 
 class TestBHyveZoneHistorySensor:

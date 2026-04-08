@@ -270,10 +270,21 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             )
 
         elif event == EVENT_FS_ALARM:
-            # Update flood sensor status
+            # Update flood sensor status with only meaningful flood sensor fields.
+            # Avoid a blind merge that could overwrite unrelated device-level keys.
             if "status" not in device_data:
                 device_data["status"] = {}
-            device_data["status"].update(event_data)
+            for key in (
+                "flood_alarm_status",
+                "temp_alarm_status",
+                "temp_f",
+                "rssi",
+                "last_flood_alarm_at",
+                "last_temp_alarm_at",
+                "status_updated_at",
+            ):
+                if key in event_data:
+                    device_data["status"][key] = event_data[key]
 
         elif event == EVENT_SET_MANUAL_PRESET_TIME:
             # Update manual preset runtime

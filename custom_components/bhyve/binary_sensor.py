@@ -1,4 +1,4 @@
-"""Support for Orbit BHyve sensors."""
+"""Support for Orbit BHyve binary sensors."""
 
 from __future__ import annotations
 
@@ -53,21 +53,24 @@ BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
         ),
         attributes_fn=lambda data: {
             "location": data.get("location_name"),
-            "shutoff": data.get("auto_shutoff"),
-            "rssi": data.get("status", {}).get("rssi"),
+            "auto_shutoff": data.get("auto_shutoff"),
         },
     ),
     BHyveBinarySensorEntityDescription(
         key="temperature_alert",
         translation_key="temperature_alert",
         name="Temperature alert",
-        device_class=BinarySensorDeviceClass.HEAT,
+        device_class=BinarySensorDeviceClass.PROBLEM,
         unique_id_suffix="tempalert",
         device_types=(DEVICE_FLOOD,),
         value_fn=lambda data: (
             "alarm" in data.get("status", {}).get("temp_alarm_status", "")
         ),
-        attributes_fn=lambda data: data.get("temp_alarm_thresholds", {}),
+        attributes_fn=lambda data: (
+            thresh
+            if isinstance(thresh := data.get("temp_alarm_thresholds"), dict)
+            else {}
+        ),
     ),
     BHyveBinarySensorEntityDescription(
         key="fault",

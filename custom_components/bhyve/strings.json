@@ -134,5 +134,34 @@
         }
       }
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "flood": {
+        "name": "Flood sensor",
+        "state": {
+          "on": "Wet",
+          "off": "Dry"
+        }
+      },
+      "temperature_alert": {
+        "name": "Temperature alert",
+        "state": {
+          "on": "Problem detected",
+          "off": "OK"
+        }
+      }
+    },
+    "sensor": {
+      "temperature": {
+        "name": "Temperature"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "signal_strength": {
+        "name": "Signal strength"
+      }
+    }
   }
 }
