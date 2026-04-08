@@ -47,6 +47,7 @@
         "PATH": "${containerEnv:PATH}:/home/vscode/.local/bin"
     },
     "mounts": [
-        "source=claude-config,target=/home/vscode/.config/claude,type=volume"
+        "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
     ]
 }
