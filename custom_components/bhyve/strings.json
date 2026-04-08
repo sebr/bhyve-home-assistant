@@ -163,9 +163,6 @@
       "state": {
         "name": "State"
       },
-      "zone_history": {
-        "name": "{zone_name} zone history"
-      },
       "temperature": {
         "name": "Temperature"
       },
@@ -182,11 +179,6 @@
       },
       "program": {
         "name": "{program_name} program"
-      }
-    },
-    "valve": {
-      "zone": {
-        "name": "{zone_name} zone"
       }
     }
   }
