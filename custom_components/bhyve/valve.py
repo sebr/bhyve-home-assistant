@@ -247,6 +247,7 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
     ) -> None:
         """Initialize the valve."""
         self.entity_description = VALVE_DESCRIPTION
+        self._attr_name = f"{zone_name} zone"
         self._attr_translation_placeholders = {"zone_name": zone_name}
 
         super().__init__(coordinator, device)

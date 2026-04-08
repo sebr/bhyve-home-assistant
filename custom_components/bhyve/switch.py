@@ -185,6 +185,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
     ) -> None:
         """Initialize the switch."""
         self.entity_description = description
+        self._attr_name = f"{program_name} program"
         self._attr_translation_placeholders = {"program_name": program_name}
 
         super().__init__(coordinator, device)

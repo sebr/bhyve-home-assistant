@@ -351,6 +351,7 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
     ) -> None:
         """Initialize the sensor."""
         self.entity_description = description
+        self._attr_name = f"{zone_name} zone history"
         self._attr_translation_placeholders = {"zone_name": zone_name}
         super().__init__(coordinator, device)
 
