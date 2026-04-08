@@ -147,12 +147,22 @@
       "temperature_alert": {
         "name": "Temperature alert",
         "state": {
-          "on": "Problem detected",
+          "on": "Problem",
+          "off": "OK"
+        }
+      },
+      "fault": {
+        "name": "Fault",
+        "state": {
+          "on": "Fault",
           "off": "OK"
         }
       }
     },
     "sensor": {
+      "state": {
+        "name": "State"
+      },
       "temperature": {
         "name": "Temperature"
       },
@@ -161,6 +171,11 @@
       },
       "signal_strength": {
         "name": "Signal strength"
+      }
+    },
+    "switch": {
+      "rain_delay": {
+        "name": "Rain delay"
       }
     }
   }

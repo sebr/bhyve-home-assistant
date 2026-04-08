@@ -123,6 +123,7 @@ async def async_setup_entry(
                     device,
                     BHyveSwitchEntityDescription(
                         key="rain_delay",
+                        translation_key="rain_delay",
                         name="Rain delay",
                         icon="mdi:weather-pouring",
                         entity_category=EntityCategory.CONFIG,
@@ -267,10 +268,10 @@ class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):
     ) -> None:
         """Initialize the switch."""
         self.entity_description = description
+        self._attr_name = description.name
 
         super().__init__(coordinator, device)
 
-        self._attr_name = description.name
         self._attr_unique_id = f"{self._mac_address}:{self._device_id}:rain_delay"
 
     @property
