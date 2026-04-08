@@ -320,7 +320,6 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
-            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -344,7 +343,6 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
-            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -382,7 +380,6 @@ class TestBHyveProgramSwitch:
             coordinator=coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program_disabled,
-            program_name=mock_timer_program_disabled.get("name", "unknown"),
             description=description,
         )
 
@@ -412,7 +409,6 @@ class TestBHyveProgramSwitch:
             coordinator=coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program_disabled,
-            program_name=mock_timer_program_disabled.get("name", "unknown"),
             description=description,
         )
 
@@ -437,7 +433,6 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
-            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -462,7 +457,6 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
-            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -489,7 +483,6 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
-            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -514,7 +507,6 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
-            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -943,7 +935,6 @@ class TestSwitchEdgeCases:
             coordinator=coordinator,
             device=minimal_device,
             program=minimal_program,
-            program_name=minimal_program.get("name", "unknown"),
             description=description,
         )
 
@@ -965,7 +956,6 @@ class TestSwitchEdgeCases:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
-            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 

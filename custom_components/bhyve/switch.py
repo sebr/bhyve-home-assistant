@@ -78,12 +78,10 @@ def _create_program_switch(
     program: BHyveTimerProgram,
 ) -> BHyveProgramSwitch:
     """Create a program switch entity."""
-    program_name = program.get("name", "unknown")
     return BHyveProgramSwitch(
         coordinator,
         device,
         program,
-        program_name,
         BHyveSwitchEntityDescription(
             key="program",
             translation_key="program",
@@ -180,11 +178,11 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         coordinator: BHyveDataUpdateCoordinator,
         device: BHyveDevice,
         program: BHyveTimerProgram,
-        program_name: str,
         description: BHyveSwitchEntityDescription,
     ) -> None:
         """Initialize the switch."""
         self.entity_description = description
+        program_name = program.get("name", "unknown")
         self._attr_name = f"{program_name} program"
         self._attr_translation_placeholders = {"program_name": program_name}
 
