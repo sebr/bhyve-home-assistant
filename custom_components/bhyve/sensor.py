@@ -211,9 +211,10 @@ async def async_setup_entry(
                         coordinator,
                         device,
                         zone,
+                        zone_name,
                         SensorEntityDescription(
                             key="zone_history",
-                            name=f"{zone_name} zone history",
+                            translation_key="zone_history",
                             icon="mdi:history",
                             device_class=SensorDeviceClass.TIMESTAMP,
                             entity_category=EntityCategory.DIAGNOSTIC,
@@ -338,16 +339,23 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
     """Define a BHyve zone history sensor."""
 
     entity_description: SensorEntityDescription
+    _attr_has_entity_name = True
 
     def __init__(
         self,
         coordinator: BHyveDataUpdateCoordinator,
         device: BHyveDevice,
         zone: dict,
+        zone_name: str,
         description: SensorEntityDescription,
     ) -> None:
         """Initialize the sensor."""
         self.entity_description = description
+        if zone_name == device.get("name"):
+            self._attr_name = "Zone history"
+        else:
+            self._attr_name = f"{zone_name} zone history"
+        self._attr_translation_placeholders = {"zone_name": zone_name}
         super().__init__(coordinator, device)
 
         self._zone = zone

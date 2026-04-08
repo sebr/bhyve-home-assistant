@@ -142,6 +142,7 @@ class BHyveValveEntityDescription(ValveEntityDescription):
 
 VALVE_DESCRIPTION = BHyveValveEntityDescription(
     key="zone",
+    translation_key="zone",
     device_class=ValveDeviceClass.WATER,
     reports_position=False,
 )
@@ -233,6 +234,7 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
     """Define a BHyve zone valve."""
 
     entity_description: BHyveValveEntityDescription
+    _attr_has_entity_name = True
     _attr_supported_features = ValveEntityFeature.OPEN | ValveEntityFeature.CLOSE
 
     def __init__(
@@ -245,7 +247,11 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
     ) -> None:
         """Initialize the valve."""
         self.entity_description = VALVE_DESCRIPTION
-        self._attr_name = f"{zone_name} zone"
+        if zone_name == device.get("name"):
+            self._attr_name = "Zone"
+        else:
+            self._attr_name = f"{zone_name} zone"
+        self._attr_translation_placeholders = {"zone_name": zone_name}
 
         super().__init__(coordinator, device)
 

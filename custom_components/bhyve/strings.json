@@ -147,12 +147,25 @@
       "temperature_alert": {
         "name": "Temperature alert",
         "state": {
-          "on": "Problem detected",
+          "on": "Problem",
+          "off": "OK"
+        }
+      },
+      "fault": {
+        "name": "Fault",
+        "state": {
+          "on": "Fault",
           "off": "OK"
         }
       }
     },
     "sensor": {
+      "state": {
+        "name": "State"
+      },
+      "zone_history": {
+        "name": "{zone_name} zone history"
+      },
       "temperature": {
         "name": "Temperature"
       },
@@ -161,6 +174,19 @@
       },
       "signal_strength": {
         "name": "Signal strength"
+      }
+    },
+    "switch": {
+      "rain_delay": {
+        "name": "Rain delay"
+      },
+      "program": {
+        "name": "{program_name} program"
+      }
+    },
+    "valve": {
+      "zone": {
+        "name": "{zone_name} zone"
       }
     }
   }
