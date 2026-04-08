@@ -10,7 +10,6 @@ from homeassistant.core import HomeAssistant
 from custom_components.bhyve.binary_sensor import (
     BINARY_SENSOR_TYPES,
     BHyveBinarySensor,
-    BHyveBinarySensorEntityDescription,
     async_setup_entry,
 )
 from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
@@ -23,22 +22,6 @@ TEST_TEMP_THRESHOLD_LOW = 32
 TEST_TEMP_THRESHOLD_HIGH = 100
 EXPECTED_FLOOD_ENTITIES = 2
 EXPECTED_SPRINKLER_ENTITIES = 1
-
-
-def create_binary_sensor_description(
-    device: BHyveDevice, base_description: BHyveBinarySensorEntityDescription
-) -> BHyveBinarySensorEntityDescription:
-    """Create a binary sensor description with device name for testing."""
-    device_name = device.get("name", "Unknown Device")
-    return BHyveBinarySensorEntityDescription(
-        key=base_description.key,
-        translation_key=base_description.translation_key,
-        name=f"{device_name} {base_description.name}",
-        device_class=base_description.device_class,
-        unique_id_suffix=base_description.unique_id_suffix,
-        value_fn=base_description.value_fn,
-        attributes_fn=base_description.attributes_fn,
-    )
 
 
 def create_mock_coordinator(devices: dict) -> MagicMock:
@@ -265,9 +248,7 @@ class TestBHyveFloodSensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test flood sensor entity initialization."""
-        description = create_binary_sensor_description(
-            mock_flood_device, BINARY_SENSOR_TYPES[0]
-        )
+        description = BINARY_SENSOR_TYPES[0]
         sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
@@ -285,9 +266,7 @@ class TestBHyveFloodSensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test flood sensor in normal (not flooded) state."""
-        description = create_binary_sensor_description(
-            mock_flood_device, BINARY_SENSOR_TYPES[0]
-        )
+        description = BINARY_SENSOR_TYPES[0]
         sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
@@ -319,9 +298,7 @@ class TestBHyveFloodSensor:
             }
         )
 
-        description = create_binary_sensor_description(
-            mock_flood_device_alarming, BINARY_SENSOR_TYPES[0]
-        )
+        description = BINARY_SENSOR_TYPES[0]
         sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=mock_flood_device_alarming,
@@ -338,9 +315,7 @@ class TestBHyveFloodSensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test flood sensor response to websocket events."""
-        description = create_binary_sensor_description(
-            mock_flood_device, BINARY_SENSOR_TYPES[0]
-        )
+        description = BINARY_SENSOR_TYPES[0]
         sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
@@ -368,9 +343,7 @@ class TestBHyveFloodSensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test flood sensor handles all events via coordinator."""
-        description = create_binary_sensor_description(
-            mock_flood_device, BINARY_SENSOR_TYPES[0]
-        )
+        description = BINARY_SENSOR_TYPES[0]
         sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
@@ -401,9 +374,7 @@ class TestBHyveFloodSensor:
             }
         )
 
-        description = create_binary_sensor_description(
-            disconnected_device, BINARY_SENSOR_TYPES[0]
-        )
+        description = BINARY_SENSOR_TYPES[0]
         sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=disconnected_device,
@@ -423,9 +394,7 @@ class TestBHyveTemperatureBinarySensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test temperature binary sensor entity initialization."""
-        description = create_binary_sensor_description(
-            mock_flood_device, BINARY_SENSOR_TYPES[1]
-        )
+        description = BINARY_SENSOR_TYPES[1]
         sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
@@ -442,9 +411,7 @@ class TestBHyveTemperatureBinarySensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test temperature sensor in normal state."""
-        description = create_binary_sensor_description(
-            mock_flood_device, BINARY_SENSOR_TYPES[1]
-        )
+        description = BINARY_SENSOR_TYPES[1]
         sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
@@ -475,9 +442,7 @@ class TestBHyveTemperatureBinarySensor:
             }
         )
 
-        description = create_binary_sensor_description(
-            mock_flood_device_alarming, BINARY_SENSOR_TYPES[1]
-        )
+        description = BINARY_SENSOR_TYPES[1]
         sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=mock_flood_device_alarming,
@@ -494,9 +459,7 @@ class TestBHyveTemperatureBinarySensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test temperature sensor response to websocket events."""
-        description = create_binary_sensor_description(
-            mock_flood_device, BINARY_SENSOR_TYPES[1]
-        )
+        description = BINARY_SENSOR_TYPES[1]
         sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
@@ -520,9 +483,7 @@ class TestBHyveTemperatureBinarySensor:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test temperature sensor handles all events via coordinator."""
-        description = create_binary_sensor_description(
-            mock_flood_device, BINARY_SENSOR_TYPES[1]
-        )
+        description = BINARY_SENSOR_TYPES[1]
         sensor = BHyveBinarySensor(
             coordinator=mock_coordinator,
             device=mock_flood_device,
@@ -562,18 +523,14 @@ class TestBinarySensorEdgeCases:
             }
         )
 
-        flood_description = create_binary_sensor_description(
-            minimal_device, BINARY_SENSOR_TYPES[0]
-        )
+        flood_description = BINARY_SENSOR_TYPES[0]
         flood_sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=minimal_device,
             description=flood_description,
         )
 
-        temp_description = create_binary_sensor_description(
-            minimal_device, BINARY_SENSOR_TYPES[1]
-        )
+        temp_description = BINARY_SENSOR_TYPES[1]
         temp_sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=minimal_device,
@@ -608,18 +565,14 @@ class TestBinarySensorEdgeCases:
             }
         )
 
-        flood_description = create_binary_sensor_description(
-            partial_device, BINARY_SENSOR_TYPES[0]
-        )
+        flood_description = BINARY_SENSOR_TYPES[0]
         flood_sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=partial_device,
             description=flood_description,
         )
 
-        temp_description = create_binary_sensor_description(
-            partial_device, BINARY_SENSOR_TYPES[1]
-        )
+        temp_description = BINARY_SENSOR_TYPES[1]
         temp_sensor = BHyveBinarySensor(
             coordinator=coordinator,
             device=partial_device,
@@ -674,7 +627,7 @@ class TestBHyveFaultSensor:
         self, device: BHyveDevice, coordinator: MagicMock
     ) -> BHyveBinarySensor:
         """Create a fault binary sensor for testing."""
-        description = create_binary_sensor_description(device, BINARY_SENSOR_TYPES[2])
+        description = BINARY_SENSOR_TYPES[2]
         return BHyveBinarySensor(
             coordinator=coordinator, device=device, description=description
         )

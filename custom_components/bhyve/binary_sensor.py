@@ -117,6 +117,7 @@ class BHyveBinarySensor(BHyveCoordinatorEntity, BinarySensorEntity):
         self._attr_unique_id = (
             f"{self._mac_address}:{self._device_id}:{description.unique_id_suffix}"
         )
+        self._attr_name = f"{self._device_name} {description.name}"
 
     @property
     def is_on(self) -> bool:
