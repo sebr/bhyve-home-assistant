@@ -782,6 +782,123 @@ class TestBHyveRainDelaySwitch:
         assert switch.available is False
 
 
+class TestDynamicProgramCreation:
+    """Test dynamic program creation via events."""
+
+    async def test_program_created_event_adds_new_switch(
+        self,
+        hass: HomeAssistant,
+        mock_config_entry: ConfigEntry,
+        mock_sprinkler_device: BHyveDevice,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test that bhyve_program_created event creates a new switch entity."""
+        # Setup mock data in hass
+        hass.data = {
+            "bhyve": {
+                "test_entry_id": {
+                    "coordinator": mock_coordinator,
+                    "devices": [mock_sprinkler_device],
+                }
+            }
+        }
+
+        # Track all calls to async_add_entities
+        all_added_entities: list[list] = []
+
+        def track_add_entities(entities: list) -> None:
+            all_added_entities.append(list(entities))
+
+        async_add_entities = MagicMock(side_effect=track_add_entities)
+
+        # Setup the entry to support async_on_unload
+        unload_callbacks: list = []
+        mock_config_entry.async_on_unload = lambda cb: unload_callbacks.append(cb)
+
+        # Call setup entry
+        await async_setup_entry(hass, mock_config_entry, async_add_entities)
+
+        # Verify initial entities were added (rain delay + existing program)
+        assert len(all_added_entities) == 1
+        assert len(all_added_entities[0]) == EXPECTED_SWITCH_ENTITIES
+
+        # Create a new program
+        new_program = {
+            "id": "new-program-789",
+            "device_id": TEST_DEVICE_ID,
+            "name": "New Evening Schedule",
+            "program": "c",
+            "enabled": True,
+            "frequency": {"type": "days", "days": [0, 6]},
+            "start_times": ["19:00"],
+            "budget": 75,
+            "run_times": [{"station": 2, "run_time": 10}],
+        }
+
+        # Fire the program created event
+        hass.bus.async_fire(
+            "bhyve_program_created",
+            {"program_id": "new-program-789", "program": new_program},
+        )
+        await hass.async_block_till_done()
+
+        # Verify a new entity was added
+        assert len(all_added_entities) == 2
+        assert len(all_added_entities[1]) == 1
+        new_entity = all_added_entities[1][0]
+        assert isinstance(new_entity, BHyveProgramSwitch)
+        assert new_entity.name == "Front Yard Sprinkler New Evening Schedule program"
+
+    async def test_program_created_event_unknown_device(
+        self,
+        hass: HomeAssistant,
+        mock_config_entry: ConfigEntry,
+        mock_sprinkler_device: BHyveDevice,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test that program created event for unknown device is ignored."""
+        # Setup mock data in hass
+        hass.data = {
+            "bhyve": {
+                "test_entry_id": {
+                    "coordinator": mock_coordinator,
+                    "devices": [mock_sprinkler_device],
+                }
+            }
+        }
+
+        # Track all calls to async_add_entities
+        all_added_entities: list[list] = []
+
+        def track_add_entities(entities: list) -> None:
+            all_added_entities.append(list(entities))
+
+        async_add_entities = MagicMock(side_effect=track_add_entities)
+
+        # Setup the entry to support async_on_unload
+        mock_config_entry.async_on_unload = lambda _cb: None
+
+        # Call setup entry
+        await async_setup_entry(hass, mock_config_entry, async_add_entities)
+
+        # Fire event with unknown device_id
+        hass.bus.async_fire(
+            "bhyve_program_created",
+            {
+                "program_id": "orphan-program",
+                "program": {
+                    "id": "orphan-program",
+                    "device_id": "unknown-device-id",
+                    "name": "Orphan Program",
+                },
+            },
+        )
+        await hass.async_block_till_done()
+
+        # Verify no new entity was added
+        assert len(all_added_entities) == 1
+
+
 class TestSwitchEdgeCases:
     """Test edge cases for switches."""
 

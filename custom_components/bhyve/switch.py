@@ -70,6 +70,27 @@ class BHyveSwitchEntityDescription(SwitchEntityDescription):
     """Describes BHyve switch entity."""
 
 
+def _create_program_switch(
+    coordinator: BHyveDataUpdateCoordinator,
+    device: BHyveDevice,
+    program: BHyveTimerProgram,
+) -> BHyveProgramSwitch:
+    """Create a program switch entity."""
+    device_name = device.get("name", "Unknown switch")
+    program_name = program.get("name", "unknown")
+    return BHyveProgramSwitch(
+        coordinator,
+        device,
+        program,
+        BHyveSwitchEntityDescription(
+            key="program",
+            name=f"{device_name} {program_name} program",
+            icon="mdi:bulletin-board",
+            entity_category=EntityCategory.CONFIG,
+        ),
+    )
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
@@ -112,25 +133,37 @@ async def async_setup_entry(
     for program in coordinator.data.get("programs", {}).values():
         program_device = device_by_id.get(program.get("device_id"))
         if program_device is not None:
-            device_name = program_device.get("name", "Unknown switch")
-            program_name = program.get("name", "unknown")
-            _LOGGER.info("Creating switch: Program %s", program_name)
-
+            _LOGGER.info("Creating switch: Program %s", program.get("name"))
             switches.append(
-                BHyveProgramSwitch(
-                    coordinator,
-                    program_device,
-                    program,
-                    BHyveSwitchEntityDescription(
-                        key="program",
-                        name=f"{device_name} {program_name} program",
-                        icon="mdi:bulletin-board",
-                        entity_category=EntityCategory.CONFIG,
-                    ),
-                )
+                _create_program_switch(coordinator, program_device, program)
             )
 
     async_add_entities(switches)
+
+    # Listen for new programs created via WebSocket
+    async def async_handle_program_created(event: Any) -> None:
+        """Handle creation of new programs."""
+        program = event.data.get("program")
+        if not program:
+            return
+
+        program_device = device_by_id.get(program.get("device_id"))
+        if program_device is None:
+            _LOGGER.debug(
+                "Program %s belongs to unknown device %s",
+                program.get("id"),
+                program.get("device_id"),
+            )
+            return
+
+        _LOGGER.info("Creating switch for new program: %s", program.get("name"))
+        async_add_entities(
+            [_create_program_switch(coordinator, program_device, program)]
+        )
+
+    entry.async_on_unload(
+        hass.bus.async_listen("bhyve_program_created", async_handle_program_created)
+    )
 
 
 class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
