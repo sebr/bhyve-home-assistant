@@ -394,6 +394,7 @@ class TestBHyveZoneHistorySensor:
         # Create description for the zone
         description = SensorEntityDescription(
             key="zone_history",
+            translation_key="zone_history",
             icon="mdi:history",
             device_class=SensorDeviceClass.TIMESTAMP,
             entity_category=EntityCategory.DIAGNOSTIC,
@@ -409,6 +410,7 @@ class TestBHyveZoneHistorySensor:
 
         # Test basic properties
         assert sensor._attr_name == "Front Lawn zone history"
+        assert sensor._attr_translation_placeholders == {"zone_name": "Front Lawn"}
         assert sensor.device_class == SensorDeviceClass.TIMESTAMP
         assert sensor.entity_description.entity_category == EntityCategory.DIAGNOSTIC
 
@@ -433,6 +435,7 @@ class TestBHyveZoneHistorySensor:
         # Create description for the zone
         description = SensorEntityDescription(
             key="zone_history",
+            translation_key="zone_history",
             icon="mdi:history",
             device_class=SensorDeviceClass.TIMESTAMP,
             entity_category=EntityCategory.DIAGNOSTIC,
