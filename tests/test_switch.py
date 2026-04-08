@@ -40,9 +40,7 @@ def create_mock_coordinator(devices: dict, programs: dict) -> MagicMock:
     return coordinator
 
 
-def create_program_switch_description(
-    _device: BHyveDevice, _program: BHyveTimerProgram
-) -> BHyveSwitchEntityDescription:
+def create_program_switch_description() -> BHyveSwitchEntityDescription:
     """Create a program switch description for testing."""
     return BHyveSwitchEntityDescription(
         key="program",
@@ -317,9 +315,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch entity initialization."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -343,9 +339,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch in enabled state."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -383,9 +377,7 @@ class TestBHyveProgramSwitch:
             {TEST_PROGRAM_ID: mock_timer_program_disabled},
         )
 
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program_disabled
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=coordinator,
             device=mock_sprinkler_device,
@@ -415,9 +407,7 @@ class TestBHyveProgramSwitch:
             {TEST_PROGRAM_ID: mock_timer_program_disabled},
         )
 
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program_disabled
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=coordinator,
             device=mock_sprinkler_device,
@@ -442,9 +432,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test turning off a program switch."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -469,9 +457,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test starting a program manually."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -498,9 +484,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch response to websocket events."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -525,9 +509,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch handles all events via coordinator."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -956,7 +938,7 @@ class TestSwitchEdgeCases:
             description=description,
         )
 
-        description = create_program_switch_description(minimal_device, minimal_program)
+        description = create_program_switch_description()
         program_switch = BHyveProgramSwitch(
             coordinator=coordinator,
             device=minimal_device,
@@ -978,9 +960,7 @@ class TestSwitchEdgeCases:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test switches handle websocket events with missing fields."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         program_switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
