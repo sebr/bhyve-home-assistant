@@ -15,6 +15,7 @@ from .const import (
     EVENT_BATTERY_STATUS,
     EVENT_CHANGE_MODE,
     EVENT_DEVICE_IDLE,
+    EVENT_FAULT,
     EVENT_FS_ALARM,
     EVENT_RAIN_DELAY,
     EVENT_SET_MANUAL_PRESET_TIME,
@@ -259,6 +260,14 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             if "status" not in device_data:
                 device_data["status"] = {}
             device_data["status"]["rain_delay"] = event_data.get("delay", 0)
+
+        elif event == EVENT_FAULT:
+            # Update station fault information
+            if "status" not in device_data:
+                device_data["status"] = {}
+            device_data["status"]["station_faults"] = event_data.get(
+                "station_faults", []
+            )
 
         elif event == EVENT_FS_ALARM:
             # Update flood sensor status

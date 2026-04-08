@@ -13,7 +13,7 @@ from homeassistant.components.binary_sensor import (
 )
 
 from . import BHyveCoordinatorEntity
-from .const import DEVICE_FLOOD, DOMAIN
+from .const import DEVICE_FLOOD, DEVICE_SPRINKLER, DOMAIN
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -31,6 +31,8 @@ class BHyveBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes BHyve binary sensor entity."""
 
     unique_id_suffix: str
+    # Device types this sensor applies to (e.g., DEVICE_FLOOD, DEVICE_SPRINKLER)
+    device_types: tuple[str, ...] = ()
     # Callable that takes device_data and returns bool
     value_fn: Any = None
     # Callable that takes device_data and returns attributes
@@ -44,6 +46,7 @@ BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
         name="flood sensor",
         device_class=BinarySensorDeviceClass.MOISTURE,
         unique_id_suffix="water",
+        device_types=(DEVICE_FLOOD,),
         value_fn=lambda data: (
             data.get("status", {}).get("flood_alarm_status") == "alarm"
         ),
@@ -59,10 +62,23 @@ BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
         name="temperature alert",
         device_class=BinarySensorDeviceClass.HEAT,
         unique_id_suffix="tempalert",
+        device_types=(DEVICE_FLOOD,),
         value_fn=lambda data: (
             "alarm" in data.get("status", {}).get("temp_alarm_status", "")
         ),
         attributes_fn=lambda data: data.get("temp_alarm_thresholds", {}),
+    ),
+    BHyveBinarySensorEntityDescription(
+        key="fault",
+        translation_key="fault",
+        name="fault",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        unique_id_suffix="fault",
+        device_types=(DEVICE_SPRINKLER,),
+        value_fn=lambda data: bool(data.get("status", {}).get("station_faults")),
+        attributes_fn=lambda data: {
+            "station_faults": data.get("status", {}).get("station_faults", []),
+        },
     ),
 )
 
@@ -77,8 +93,8 @@ async def async_setup_entry(
     entities = [
         BHyveBinarySensor(coordinator, device, description)
         for device in devices
-        if device.get("type") == DEVICE_FLOOD
         for description in BINARY_SENSOR_TYPES
+        if device.get("type") in description.device_types
     ]
 
     async_add_entities(entities)

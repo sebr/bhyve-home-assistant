@@ -22,6 +22,7 @@ TEST_RSSI_ALARM = -55
 TEST_TEMP_THRESHOLD_LOW = 32
 TEST_TEMP_THRESHOLD_HIGH = 100
 EXPECTED_FLOOD_ENTITIES = 2
+EXPECTED_SPRINKLER_ENTITIES = 1
 
 
 def create_binary_sensor_description(
@@ -169,15 +170,21 @@ class TestAsyncSetupEntry:
         assert entities[0].entity_description.key == "flood"
         assert entities[1].entity_description.key == "temperature_alert"
 
-    async def test_setup_entry_no_flood_devices(
+    async def test_setup_entry_with_sprinkler_devices(
         self,
         hass: HomeAssistant,
         mock_config_entry: ConfigEntry,
     ) -> None:
-        """Test setting up binary sensors with no flood devices."""
-        # Create coordinator with sprinkler device (non-flood)
+        """Test setting up binary sensors for sprinkler devices."""
         sprinkler_device = BHyveDevice(
-            {"id": "test-sprinkler-123", "type": "sprinkler_timer", "name": "Sprinkler"}
+            {
+                "id": "test-sprinkler-123",
+                "type": "sprinkler_timer",
+                "name": "Sprinkler",
+                "mac_address": "dd:ee:ff:aa:bb:cc",
+                "is_connected": True,
+                "status": {},
+            }
         )
         coordinator = create_mock_coordinator(
             {
@@ -189,12 +196,50 @@ class TestAsyncSetupEntry:
             }
         )
 
-        # Setup mock data in hass
         hass.data = {
             "bhyve": {
                 "test_entry_id": {
                     "coordinator": coordinator,
                     "devices": [sprinkler_device],
+                }
+            }
+        }
+
+        async_add_entities = MagicMock()
+        await async_setup_entry(hass, mock_config_entry, async_add_entities)
+
+        async_add_entities.assert_called_once()
+        entities = async_add_entities.call_args[0][0]
+
+        assert len(entities) == EXPECTED_SPRINKLER_ENTITIES
+        assert entities[0].entity_description.key == "fault"
+
+    async def test_setup_entry_no_matching_devices(
+        self,
+        hass: HomeAssistant,
+        mock_config_entry: ConfigEntry,
+    ) -> None:
+        """Test setting up binary sensors with no matching device types."""
+        # Create coordinator with bridge device (no binary sensors)
+        bridge_device = BHyveDevice(
+            {"id": "test-bridge-123", "type": "bridge", "name": "Bridge"}
+        )
+        coordinator = create_mock_coordinator(
+            {
+                "test-bridge-123": {
+                    "device": bridge_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
+        # Setup mock data in hass
+        hass.data = {
+            "bhyve": {
+                "test_entry_id": {
+                    "coordinator": coordinator,
+                    "devices": [bridge_device],
                 }
             }
         }
@@ -584,3 +629,161 @@ class TestBinarySensorEdgeCases:
         # Flood sensor should detect alarm, temp sensor should default to off
         assert flood_sensor.is_on is True
         assert temp_sensor.is_on is False
+
+
+class TestBHyveFaultSensor:
+    """Test BHyve fault binary sensor entity for sprinkler devices."""
+
+    @pytest.fixture
+    def mock_sprinkler_device(self) -> BHyveDevice:
+        """Mock BHyve sprinkler device with no faults."""
+        return BHyveDevice(
+            {
+                "id": "test-sprinkler-123",
+                "name": "Garden Sprinkler",
+                "type": "sprinkler_timer",
+                "mac_address": "dd:ee:ff:aa:bb:cc",
+                "is_connected": True,
+                "status": {},
+            }
+        )
+
+    @pytest.fixture
+    def mock_sprinkler_device_faulting(self) -> BHyveDevice:
+        """Mock BHyve sprinkler device with station faults."""
+        return BHyveDevice(
+            {
+                "id": "test-sprinkler-456",
+                "name": "Front Yard Sprinkler",
+                "type": "sprinkler_timer",
+                "mac_address": "ee:ff:aa:bb:cc:dd",
+                "is_connected": True,
+                "status": {
+                    "station_faults": [
+                        {
+                            "station": 1,
+                            "timestamp": "2026-04-08T01:57:27.000Z",
+                            "no_flow": True,
+                        }
+                    ],
+                },
+            }
+        )
+
+    def _create_fault_sensor(
+        self, device: BHyveDevice, coordinator: MagicMock
+    ) -> BHyveBinarySensor:
+        """Create a fault binary sensor for testing."""
+        description = create_binary_sensor_description(device, BINARY_SENSOR_TYPES[2])
+        return BHyveBinarySensor(
+            coordinator=coordinator, device=device, description=description
+        )
+
+    async def test_fault_sensor_initialization(
+        self, mock_sprinkler_device: BHyveDevice
+    ) -> None:
+        """Test fault sensor entity initialization."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-sprinkler-123": {
+                    "device": mock_sprinkler_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        sensor = self._create_fault_sensor(mock_sprinkler_device, coordinator)
+
+        assert sensor.device_class == BinarySensorDeviceClass.PROBLEM
+        assert sensor.unique_id == "dd:ee:ff:aa:bb:cc:test-sprinkler-123:fault"
+
+    async def test_fault_sensor_normal_state(
+        self, mock_sprinkler_device: BHyveDevice
+    ) -> None:
+        """Test fault sensor with no faults."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-sprinkler-123": {
+                    "device": mock_sprinkler_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        sensor = self._create_fault_sensor(mock_sprinkler_device, coordinator)
+
+        assert sensor.is_on is False
+        assert sensor.available is True
+        assert sensor.extra_state_attributes == {"station_faults": []}
+
+    async def test_fault_sensor_fault_state(
+        self, mock_sprinkler_device_faulting: BHyveDevice
+    ) -> None:
+        """Test fault sensor with active station faults."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-sprinkler-456": {
+                    "device": mock_sprinkler_device_faulting,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        sensor = self._create_fault_sensor(mock_sprinkler_device_faulting, coordinator)
+
+        assert sensor.is_on is True
+        assert sensor.available is True
+        attrs = sensor.extra_state_attributes
+        assert len(attrs["station_faults"]) == 1
+        assert attrs["station_faults"][0]["station"] == 1
+        assert attrs["station_faults"][0]["no_flow"] is True
+
+    async def test_fault_sensor_websocket_event(
+        self, mock_sprinkler_device: BHyveDevice
+    ) -> None:
+        """Test fault sensor response to websocket fault event."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-sprinkler-123": {
+                    "device": mock_sprinkler_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        sensor = self._create_fault_sensor(mock_sprinkler_device, coordinator)
+
+        # Initially no faults
+        assert sensor.is_on is False
+
+        # Simulate coordinator update with fault data
+        coordinator.data["devices"]["test-sprinkler-123"]["device"]["status"][
+            "station_faults"
+        ] = [{"station": 1, "timestamp": "2026-04-08T01:57:27.000Z", "no_flow": True}]
+
+        assert sensor.is_on is True
+        assert len(sensor.extra_state_attributes["station_faults"]) == 1
+
+    async def test_fault_sensor_clears(
+        self, mock_sprinkler_device_faulting: BHyveDevice
+    ) -> None:
+        """Test fault sensor clears when faults are resolved."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-sprinkler-456": {
+                    "device": mock_sprinkler_device_faulting,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        sensor = self._create_fault_sensor(mock_sprinkler_device_faulting, coordinator)
+
+        assert sensor.is_on is True
+
+        # Simulate fault clearing
+        coordinator.data["devices"]["test-sprinkler-456"]["device"]["status"][
+            "station_faults"
+        ] = []
+
+        assert sensor.is_on is False
