@@ -64,6 +64,20 @@ ATTR_STARTED_AT = "started_at"
 
 ATTR_PROGRAM = "program_{}"
 
+# Keys accepted by the B-hyve API for program updates
+PROGRAM_UPDATE_KEYS = {
+    "budget",
+    "device_id",
+    "enabled",
+    "frequency",
+    "id",
+    "name",
+    "program",
+    "program_start_date",
+    "run_times",
+    "start_times",
+}
+
 
 @dataclass(frozen=True, kw_only=True)
 class BHyveSwitchEntityDescription(SwitchEntityDescription):
@@ -227,9 +241,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
                 }
             )
         else:
-            program = BHyveTimerProgram(self.program_data)
-            program["enabled"] = True
-            await self.coordinator.client.update_program(self._program_id, program)
+            await self._update_program(enabled=True)
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn the switch off."""
@@ -243,9 +255,15 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
                 }
             )
         else:
-            program = BHyveTimerProgram(self.program_data)
-            program["enabled"] = False
-            await self.coordinator.client.update_program(self._program_id, program)
+            await self._update_program(enabled=False)
+
+    async def _update_program(self, *, enabled: bool) -> None:
+        """Update a non-smart program via the API."""
+        program = BHyveTimerProgram(
+            {k: v for k, v in self.program_data.items() if k in PROGRAM_UPDATE_KEYS}
+        )
+        program["enabled"] = enabled
+        await self.coordinator.client.update_program(self._program_id, program)
 
     async def start_program(self) -> None:
         """Begins running a program."""
