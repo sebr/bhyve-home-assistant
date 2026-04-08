@@ -163,6 +163,9 @@
       "state": {
         "name": "State"
       },
+      "zone_history": {
+        "name": "{zone_name} zone history"
+      },
       "temperature": {
         "name": "Temperature"
       },
@@ -176,6 +179,14 @@
     "switch": {
       "rain_delay": {
         "name": "Rain delay"
+      },
+      "program": {
+        "name": "{program_name} program"
+      }
+    },
+    "valve": {
+      "zone": {
+        "name": "{zone_name} zone"
       }
     }
   }

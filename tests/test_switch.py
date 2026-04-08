@@ -41,13 +41,12 @@ def create_mock_coordinator(devices: dict, programs: dict) -> MagicMock:
 
 
 def create_program_switch_description(
-    _device: BHyveDevice, program: BHyveTimerProgram
+    _device: BHyveDevice, _program: BHyveTimerProgram
 ) -> BHyveSwitchEntityDescription:
     """Create a program switch description for testing."""
-    program_name = program.get("name", "unknown")
     return BHyveSwitchEntityDescription(
         key="program",
-        name=f"{program_name} program",
+        translation_key="program",
         icon="mdi:bulletin-board",
         device_class=SwitchDeviceClass.SWITCH,
         entity_category=EntityCategory.CONFIG,
@@ -325,11 +324,14 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
         # Test basic properties
-        assert switch.name == "Morning Schedule program"
+        assert switch._attr_translation_placeholders == {
+            "program_name": "Morning Schedule"
+        }
         assert switch.device_class == SwitchDeviceClass.SWITCH
         assert switch.entity_category == EntityCategory.CONFIG
         assert switch.unique_id == f"bhyve:program:{TEST_PROGRAM_ID}"
@@ -348,6 +350,7 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -387,6 +390,7 @@ class TestBHyveProgramSwitch:
             coordinator=coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program_disabled,
+            program_name=mock_timer_program_disabled.get("name", "unknown"),
             description=description,
         )
 
@@ -418,6 +422,7 @@ class TestBHyveProgramSwitch:
             coordinator=coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program_disabled,
+            program_name=mock_timer_program_disabled.get("name", "unknown"),
             description=description,
         )
 
@@ -444,6 +449,7 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -470,6 +476,7 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -498,6 +505,7 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -524,6 +532,7 @@ class TestBHyveProgramSwitch:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
@@ -846,7 +855,9 @@ class TestDynamicProgramCreation:
         assert len(all_added_entities[1]) == 1
         new_entity = all_added_entities[1][0]
         assert isinstance(new_entity, BHyveProgramSwitch)
-        assert new_entity.name == "New Evening Schedule program"
+        assert new_entity._attr_translation_placeholders == {
+            "program_name": "New Evening Schedule"
+        }
 
     async def test_program_created_event_unknown_device(
         self,
@@ -950,6 +961,7 @@ class TestSwitchEdgeCases:
             coordinator=coordinator,
             device=minimal_device,
             program=minimal_program,
+            program_name=minimal_program.get("name", "unknown"),
             description=description,
         )
 
@@ -973,6 +985,7 @@ class TestSwitchEdgeCases:
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
             program=mock_timer_program,
+            program_name=mock_timer_program.get("name", "unknown"),
             description=description,
         )
 
