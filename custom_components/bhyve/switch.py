@@ -217,17 +217,35 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn the switch on."""
-        program = BHyveTimerProgram(self.program_data)
-        program["enabled"] = True
-        await self.coordinator.client.update_program(self._program_id, program)
-        # Coordinator updates via WebSocket event
+        if self.program_data.get("is_smart_program"):
+            await self.coordinator.client.update_device(
+                {
+                    "id": self._device_id,
+                    "type": self._device_type,
+                    "mac_address": self._mac_address,
+                    "water_sense_mode": "auto",
+                }
+            )
+        else:
+            program = BHyveTimerProgram(self.program_data)
+            program["enabled"] = True
+            await self.coordinator.client.update_program(self._program_id, program)
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn the switch off."""
-        program = BHyveTimerProgram(self.program_data)
-        program["enabled"] = False
-        await self.coordinator.client.update_program(self._program_id, program)
-        # Coordinator updates via WebSocket event
+        if self.program_data.get("is_smart_program"):
+            await self.coordinator.client.update_device(
+                {
+                    "id": self._device_id,
+                    "type": self._device_type,
+                    "mac_address": self._mac_address,
+                    "water_sense_mode": "off",
+                }
+            )
+        else:
+            program = BHyveTimerProgram(self.program_data)
+            program["enabled"] = False
+            await self.coordinator.client.update_program(self._program_id, program)
 
     async def start_program(self) -> None:
         """Begins running a program."""

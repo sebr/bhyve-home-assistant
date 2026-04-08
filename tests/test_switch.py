@@ -37,6 +37,7 @@ def create_mock_coordinator(devices: dict, programs: dict) -> MagicMock:
     coordinator.client = MagicMock()
     coordinator.client.send_message = AsyncMock()
     coordinator.client.update_program = AsyncMock()
+    coordinator.client.update_device = AsyncMock()
     return coordinator
 
 
@@ -412,14 +413,14 @@ class TestBHyveProgramSwitch:
             description=description,
         )
 
-        # Turn on the switch
+        # Turn on the switch (smart program uses update_device)
         await switch.async_turn_on()
 
-        # Verify update_program was called with enabled=True
-        coordinator.client.update_program.assert_called_once()
-        call_args = coordinator.client.update_program.call_args[0]
-        assert call_args[0] == TEST_PROGRAM_ID
-        assert call_args[1]["enabled"] is True
+        # Verify update_device was called with water_sense_mode=auto
+        coordinator.client.update_device.assert_called_once()
+        call_args = coordinator.client.update_device.call_args[0][0]
+        assert call_args["id"] == TEST_DEVICE_ID
+        assert call_args["water_sense_mode"] == "auto"
 
     async def test_program_switch_turn_off(
         self,
