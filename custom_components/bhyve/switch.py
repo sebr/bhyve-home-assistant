@@ -328,27 +328,25 @@ class BHyveSmartWateringSwitch(BHyveCoordinatorEntity, SwitchEntity):
         """Return true if smart watering is enabled for this zone."""
         return self._get_zone_data().get("smart_watering_enabled", False)
 
+    async def _set_smart_watering(self, *, enabled: bool) -> None:
+        """Update the zone's smart_watering_enabled on the device."""
+        zones = [
+            {**z, "smart_watering_enabled": enabled}
+            if z.get("station") == self._zone_id
+            else z
+            for z in self.device_data.get("zones", [])
+        ]
+        await self.coordinator.client.update_device(
+            {"id": self._device_id, "zones": zones}
+        )
+
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn smart watering on."""
-        await self.coordinator.client.update_device(
-            {
-                "id": self._device_id,
-                "type": self._device_type,
-                "mac_address": self._mac_address,
-                "water_sense_mode": "auto",
-            }
-        )
+        await self._set_smart_watering(enabled=True)
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn smart watering off."""
-        await self.coordinator.client.update_device(
-            {
-                "id": self._device_id,
-                "type": self._device_type,
-                "mac_address": self._mac_address,
-                "water_sense_mode": "off",
-            }
-        )
+        await self._set_smart_watering(enabled=False)
 
 
 class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):

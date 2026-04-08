@@ -1111,8 +1111,8 @@ class TestBHyveSmartWateringSwitch:
         assert switch_on.is_on is True
         assert switch_off.is_on is False
 
-    async def test_turn_on_calls_update_device(self) -> None:
-        """Test turning on sends water_sense_mode auto."""
+    async def test_turn_on_patches_zone(self) -> None:
+        """Test turning on sets smart_watering_enabled on the zone."""
         device = BHyveDevice(
             {
                 "id": "device-4",
@@ -1125,11 +1125,13 @@ class TestBHyveSmartWateringSwitch:
                 "status": {"run_mode": "auto"},
                 "zones": [
                     {"station": 1, "smart_watering_enabled": False},
+                    {"station": 2, "smart_watering_enabled": False},
                 ],
             }
         )
         coordinator = create_mock_coordinator(
-            {"device-4": {"device": device, "history": [], "landscapes": {}}}, {}
+            {"device-4": {"device": device, "history": [], "landscapes": {}}},
+            {},
         )
         switch = self._create_switch(device, device["zones"][0], coordinator)
 
@@ -1137,10 +1139,15 @@ class TestBHyveSmartWateringSwitch:
         coordinator.client.update_device.assert_called_once()
         call_args = coordinator.client.update_device.call_args[0][0]
         assert call_args["id"] == "device-4"
-        assert call_args["water_sense_mode"] == "auto"
+        # Zone 1 should be enabled, zone 2 unchanged
+        zones = call_args["zones"]
+        assert zones[0]["station"] == 1
+        assert zones[0]["smart_watering_enabled"] is True
+        assert zones[1]["station"] == 2
+        assert zones[1]["smart_watering_enabled"] is False
 
-    async def test_turn_off_calls_update_device(self) -> None:
-        """Test turning off sends water_sense_mode off."""
+    async def test_turn_off_patches_zone(self) -> None:
+        """Test turning off sets smart_watering_enabled false on the zone."""
         device = BHyveDevice(
             {
                 "id": "device-4",
@@ -1153,18 +1160,23 @@ class TestBHyveSmartWateringSwitch:
                 "status": {"run_mode": "auto"},
                 "zones": [
                     {"station": 1, "smart_watering_enabled": True},
+                    {"station": 2, "smart_watering_enabled": True},
                 ],
             }
         )
         coordinator = create_mock_coordinator(
-            {"device-4": {"device": device, "history": [], "landscapes": {}}}, {}
+            {"device-4": {"device": device, "history": [], "landscapes": {}}},
+            {},
         )
         switch = self._create_switch(device, device["zones"][0], coordinator)
 
         await switch.async_turn_off()
         coordinator.client.update_device.assert_called_once()
         call_args = coordinator.client.update_device.call_args[0][0]
-        assert call_args["water_sense_mode"] == "off"
+        zones = call_args["zones"]
+        # Zone 1 should be disabled, zone 2 unchanged
+        assert zones[0]["smart_watering_enabled"] is False
+        assert zones[1]["smart_watering_enabled"] is True
 
     async def test_setup_creates_per_zone_switches(self, hass: HomeAssistant) -> None:
         """Test setup creates one smart watering switch per zone."""
