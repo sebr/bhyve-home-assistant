@@ -169,8 +169,6 @@ async def async_setup_entry(
     sensors = []
 
     for device in devices:
-        device_name = device.get("name", "Unknown Device")
-
         if device.get("type") == DEVICE_SPRINKLER:
             # Add state sensors
             for base_description in SENSOR_TYPES_SPRINKLER:
