@@ -47,6 +47,7 @@ class OrbitWebsocket:
         self._heartbeat_cb = None
         self._heartbeat: int = 25
         self._ws: ClientWebSocketResponse | None = None
+        self._closing: bool = False
 
     def _cancel_heartbeat(self) -> None:
         if self._heartbeat_cb is not None:
@@ -172,12 +173,16 @@ class OrbitWebsocket:
             self.retry()
 
         else:
-            _LOGGER.info("Reconnecting websocket; state: %s", self.state)
-            self.retry()
+            if self._closing:
+                _LOGGER.info("Websocket closed intentionally, not reconnecting")
+            else:
+                _LOGGER.info("Reconnecting websocket; state: %s", self.state)
+                self.retry()
 
     async def stop(self) -> None:
         """Close websocket connection."""
         _LOGGER.info("Closing websocket connection; state: %s --> STOPPED", self.state)
+        self._closing = True
         self.state = STATE_STOPPED
         self._cancel_heartbeat()
         if self._ws is not None:
