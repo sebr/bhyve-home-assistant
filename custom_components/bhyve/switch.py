@@ -144,8 +144,23 @@ async def async_setup_entry(
                 )
             )
 
-    # Create program switches
+            # Create smart watering switches for zones that support it
+            smart_watering_desc = BHyveSwitchEntityDescription(
+                key="smart_watering",
+                translation_key="smart_watering",
+                icon="mdi:auto-fix",
+                entity_category=EntityCategory.CONFIG,
+            )
+            switches.extend(
+                BHyveSmartWateringSwitch(coordinator, device, zone, smart_watering_desc)
+                for zone in device.get("zones", [])
+                if zone.get("smart_watering_enabled") is not None
+            )
+
+    # Create program switches (skip smart programs, handled above)
     for program in coordinator.data.get("programs", {}).values():
+        if program.get("is_smart_program"):
+            continue
         program_device = device_by_id.get(program.get("device_id"))
         if program_device is not None:
             _LOGGER.info("Creating switch: Program %s", program.get("name"))
@@ -159,7 +174,7 @@ async def async_setup_entry(
     async def async_handle_program_created(event: Any) -> None:
         """Handle creation of new programs."""
         program = event.data.get("program")
-        if not program:
+        if not program or program.get("is_smart_program"):
             return
 
         program_device = device_by_id.get(program.get("device_id"))
@@ -231,31 +246,11 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn the switch on."""
-        if self.program_data.get("is_smart_program"):
-            await self.coordinator.client.update_device(
-                {
-                    "id": self._device_id,
-                    "type": self._device_type,
-                    "mac_address": self._mac_address,
-                    "water_sense_mode": "auto",
-                }
-            )
-        else:
-            await self._update_program(enabled=True)
+        await self._update_program(enabled=True)
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn the switch off."""
-        if self.program_data.get("is_smart_program"):
-            await self.coordinator.client.update_device(
-                {
-                    "id": self._device_id,
-                    "type": self._device_type,
-                    "mac_address": self._mac_address,
-                    "water_sense_mode": "off",
-                }
-            )
-        else:
-            await self._update_program(enabled=False)
+        await self._update_program(enabled=False)
 
     async def _update_program(self, *, enabled: bool) -> None:
         """Update a non-smart program via the API."""
@@ -289,6 +284,71 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         except BHyveError as err:
             _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
             raise
+
+
+class BHyveSmartWateringSwitch(BHyveCoordinatorEntity, SwitchEntity):
+    """Define a BHyve smart watering switch for a zone."""
+
+    entity_description: BHyveSwitchEntityDescription
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: BHyveDataUpdateCoordinator,
+        device: BHyveDevice,
+        zone: dict,
+        description: BHyveSwitchEntityDescription,
+    ) -> None:
+        """Initialize the switch."""
+        self.entity_description = description
+        self._zone_id = zone.get("station")
+        zone_name = zone.get("name", "")
+        all_zones = device.get("zones", [])
+        if zone_name and zone_name != device.get("name") and len(all_zones) > 1:
+            self._attr_name = f"{zone_name} smart watering"
+        else:
+            self._attr_name = "Smart watering"
+        self._attr_translation_placeholders = {"zone_name": zone_name}
+
+        super().__init__(coordinator, device)
+
+        self._attr_unique_id = (
+            f"{self._mac_address}:{self._device_id}:{self._zone_id}:smart_watering"
+        )
+
+    def _get_zone_data(self) -> dict:
+        """Get current zone data from coordinator."""
+        for zone in self.device_data.get("zones", []):
+            if zone.get("station") == self._zone_id:
+                return zone
+        return {}
+
+    @property
+    def is_on(self) -> bool:
+        """Return true if smart watering is enabled for this zone."""
+        return self._get_zone_data().get("smart_watering_enabled", False)
+
+    async def async_turn_on(self, **_kwargs: Any) -> None:
+        """Turn smart watering on."""
+        await self.coordinator.client.update_device(
+            {
+                "id": self._device_id,
+                "type": self._device_type,
+                "mac_address": self._mac_address,
+                "water_sense_mode": "auto",
+            }
+        )
+
+    async def async_turn_off(self, **_kwargs: Any) -> None:
+        """Turn smart watering off."""
+        await self.coordinator.client.update_device(
+            {
+                "id": self._device_id,
+                "type": self._device_type,
+                "mac_address": self._mac_address,
+                "water_sense_mode": "off",
+            }
+        )
 
 
 class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):

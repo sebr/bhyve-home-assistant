@@ -124,8 +124,20 @@ class OrbitWebsocket:
 
                         if msg.type == WSMsgType.TEXT:
                             data = json.loads(msg.data)
+                            log_data = data
+                            if (
+                                isinstance(data.get("program"), dict)
+                                and "watering_plan" in data["program"]
+                            ):
+                                log_data = {
+                                    **data,
+                                    "program": {
+                                        **data["program"],
+                                        "watering_plan": "<removed>",
+                                    },
+                                }
                             _LOGGER.debug(
-                                "msg received:\n%s", json.dumps(data, indent=2)
+                                "msg received:\n%s", json.dumps(log_data, indent=2)
                             )
                             task = ensure_future(self._async_callback(data))
                             # Add task to the set to create a strong reference, and

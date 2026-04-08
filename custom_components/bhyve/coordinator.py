@@ -327,18 +327,22 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             self.async_set_updated_data(self.data)
             return
 
-        # Handle program deletion
-        if lifecycle_phase == "delete":
-            if program_id in self.data["programs"]:
+        # Handle program deletion (smart programs use "destroy" but should
+        # be kept as entities since they are toggled via water_sense_mode)
+        if lifecycle_phase in ("delete", "destroy"):
+            is_smart = (
+                self.data["programs"].get(program_id, {}).get("is_smart_program", False)
+            )
+            if not is_smart and program_id in self.data["programs"]:
                 _LOGGER.debug("Removing program %s from coordinator data", program_id)
                 del self.data["programs"][program_id]
-                # Fire an event so the switch platform can remove the entity
                 self.hass.bus.async_fire(
                     "bhyve_program_deleted",
                     {"program_id": program_id},
                 )
-            self.async_set_updated_data(self.data)
-            return
+                self.async_set_updated_data(self.data)
+                return
+            # Smart program "destroy" falls through to update the program data
 
         # For update events, check if program exists
         if program_id not in self.data["programs"]:
