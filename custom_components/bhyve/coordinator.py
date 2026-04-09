@@ -335,7 +335,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug("Adding new program %s to coordinator data", program_id)
                 self.data["programs"][program_id] = program_data
                 if program_data.get("is_smart_program"):
-                    # Smart program created means water_sense_mode turned on
+                    # Smart program created means smart watering was enabled
                     device_id = event_data.get("device_id")
                     self._set_zones_smart_watering(device_id, enabled=True)
                 else:
@@ -347,7 +347,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             return
 
         # Handle program deletion (smart programs use "destroy" but should
-        # be kept as entities since they are toggled via water_sense_mode)
+        # be kept as entities since they represent a toggle, not a removal)
         if lifecycle_phase in ("delete", "destroy"):
             is_smart = (
                 self.data["programs"].get(program_id, {}).get("is_smart_program", False)
@@ -362,7 +362,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                 self.async_set_updated_data(self.data)
                 return
             if is_smart:
-                # Smart program destroy means water_sense_mode was turned off.
+                # Smart program destroy means smart watering was disabled.
                 # Update zone data so smart watering switches reflect the change.
                 device_id = event_data.get("device_id")
                 self._set_zones_smart_watering(device_id, enabled=False)
