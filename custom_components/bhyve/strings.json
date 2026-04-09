@@ -182,6 +182,9 @@
       },
       "program": {
         "name": "{program_name} program"
+      },
+      "smart_watering": {
+        "name": "{zone_name} smart watering"
       }
     },
     "valve": {

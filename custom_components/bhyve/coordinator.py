@@ -295,6 +295,26 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         # Notify all listening entities
         self.async_set_updated_data(self.data)
 
+    def _set_zones_smart_watering(
+        self, device_id: str | None, *, enabled: bool
+    ) -> None:
+        """Update smart_watering_enabled on all zones of a device."""
+        if not device_id:
+            return
+        device_data = self.data.get("devices", {}).get(device_id, {})
+        device = device_data.get("device", {})
+        for zone in device.get("zones", []):
+            zone["smart_watering_enabled"] = enabled
+
+    @staticmethod
+    def _get_program_id(event_data: dict[str, Any]) -> str | None:
+        """Extract program ID from event data."""
+        program_id = event_data.get("program_id")
+        if not program_id:
+            program = event_data.get("program", {})
+            program_id = program.get("id") if isinstance(program, dict) else None
+        return program_id
+
     async def async_handle_program_event(self, event_data: dict[str, Any]) -> None:
         """Handle WebSocket program events."""
         if not self.data:
@@ -302,12 +322,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             return
 
         lifecycle_phase = event_data.get("lifecycle_phase")
-        program_id = event_data.get("program_id")
-
-        if not program_id:
-            # Some program events have program in a different structure
-            program = event_data.get("program", {})
-            program_id = program.get("id") if isinstance(program, dict) else None
+        program_id = self._get_program_id(event_data)
 
         if not program_id:
             _LOGGER.debug("No program_id found in event, ignoring")
@@ -319,26 +334,39 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             if isinstance(program_data, dict):
                 _LOGGER.debug("Adding new program %s to coordinator data", program_id)
                 self.data["programs"][program_id] = program_data
-                # Fire an event so the switch platform can create a new entity
-                self.hass.bus.async_fire(
-                    "bhyve_program_created",
-                    {"program_id": program_id, "program": program_data},
-                )
+                if program_data.get("is_smart_program"):
+                    # Smart program created means smart watering was enabled
+                    device_id = event_data.get("device_id")
+                    self._set_zones_smart_watering(device_id, enabled=True)
+                else:
+                    self.hass.bus.async_fire(
+                        "bhyve_program_created",
+                        {"program_id": program_id, "program": program_data},
+                    )
             self.async_set_updated_data(self.data)
             return
 
-        # Handle program deletion
-        if lifecycle_phase == "delete":
-            if program_id in self.data["programs"]:
+        # Handle program deletion (smart programs use "destroy" but should
+        # be kept as entities since they represent a toggle, not a removal)
+        if lifecycle_phase in ("delete", "destroy"):
+            is_smart = (
+                self.data["programs"].get(program_id, {}).get("is_smart_program", False)
+            )
+            if not is_smart and program_id in self.data["programs"]:
                 _LOGGER.debug("Removing program %s from coordinator data", program_id)
                 del self.data["programs"][program_id]
-                # Fire an event so the switch platform can remove the entity
                 self.hass.bus.async_fire(
                     "bhyve_program_deleted",
                     {"program_id": program_id},
                 )
-            self.async_set_updated_data(self.data)
-            return
+                self.async_set_updated_data(self.data)
+                return
+            if is_smart:
+                # Smart program destroy means smart watering was disabled.
+                # Update zone data so smart watering switches reflect the change.
+                device_id = event_data.get("device_id")
+                self._set_zones_smart_watering(device_id, enabled=False)
+                # Fall through to update the program data
 
         # For update events, check if program exists
         if program_id not in self.data["programs"]:
