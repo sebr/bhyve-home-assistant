@@ -18,7 +18,7 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -26,6 +26,7 @@ from custom_components.bhyve.pybhyve.typings import BHyveDevice
 
 from .const import (
     CONF_DEVICES,
+    DEVICE_BRIDGE,
     DOMAIN,
     EVENT_PROGRAM_CHANGED,
     LOGGER,
@@ -103,6 +104,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     programs = await client.timer_programs
     devices = filter_configured_devices(entry, all_devices)
 
+    # Build a mapping from device_gateway_topic to bridge device ID
+    # so child devices can reference their bridge via via_device.
+    # Bridges are always included by filter_configured_devices.
+    gateway_to_bridge: dict[str, str] = {}
+    for device in devices:
+        if device.get("type") == DEVICE_BRIDGE:
+            gateway_topic = device.get("device_gateway_topic")
+            if gateway_topic:
+                gateway_to_bridge[gateway_topic] = device.get("id", "")
+    coordinator.gateway_to_bridge = gateway_to_bridge
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "client": client,
         "coordinator": coordinator,
@@ -146,9 +158,12 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
             # Get currently configured device IDs
             configured_ids = set(entry.options.get(CONF_DEVICES, []))
 
-            # Find devices that were removed from configuration
-            all_device_ids = {str(d["id"]) for d in all_devices}
-            removed_device_ids = all_device_ids - configured_ids
+            # Find leaf devices that were removed from configuration
+            # (bridges are always included and not user-selectable)
+            leaf_device_ids = {
+                str(d["id"]) for d in all_devices if d.get("type") != DEVICE_BRIDGE
+            }
+            removed_device_ids = leaf_device_ids - configured_ids
 
             if removed_device_ids:
                 # Remove devices from Home Assistant
@@ -183,8 +198,16 @@ class BHyveCoordinatorEntity(CoordinatorEntity[BHyveDataUpdateCoordinator]):
         self._mac_address = device.get("mac_address")
 
         # Device info for grouping
-        self._attr_device_info = DeviceInfo(
+        connections: set[tuple[str, str]] = set()
+        if self._mac_address:
+            # Format raw MAC (e.g. "4467552a366e") with colons
+            raw = self._mac_address.replace(":", "").replace("-", "").lower()
+            formatted_mac = ":".join(raw[i : i + 2] for i in range(0, len(raw), 2))
+            connections.add((CONNECTION_NETWORK_MAC, formatted_mac))
+
+        device_info = DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
+            connections=connections,
             manufacturer=MANUFACTURER,
             configuration_url=f"https://techsupport.orbitbhyve.com/dashboard/support/device/{self._device_id}",
             name=self._device_name,
@@ -192,6 +215,16 @@ class BHyveCoordinatorEntity(CoordinatorEntity[BHyveDataUpdateCoordinator]):
             hw_version=device.get("hardware_version"),
             sw_version=device.get("firmware_version"),
         )
+
+        # Link non-bridge devices to their bridge via device_gateway_topic
+        if self._device_type != DEVICE_BRIDGE:
+            gateway_topic = device.get("device_gateway_topic")
+            gateway_to_bridge = getattr(coordinator, "gateway_to_bridge", {})
+            bridge_id = gateway_to_bridge.get(gateway_topic) if gateway_topic else None
+            if bridge_id:
+                device_info["via_device"] = (DOMAIN, bridge_id)
+
+        self._attr_device_info = device_info
 
         LOGGER.debug(
             "Creating %s: %s - %s",

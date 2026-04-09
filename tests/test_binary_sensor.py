@@ -197,15 +197,20 @@ class TestAsyncSetupEntry:
         assert len(entities) == EXPECTED_SPRINKLER_ENTITIES
         assert entities[0].entity_description.key == "fault"
 
-    async def test_setup_entry_no_matching_devices(
+    async def test_setup_entry_with_bridge_device(
         self,
         hass: HomeAssistant,
         mock_config_entry: ConfigEntry,
     ) -> None:
-        """Test setting up binary sensors with no matching device types."""
-        # Create coordinator with bridge device (no binary sensors)
+        """Test setting up binary sensors for bridge devices."""
         bridge_device = BHyveDevice(
-            {"id": "test-bridge-123", "type": "bridge", "name": "Bridge"}
+            {
+                "id": "test-bridge-123",
+                "type": "bridge",
+                "name": "Wi-Fi Hub",
+                "mac_address": "44:67:55:22:dc:60",
+                "is_connected": True,
+            }
         )
         coordinator = create_mock_coordinator(
             {
@@ -217,7 +222,6 @@ class TestAsyncSetupEntry:
             }
         )
 
-        # Setup mock data in hass
         hass.data = {
             "bhyve": {
                 "test_entry_id": {
@@ -227,13 +231,45 @@ class TestAsyncSetupEntry:
             }
         }
 
-        # Mock async_add_entities
         async_add_entities = MagicMock()
-
-        # Call setup entry
         await async_setup_entry(hass, mock_config_entry, async_add_entities)
 
-        # Verify no entities were added
+        async_add_entities.assert_called_once()
+        entities = async_add_entities.call_args[0][0]
+        assert len(entities) == 1
+        assert entities[0].entity_description.key == "connectivity"
+
+    async def test_setup_entry_no_matching_devices(
+        self,
+        hass: HomeAssistant,
+        mock_config_entry: ConfigEntry,
+    ) -> None:
+        """Test setting up binary sensors with no matching device types."""
+        unknown_device = BHyveDevice(
+            {"id": "test-unknown-123", "type": "unknown_type", "name": "Unknown"}
+        )
+        coordinator = create_mock_coordinator(
+            {
+                "test-unknown-123": {
+                    "device": unknown_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
+        hass.data = {
+            "bhyve": {
+                "test_entry_id": {
+                    "coordinator": coordinator,
+                    "devices": [unknown_device],
+                }
+            }
+        }
+
+        async_add_entities = MagicMock()
+        await async_setup_entry(hass, mock_config_entry, async_add_entities)
+
         async_add_entities.assert_called_once()
         entities = async_add_entities.call_args[0][0]
         assert len(entities) == 0
@@ -735,3 +771,210 @@ class TestBHyveFaultSensor:
         ] = []
 
         assert sensor.is_on is False
+
+
+class TestBHyveBridgeConnectivitySensor:
+    """Test BHyve bridge connectivity binary sensor."""
+
+    @pytest.fixture
+    def mock_bridge_device(self) -> BHyveDevice:
+        """Mock BHyve bridge device."""
+        return BHyveDevice(
+            {
+                "id": "test-bridge-123",
+                "name": "Wi-Fi Hub",
+                "type": "bridge",
+                "mac_address": "44:67:55:22:dc:60",
+                "hardware_version": "BH1G2-0002",
+                "firmware_version": "0056",
+                "is_connected": True,
+                "device_gateway_topic": "devices-1",
+                "status": {
+                    "run_mode": "auto",
+                    "watering_status": None,
+                },
+            }
+        )
+
+    def _create_connectivity_sensor(
+        self, device: BHyveDevice, coordinator: MagicMock
+    ) -> BHyveBinarySensor:
+        """Create a connectivity binary sensor for testing."""
+        description = BINARY_SENSOR_TYPES[3]
+        return BHyveBinarySensor(
+            coordinator=coordinator, device=device, description=description
+        )
+
+    async def test_connectivity_sensor_initialization(
+        self, mock_bridge_device: BHyveDevice
+    ) -> None:
+        """Test connectivity sensor entity initialization."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-bridge-123": {
+                    "device": mock_bridge_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        sensor = self._create_connectivity_sensor(mock_bridge_device, coordinator)
+
+        assert sensor.device_class == BinarySensorDeviceClass.CONNECTIVITY
+        assert sensor.unique_id == "44:67:55:22:dc:60:test-bridge-123:connectivity"
+        assert sensor.name == "Connected"
+
+    async def test_connectivity_sensor_connected(
+        self, mock_bridge_device: BHyveDevice
+    ) -> None:
+        """Test connectivity sensor when bridge is connected."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-bridge-123": {
+                    "device": mock_bridge_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        sensor = self._create_connectivity_sensor(mock_bridge_device, coordinator)
+
+        assert sensor.is_on is True
+
+    async def test_connectivity_sensor_disconnected(self) -> None:
+        """Test connectivity sensor when bridge is disconnected."""
+        device = BHyveDevice(
+            {
+                "id": "test-bridge-456",
+                "name": "Wi-Fi Hub",
+                "type": "bridge",
+                "mac_address": "44:67:55:22:dc:61",
+                "is_connected": False,
+            }
+        )
+        coordinator = create_mock_coordinator(
+            {
+                "test-bridge-456": {
+                    "device": device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        sensor = self._create_connectivity_sensor(device, coordinator)
+
+        assert sensor.is_on is False
+
+    async def test_connectivity_sensor_websocket_update(
+        self, mock_bridge_device: BHyveDevice
+    ) -> None:
+        """Test connectivity sensor updates when coordinator data changes."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-bridge-123": {
+                    "device": mock_bridge_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        sensor = self._create_connectivity_sensor(mock_bridge_device, coordinator)
+
+        assert sensor.is_on is True
+
+        # Simulate bridge going offline
+        coordinator.data["devices"]["test-bridge-123"]["device"]["is_connected"] = False
+
+        assert sensor.is_on is False
+
+
+class TestBridgeViaDevice:
+    """Test that child devices reference their bridge via via_device."""
+
+    async def test_child_device_has_via_device(self) -> None:
+        """Test that a flood sensor references its bridge."""
+        flood_device = BHyveDevice(
+            {
+                "id": "test-flood-123",
+                "name": "Basement Flood",
+                "type": "flood_sensor",
+                "mac_address": "aa:bb:cc:dd:ee:ff",
+                "is_connected": True,
+                "device_gateway_topic": "devices-1",
+            }
+        )
+        coordinator = create_mock_coordinator(
+            {
+                "test-flood-123": {
+                    "device": flood_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        coordinator.gateway_to_bridge = {"devices-1": "bridge-id-123"}
+
+        description = BINARY_SENSOR_TYPES[0]
+        sensor = BHyveBinarySensor(
+            coordinator=coordinator, device=flood_device, description=description
+        )
+
+        assert sensor.device_info["via_device"] == ("bhyve", "bridge-id-123")
+
+    async def test_bridge_device_has_no_via_device(self) -> None:
+        """Test that a bridge device does not have via_device."""
+        bridge_device = BHyveDevice(
+            {
+                "id": "test-bridge-123",
+                "name": "Wi-Fi Hub",
+                "type": "bridge",
+                "mac_address": "44:67:55:22:dc:60",
+                "is_connected": True,
+                "device_gateway_topic": "devices-1",
+            }
+        )
+        coordinator = create_mock_coordinator(
+            {
+                "test-bridge-123": {
+                    "device": bridge_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        coordinator.gateway_to_bridge = {"devices-1": "test-bridge-123"}
+
+        description = BINARY_SENSOR_TYPES[3]
+        sensor = BHyveBinarySensor(
+            coordinator=coordinator, device=bridge_device, description=description
+        )
+
+        assert "via_device" not in sensor.device_info
+
+    async def test_child_device_without_gateway_has_no_via_device(self) -> None:
+        """Test that a device without gateway_topic has no via_device."""
+        flood_device = BHyveDevice(
+            {
+                "id": "test-flood-123",
+                "name": "Basement Flood",
+                "type": "flood_sensor",
+                "mac_address": "aa:bb:cc:dd:ee:ff",
+                "is_connected": True,
+            }
+        )
+        coordinator = create_mock_coordinator(
+            {
+                "test-flood-123": {
+                    "device": flood_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
+        description = BINARY_SENSOR_TYPES[0]
+        sensor = BHyveBinarySensor(
+            coordinator=coordinator, device=flood_device, description=description
+        )
+
+        assert "via_device" not in sensor.device_info
