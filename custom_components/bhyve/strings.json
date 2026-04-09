@@ -157,6 +157,9 @@
           "on": "Fault",
           "off": "OK"
         }
+      },
+      "connectivity": {
+        "name": "Connected"
       }
     },
     "sensor": {

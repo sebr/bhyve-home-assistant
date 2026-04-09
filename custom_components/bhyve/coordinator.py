@@ -52,6 +52,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         )
         self.client = client
         self.entry = entry
+        self.gateway_to_bridge: dict[str, str] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API (periodic polling)."""

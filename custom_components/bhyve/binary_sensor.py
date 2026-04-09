@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -13,7 +12,7 @@ from homeassistant.components.binary_sensor import (
 )
 
 from . import BHyveCoordinatorEntity
-from .const import DEVICE_FLOOD, DEVICE_SPRINKLER, DOMAIN
+from .const import DEVICE_BRIDGE, DEVICE_FLOOD, DEVICE_SPRINKLER, DOMAIN
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -22,8 +21,6 @@ if TYPE_CHECKING:
 
     from .coordinator import BHyveDataUpdateCoordinator
     from .pybhyve.typings import BHyveDevice
-
-_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -83,6 +80,15 @@ BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
         attributes_fn=lambda data: {
             "station_faults": data.get("status", {}).get("station_faults", []),
         },
+    ),
+    BHyveBinarySensorEntityDescription(
+        key="connectivity",
+        translation_key="connectivity",
+        name="Connected",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        unique_id_suffix="connectivity",
+        device_types=(DEVICE_BRIDGE,),
+        value_fn=lambda data: data.get("is_connected", False),
     ),
 )
 

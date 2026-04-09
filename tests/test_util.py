@@ -272,6 +272,39 @@ class TestFilterConfiguredDevices:
         assert len(result) == 0
         assert result == []
 
+    def test_filter_configured_devices_always_includes_bridges(self) -> None:
+        """Test that bridge devices are always included regardless of config."""
+        entry = MagicMock(spec=ConfigEntry)
+        entry.options = {CONF_DEVICES: ["device-1"]}
+
+        devices = [
+            {"id": "bridge-1", "name": "Wi-Fi Hub", "type": "bridge"},
+            {"id": "device-1", "name": "Sprinkler", "type": "sprinkler_timer"},
+            {"id": "device-2", "name": "Flood Sensor", "type": "flood_sensor"},
+        ]
+
+        result = filter_configured_devices(entry, devices)
+
+        device_ids = [d["id"] for d in result]
+        assert "bridge-1" in device_ids
+        assert "device-1" in device_ids
+        assert "device-2" not in device_ids
+
+    def test_filter_configured_devices_bridges_included_with_empty_config(self) -> None:
+        """Test that bridges are included even when no devices are configured."""
+        entry = MagicMock(spec=ConfigEntry)
+        entry.options = {CONF_DEVICES: []}
+
+        devices = [
+            {"id": "bridge-1", "name": "Wi-Fi Hub", "type": "bridge"},
+            {"id": "device-1", "name": "Sprinkler", "type": "sprinkler_timer"},
+        ]
+
+        result = filter_configured_devices(entry, devices)
+
+        assert len(result) == 1
+        assert result[0]["id"] == "bridge-1"
+
     def test_filter_configured_devices_adds_default_name(self) -> None:
         """Test that devices without names get default name."""
         entry = MagicMock(spec=ConfigEntry)
