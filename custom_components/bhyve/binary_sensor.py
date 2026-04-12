@@ -63,11 +63,10 @@ BINARY_SENSOR_TYPES: tuple[BHyveBinarySensorEntityDescription, ...] = (
         value_fn=lambda data: (
             "alarm" in data.get("status", {}).get("temp_alarm_status", "")
         ),
-        attributes_fn=lambda data: (
-            thresh
-            if isinstance(thresh := data.get("temp_alarm_thresholds"), dict)
-            else {}
-        ),
+        attributes_fn=lambda data: {
+            **(thresh if isinstance(thresh := data.get("temp_alarm_thresholds"), dict) else {}),
+            "problem_type": "temperature",
+        },
     ),
     BHyveBinarySensorEntityDescription(
         key="fault",
