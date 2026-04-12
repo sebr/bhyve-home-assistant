@@ -70,7 +70,8 @@ async def test_zone_valve_initialization(
     )
 
     # Test basic properties
-    assert valve.name == f"{zone_name} zone"
+    assert valve._attr_name == f"{zone_name} zone"
+    assert valve._attr_translation_placeholders == {"zone_name": zone_name}
     expected_unique_id = (
         f"{mock_sprinkler_device['mac_address']}:"
         f"{mock_sprinkler_device['id']}:"

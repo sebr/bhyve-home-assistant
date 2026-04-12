@@ -15,6 +15,7 @@ from .const import (
     EVENT_BATTERY_STATUS,
     EVENT_CHANGE_MODE,
     EVENT_DEVICE_IDLE,
+    EVENT_FAULT,
     EVENT_FS_ALARM,
     EVENT_RAIN_DELAY,
     EVENT_SET_MANUAL_PRESET_TIME,
@@ -51,6 +52,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         )
         self.client = client
         self.entry = entry
+        self.gateway_to_bridge: dict[str, str] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API (periodic polling)."""
@@ -260,11 +262,30 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                 device_data["status"] = {}
             device_data["status"]["rain_delay"] = event_data.get("delay", 0)
 
-        elif event == EVENT_FS_ALARM:
-            # Update flood sensor status
+        elif event == EVENT_FAULT:
+            # Update station fault information
             if "status" not in device_data:
                 device_data["status"] = {}
-            device_data["status"].update(event_data)
+            device_data["status"]["station_faults"] = event_data.get(
+                "station_faults", []
+            )
+
+        elif event == EVENT_FS_ALARM:
+            # Update flood sensor status with only meaningful flood sensor fields.
+            # Avoid a blind merge that could overwrite unrelated device-level keys.
+            if "status" not in device_data:
+                device_data["status"] = {}
+            for key in (
+                "flood_alarm_status",
+                "temp_alarm_status",
+                "temp_f",
+                "rssi",
+                "last_flood_alarm_at",
+                "last_temp_alarm_at",
+                "status_updated_at",
+            ):
+                if key in event_data:
+                    device_data["status"][key] = event_data[key]
 
         elif event == EVENT_SET_MANUAL_PRESET_TIME:
             # Update manual preset runtime
@@ -275,20 +296,81 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         # Notify all listening entities
         self.async_set_updated_data(self.data)
 
+    def _set_zones_smart_watering(
+        self, device_id: str | None, *, enabled: bool
+    ) -> None:
+        """Update smart_watering_enabled on all zones of a device."""
+        if not device_id:
+            return
+        device_data = self.data.get("devices", {}).get(device_id, {})
+        device = device_data.get("device", {})
+        for zone in device.get("zones", []):
+            zone["smart_watering_enabled"] = enabled
+
+    @staticmethod
+    def _get_program_id(event_data: dict[str, Any]) -> str | None:
+        """Extract program ID from event data."""
+        program_id = event_data.get("program_id")
+        if not program_id:
+            program = event_data.get("program", {})
+            program_id = program.get("id") if isinstance(program, dict) else None
+        return program_id
+
     async def async_handle_program_event(self, event_data: dict[str, Any]) -> None:
         """Handle WebSocket program events."""
         if not self.data:
             _LOGGER.debug("Coordinator data not initialized, ignoring event")
             return
 
-        program_id = event_data.get("program_id")
+        lifecycle_phase = event_data.get("lifecycle_phase")
+        program_id = self._get_program_id(event_data)
 
         if not program_id:
-            # Some program events have program in a different structure
-            program = event_data.get("program", {})
-            program_id = program.get("id") if isinstance(program, dict) else None
+            _LOGGER.debug("No program_id found in event, ignoring")
+            return
 
-        if not program_id or program_id not in self.data["programs"]:
+        # Handle program creation
+        if lifecycle_phase == "create":
+            program_data = event_data.get("program")
+            if isinstance(program_data, dict):
+                _LOGGER.debug("Adding new program %s to coordinator data", program_id)
+                self.data["programs"][program_id] = program_data
+                if program_data.get("is_smart_program"):
+                    # Smart program created means smart watering was enabled
+                    device_id = event_data.get("device_id")
+                    self._set_zones_smart_watering(device_id, enabled=True)
+                else:
+                    self.hass.bus.async_fire(
+                        "bhyve_program_created",
+                        {"program_id": program_id, "program": program_data},
+                    )
+            self.async_set_updated_data(self.data)
+            return
+
+        # Handle program deletion (smart programs use "destroy" but should
+        # be kept as entities since they represent a toggle, not a removal)
+        if lifecycle_phase in ("delete", "destroy"):
+            is_smart = (
+                self.data["programs"].get(program_id, {}).get("is_smart_program", False)
+            )
+            if not is_smart and program_id in self.data["programs"]:
+                _LOGGER.debug("Removing program %s from coordinator data", program_id)
+                del self.data["programs"][program_id]
+                self.hass.bus.async_fire(
+                    "bhyve_program_deleted",
+                    {"program_id": program_id},
+                )
+                self.async_set_updated_data(self.data)
+                return
+            if is_smart:
+                # Smart program destroy means smart watering was disabled.
+                # Update zone data so smart watering switches reflect the change.
+                device_id = event_data.get("device_id")
+                self._set_zones_smart_watering(device_id, enabled=False)
+                # Fall through to update the program data
+
+        # For update events, check if program exists
+        if program_id not in self.data["programs"]:
             _LOGGER.debug(
                 "Program %s not found in coordinator data, ignoring event",
                 program_id,

@@ -13,6 +13,7 @@ from custom_components.bhyve.pybhyve.typings import BHyveDevice, BHyveTimerProgr
 from custom_components.bhyve.switch import (
     BHyveProgramSwitch,
     BHyveRainDelaySwitch,
+    BHyveSmartWateringSwitch,
     BHyveSwitchEntityDescription,
     async_setup_entry,
 )
@@ -37,18 +38,15 @@ def create_mock_coordinator(devices: dict, programs: dict) -> MagicMock:
     coordinator.client = MagicMock()
     coordinator.client.send_message = AsyncMock()
     coordinator.client.update_program = AsyncMock()
+    coordinator.client.update_device = AsyncMock()
     return coordinator
 
 
-def create_program_switch_description(
-    device: BHyveDevice, program: BHyveTimerProgram
-) -> BHyveSwitchEntityDescription:
+def create_program_switch_description() -> BHyveSwitchEntityDescription:
     """Create a program switch description for testing."""
-    device_name = device.get("name", "Unknown switch")
-    program_name = program.get("name", "unknown")
     return BHyveSwitchEntityDescription(
         key="program",
-        name=f"{device_name} {program_name} program",
+        translation_key="program",
         icon="mdi:bulletin-board",
         device_class=SwitchDeviceClass.SWITCH,
         entity_category=EntityCategory.CONFIG,
@@ -154,7 +152,7 @@ def mock_timer_program_disabled() -> BHyveTimerProgram:
             "name": "Evening Schedule",
             "program": "b",
             "enabled": False,
-            "is_smart_program": True,
+            "is_smart_program": False,
             "frequency": {"type": "days", "days": [6, 0]},
             "start_times": ["18:00"],
             "budget": 85,
@@ -319,9 +317,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch entity initialization."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -330,7 +326,9 @@ class TestBHyveProgramSwitch:
         )
 
         # Test basic properties
-        assert switch.name == "Front Yard Sprinkler Morning Schedule program"
+        assert switch._attr_translation_placeholders == {
+            "program_name": "Morning Schedule"
+        }
         assert switch.device_class == SwitchDeviceClass.SWITCH
         assert switch.entity_category == EntityCategory.CONFIG
         assert switch.unique_id == f"bhyve:program:{TEST_PROGRAM_ID}"
@@ -342,9 +340,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch in enabled state."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -381,9 +377,7 @@ class TestBHyveProgramSwitch:
             {TEST_PROGRAM_ID: mock_timer_program_disabled},
         )
 
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program_disabled
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=coordinator,
             device=mock_sprinkler_device,
@@ -412,9 +406,7 @@ class TestBHyveProgramSwitch:
             {TEST_PROGRAM_ID: mock_timer_program_disabled},
         )
 
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program_disabled
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=coordinator,
             device=mock_sprinkler_device,
@@ -438,9 +430,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test turning off a program switch."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -464,9 +454,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test starting a program manually."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -492,9 +480,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch response to websocket events."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -518,9 +504,7 @@ class TestBHyveProgramSwitch:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test program switch handles all events via coordinator."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -782,6 +766,125 @@ class TestBHyveRainDelaySwitch:
         assert switch.available is False
 
 
+class TestDynamicProgramCreation:
+    """Test dynamic program creation via events."""
+
+    async def test_program_created_event_adds_new_switch(
+        self,
+        hass: HomeAssistant,
+        mock_config_entry: ConfigEntry,
+        mock_sprinkler_device: BHyveDevice,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test that bhyve_program_created event creates a new switch entity."""
+        # Setup mock data in hass
+        hass.data = {
+            "bhyve": {
+                "test_entry_id": {
+                    "coordinator": mock_coordinator,
+                    "devices": [mock_sprinkler_device],
+                }
+            }
+        }
+
+        # Track all calls to async_add_entities
+        all_added_entities: list[list] = []
+
+        def track_add_entities(entities: list) -> None:
+            all_added_entities.append(list(entities))
+
+        async_add_entities = MagicMock(side_effect=track_add_entities)
+
+        # Setup the entry to support async_on_unload
+        unload_callbacks: list = []
+        mock_config_entry.async_on_unload = lambda cb: unload_callbacks.append(cb)
+
+        # Call setup entry
+        await async_setup_entry(hass, mock_config_entry, async_add_entities)
+
+        # Verify initial entities were added (rain delay + existing program)
+        assert len(all_added_entities) == 1
+        assert len(all_added_entities[0]) == EXPECTED_SWITCH_ENTITIES
+
+        # Create a new program
+        new_program = {
+            "id": "new-program-789",
+            "device_id": TEST_DEVICE_ID,
+            "name": "New Evening Schedule",
+            "program": "c",
+            "enabled": True,
+            "frequency": {"type": "days", "days": [0, 6]},
+            "start_times": ["19:00"],
+            "budget": 75,
+            "run_times": [{"station": 2, "run_time": 10}],
+        }
+
+        # Fire the program created event
+        hass.bus.async_fire(
+            "bhyve_program_created",
+            {"program_id": "new-program-789", "program": new_program},
+        )
+        await hass.async_block_till_done()
+
+        # Verify a new entity was added
+        assert len(all_added_entities) == 2
+        assert len(all_added_entities[1]) == 1
+        new_entity = all_added_entities[1][0]
+        assert isinstance(new_entity, BHyveProgramSwitch)
+        assert new_entity._attr_translation_placeholders == {
+            "program_name": "New Evening Schedule"
+        }
+
+    async def test_program_created_event_unknown_device(
+        self,
+        hass: HomeAssistant,
+        mock_config_entry: ConfigEntry,
+        mock_sprinkler_device: BHyveDevice,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test that program created event for unknown device is ignored."""
+        # Setup mock data in hass
+        hass.data = {
+            "bhyve": {
+                "test_entry_id": {
+                    "coordinator": mock_coordinator,
+                    "devices": [mock_sprinkler_device],
+                }
+            }
+        }
+
+        # Track all calls to async_add_entities
+        all_added_entities: list[list] = []
+
+        def track_add_entities(entities: list) -> None:
+            all_added_entities.append(list(entities))
+
+        async_add_entities = MagicMock(side_effect=track_add_entities)
+
+        # Setup the entry to support async_on_unload
+        mock_config_entry.async_on_unload = lambda _cb: None
+
+        # Call setup entry
+        await async_setup_entry(hass, mock_config_entry, async_add_entities)
+
+        # Fire event with unknown device_id
+        hass.bus.async_fire(
+            "bhyve_program_created",
+            {
+                "program_id": "orphan-program",
+                "program": {
+                    "id": "orphan-program",
+                    "device_id": "unknown-device-id",
+                    "name": "Orphan Program",
+                },
+            },
+        )
+        await hass.async_block_till_done()
+
+        # Verify no new entity was added
+        assert len(all_added_entities) == 1
+
+
 class TestSwitchEdgeCases:
     """Test edge cases for switches."""
 
@@ -829,7 +932,7 @@ class TestSwitchEdgeCases:
             description=description,
         )
 
-        description = create_program_switch_description(minimal_device, minimal_program)
+        description = create_program_switch_description()
         program_switch = BHyveProgramSwitch(
             coordinator=coordinator,
             device=minimal_device,
@@ -850,9 +953,7 @@ class TestSwitchEdgeCases:
         mock_coordinator: MagicMock,
     ) -> None:
         """Test switches handle websocket events with missing fields."""
-        description = create_program_switch_description(
-            mock_sprinkler_device, mock_timer_program
-        )
+        description = create_program_switch_description()
         program_switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
             device=mock_sprinkler_device,
@@ -871,3 +972,295 @@ class TestSwitchEdgeCases:
         # (coordinator ensures data structure is always present)
         assert program_switch.is_on is True
         assert rain_delay_switch.is_on is False
+
+
+class TestBHyveSmartWateringSwitch:
+    """Test BHyveSmartWateringSwitch entity."""
+
+    @staticmethod
+    def _create_switch(
+        device: BHyveDevice, zone: dict, coordinator: MagicMock | None = None
+    ) -> BHyveSmartWateringSwitch:
+        if coordinator is None:
+            coordinator = create_mock_coordinator(
+                {
+                    device["id"]: {
+                        "device": device,
+                        "history": [],
+                        "landscapes": {},
+                    }
+                },
+                {},
+            )
+        return BHyveSmartWateringSwitch(
+            coordinator=coordinator,
+            device=device,
+            zone=zone,
+            description=BHyveSwitchEntityDescription(
+                key="smart_watering",
+                translation_key="smart_watering",
+                icon="mdi:auto-fix",
+                entity_category=EntityCategory.CONFIG,
+            ),
+        )
+
+    async def test_single_zone_device_name(self) -> None:
+        """Test smart watering switch name for single-zone device."""
+        device = BHyveDevice(
+            {
+                "id": "device-1",
+                "name": "Street Lawn",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:01",
+                "hardware_version": "HT25-0000",
+                "firmware_version": "0085",
+                "is_connected": True,
+                "status": {"run_mode": "auto"},
+                "zones": [
+                    {"station": 1, "smart_watering_enabled": True},
+                ],
+            }
+        )
+        switch = self._create_switch(device, device["zones"][0])
+        assert switch._attr_name == "Smart watering"
+
+    async def test_multi_zone_device_names(self) -> None:
+        """Test smart watering switch names for multi-zone device."""
+        device = BHyveDevice(
+            {
+                "id": "device-2",
+                "name": "Dover Gardens",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:02",
+                "hardware_version": "WT25G2-0001",
+                "firmware_version": "0087",
+                "is_connected": True,
+                "status": {"run_mode": "auto"},
+                "zones": [
+                    {
+                        "station": 1,
+                        "name": "Front Garden",
+                        "smart_watering_enabled": True,
+                    },
+                    {
+                        "station": 2,
+                        "name": "Back Garden",
+                        "smart_watering_enabled": True,
+                    },
+                    {
+                        "station": 3,
+                        "name": "Side Garden",
+                        "smart_watering_enabled": False,
+                    },
+                ],
+            }
+        )
+        switch_1 = self._create_switch(device, device["zones"][0])
+        switch_2 = self._create_switch(device, device["zones"][1])
+        switch_3 = self._create_switch(device, device["zones"][2])
+
+        assert switch_1._attr_name == "Front Garden smart watering"
+        assert switch_2._attr_name == "Back Garden smart watering"
+        assert switch_3._attr_name == "Side Garden smart watering"
+
+        # Unique IDs include station
+        assert "1:smart_watering" in switch_1.unique_id
+        assert "2:smart_watering" in switch_2.unique_id
+        assert "3:smart_watering" in switch_3.unique_id
+
+    async def test_is_on_reads_zone_data(self) -> None:
+        """Test is_on reflects the zone's smart_watering_enabled value."""
+        device = BHyveDevice(
+            {
+                "id": "device-3",
+                "name": "Monash",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:03",
+                "hardware_version": "WT25G2-0001",
+                "firmware_version": "0087",
+                "is_connected": True,
+                "status": {"run_mode": "auto"},
+                "zones": [
+                    {
+                        "station": 1,
+                        "name": "Front Lawn",
+                        "smart_watering_enabled": True,
+                    },
+                    {
+                        "station": 2,
+                        "name": "Back Lawn",
+                        "smart_watering_enabled": False,
+                    },
+                ],
+            }
+        )
+        coordinator = create_mock_coordinator(
+            {
+                "device-3": {
+                    "device": device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            },
+            {},
+        )
+
+        switch_on = self._create_switch(device, device["zones"][0], coordinator)
+        switch_off = self._create_switch(device, device["zones"][1], coordinator)
+
+        assert switch_on.is_on is True
+        assert switch_off.is_on is False
+
+    async def test_turn_on_patches_zone(self) -> None:
+        """Test turning on sets smart_watering_enabled on the zone."""
+        device = BHyveDevice(
+            {
+                "id": "device-4",
+                "name": "Test",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:04",
+                "hardware_version": "HT25-0000",
+                "firmware_version": "0085",
+                "is_connected": True,
+                "status": {"run_mode": "auto"},
+                "zones": [
+                    {"station": 1, "smart_watering_enabled": False},
+                    {"station": 2, "smart_watering_enabled": False},
+                ],
+            }
+        )
+        coordinator = create_mock_coordinator(
+            {"device-4": {"device": device, "history": [], "landscapes": {}}},
+            {},
+        )
+        switch = self._create_switch(device, device["zones"][0], coordinator)
+
+        await switch.async_turn_on()
+        coordinator.client.update_device.assert_called_once()
+        call_args = coordinator.client.update_device.call_args[0][0]
+        assert call_args["id"] == "device-4"
+        # Zone 1 should be enabled, zone 2 unchanged
+        zones = call_args["zones"]
+        assert zones[0]["station"] == 1
+        assert zones[0]["smart_watering_enabled"] is True
+        assert zones[1]["station"] == 2
+        assert zones[1]["smart_watering_enabled"] is False
+
+    async def test_turn_off_patches_zone(self) -> None:
+        """Test turning off sets smart_watering_enabled false on the zone."""
+        device = BHyveDevice(
+            {
+                "id": "device-4",
+                "name": "Test",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:04",
+                "hardware_version": "HT25-0000",
+                "firmware_version": "0085",
+                "is_connected": True,
+                "status": {"run_mode": "auto"},
+                "zones": [
+                    {"station": 1, "smart_watering_enabled": True},
+                    {"station": 2, "smart_watering_enabled": True},
+                ],
+            }
+        )
+        coordinator = create_mock_coordinator(
+            {"device-4": {"device": device, "history": [], "landscapes": {}}},
+            {},
+        )
+        switch = self._create_switch(device, device["zones"][0], coordinator)
+
+        await switch.async_turn_off()
+        coordinator.client.update_device.assert_called_once()
+        call_args = coordinator.client.update_device.call_args[0][0]
+        zones = call_args["zones"]
+        # Zone 1 should be disabled, zone 2 unchanged
+        assert zones[0]["smart_watering_enabled"] is False
+        assert zones[1]["smart_watering_enabled"] is True
+
+    async def test_setup_creates_per_zone_switches(self, hass: HomeAssistant) -> None:
+        """Test setup creates one smart watering switch per zone."""
+        device = BHyveDevice(
+            {
+                "id": "dover-gardens",
+                "name": "Dover Gardens",
+                "type": "sprinkler_timer",
+                "mac_address": "4467550a3f05",
+                "hardware_version": "WT25G2-0001",
+                "firmware_version": "0087",
+                "is_connected": True,
+                "smart_watering_enabled": True,
+                "status": {
+                    "run_mode": "auto",
+                    "watering_status": None,
+                },
+                "zones": [
+                    {
+                        "station": 1,
+                        "name": "Front Garden",
+                        "smart_watering_enabled": True,
+                    },
+                    {
+                        "station": 2,
+                        "name": "Front Garden by House",
+                        "smart_watering_enabled": True,
+                    },
+                    {
+                        "station": 3,
+                        "name": "Back Garden West",
+                        "smart_watering_enabled": True,
+                    },
+                    {
+                        "station": 4,
+                        "name": "Back Garden Middle",
+                        "smart_watering_enabled": True,
+                    },
+                    {
+                        "station": 5,
+                        "name": "Back Garden East",
+                        "smart_watering_enabled": True,
+                    },
+                ],
+            }
+        )
+
+        coordinator = create_mock_coordinator(
+            {
+                "dover-gardens": {
+                    "device": device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            },
+            {},
+        )
+
+        hass.data = {
+            "bhyve": {
+                "test_entry_id": {
+                    "coordinator": coordinator,
+                    "devices": [device],
+                }
+            }
+        }
+
+        entry = MagicMock(spec=ConfigEntry)
+        entry.entry_id = "test_entry_id"
+        entry.options = {}
+        entry.async_on_unload = lambda _cb: None
+
+        added_entities: list = []
+
+        def track_add(entities: list) -> None:
+            added_entities.extend(entities)
+
+        await async_setup_entry(hass, entry, MagicMock(side_effect=track_add))
+
+        smart_switches = [
+            e for e in added_entities if isinstance(e, BHyveSmartWateringSwitch)
+        ]
+        assert len(smart_switches) == 5
+
+        names = [s._attr_name for s in smart_switches]
+        assert "Front Garden smart watering" in names
+        assert "Back Garden West smart watering" in names

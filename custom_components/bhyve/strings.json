@@ -134,5 +134,66 @@
         }
       }
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "flood": {
+        "name": "Flood sensor",
+        "state": {
+          "on": "Wet",
+          "off": "Dry"
+        }
+      },
+      "temperature_alert": {
+        "name": "Temperature alert",
+        "state": {
+          "on": "Problem",
+          "off": "OK"
+        }
+      },
+      "fault": {
+        "name": "Fault",
+        "state": {
+          "on": "Fault",
+          "off": "OK"
+        }
+      },
+      "connectivity": {
+        "name": "Connected"
+      }
+    },
+    "sensor": {
+      "state": {
+        "name": "State"
+      },
+      "zone_history": {
+        "name": "{zone_name} zone history"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "signal_strength": {
+        "name": "Signal strength"
+      }
+    },
+    "switch": {
+      "rain_delay": {
+        "name": "Rain delay"
+      },
+      "program": {
+        "name": "{program_name} program"
+      },
+      "smart_watering": {
+        "name": "{zone_name} smart watering"
+      }
+    },
+    "valve": {
+      "zone": {
+        "name": "{zone_name} zone"
+      }
+    }
   }
 }

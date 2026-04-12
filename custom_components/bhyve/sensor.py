@@ -11,6 +11,7 @@ from homeassistant.components.sensor.const import SensorDeviceClass, SensorState
 from homeassistant.const import (
     ATTR_BATTERY_LEVEL,
     PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
     UnitOfTemperature,
 )
@@ -81,6 +82,7 @@ class BHyveSensorEntityDescription(SensorEntityDescription):
     """Describes BHyve sensor entity."""
 
     unique_id_suffix: str
+    name: str = ""
     # Callable that takes device_data and returns value
     value_fn: Any = None
     # Callable that takes device_data and returns attributes
@@ -95,7 +97,7 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
     BHyveSensorEntityDescription(
         key="state",
         translation_key="state",
-        name="state",
+        name="State",
         icon="mdi:information",
         unique_id_suffix="state",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -107,7 +109,7 @@ SENSOR_TYPES_FLOOD: tuple[BHyveSensorEntityDescription, ...] = (
     BHyveSensorEntityDescription(
         key="temperature",
         translation_key="temperature",
-        name="temperature sensor",
+        name="Temperature sensor",
         icon="mdi:thermometer",
         unique_id_suffix="temp",
         device_class=SensorDeviceClass.TEMPERATURE,
@@ -120,10 +122,19 @@ SENSOR_TYPES_FLOOD: tuple[BHyveSensorEntityDescription, ...] = (
         ),
         attributes_fn=lambda data: {
             "location": data.get("location_name"),
-            "rssi": data.get("status", {}).get("rssi"),
-            "temperature_alarm": data.get("status", {}).get("temp_alarm_status"),
         },
         available_fn=lambda _data, value: value is not None,
+    ),
+    BHyveSensorEntityDescription(
+        key="rssi",
+        translation_key="signal_strength",
+        name="Signal strength",
+        unique_id_suffix="rssi",
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("status", {}).get("rssi"),
     ),
 )
 
@@ -131,7 +142,7 @@ SENSOR_TYPES_BATTERY: tuple[BHyveSensorEntityDescription, ...] = (
     BHyveSensorEntityDescription(
         key="battery",
         translation_key="battery",
-        name="battery level",
+        name="Battery level",
         icon="mdi:battery",
         unique_id_suffix="battery",
         device_class=SensorDeviceClass.BATTERY,
@@ -168,15 +179,13 @@ async def async_setup_entry(
     sensors = []
 
     for device in devices:
-        device_name = device.get("name", "Unknown Device")
-
         if device.get("type") == DEVICE_SPRINKLER:
             # Add state sensors
             for base_description in SENSOR_TYPES_SPRINKLER:
                 description = BHyveSensorEntityDescription(
                     key=base_description.key,
                     translation_key=base_description.translation_key,
-                    name=f"{device_name} {base_description.name}",
+                    name=base_description.name,
                     icon=base_description.icon,
                     unique_id_suffix=base_description.unique_id_suffix,
                     entity_category=base_description.entity_category,
@@ -202,9 +211,10 @@ async def async_setup_entry(
                         coordinator,
                         device,
                         zone,
+                        zone_name,
                         SensorEntityDescription(
                             key="zone_history",
-                            name=f"{zone_name} zone history",
+                            translation_key="zone_history",
                             icon="mdi:history",
                             device_class=SensorDeviceClass.TIMESTAMP,
                             entity_category=EntityCategory.DIAGNOSTIC,
@@ -218,7 +228,7 @@ async def async_setup_entry(
                     description = BHyveSensorEntityDescription(
                         key=base_description.key,
                         translation_key=base_description.translation_key,
-                        name=f"{device_name} {base_description.name}",
+                        name=base_description.name,
                         icon=base_description.icon,
                         unique_id_suffix=base_description.unique_id_suffix,
                         device_class=base_description.device_class,
@@ -233,17 +243,18 @@ async def async_setup_entry(
                     sensors.append(BHyveSensor(coordinator, device, description))
 
         if device.get("type") == DEVICE_FLOOD:
-            # Add temperature sensor
+            # Add temperature and RSSI sensors
             for base_description in SENSOR_TYPES_FLOOD:
                 description = BHyveSensorEntityDescription(
                     key=base_description.key,
                     translation_key=base_description.translation_key,
-                    name=f"{device_name} {base_description.name}",
+                    name=base_description.name,
                     icon=base_description.icon,
                     unique_id_suffix=base_description.unique_id_suffix,
                     device_class=base_description.device_class,
                     state_class=base_description.state_class,
                     native_unit_of_measurement=base_description.native_unit_of_measurement,
+                    entity_category=base_description.entity_category,
                     value_fn=base_description.value_fn,
                     attributes_fn=base_description.attributes_fn,
                     icon_fn=base_description.icon_fn,
@@ -256,7 +267,7 @@ async def async_setup_entry(
                 description = BHyveSensorEntityDescription(
                     key=base_description.key,
                     translation_key=base_description.translation_key,
-                    name=f"{device_name} {base_description.name}",
+                    name=base_description.name,
                     icon=base_description.icon,
                     unique_id_suffix=base_description.unique_id_suffix,
                     device_class=base_description.device_class,
@@ -277,6 +288,7 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
     """Define a BHyve sensor."""
 
     entity_description: BHyveSensorEntityDescription
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -286,6 +298,7 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
     ) -> None:
         """Initialize the sensor."""
         self.entity_description = description
+        self._attr_name = description.name
         super().__init__(coordinator, device)
         self._attr_unique_id = (
             f"{self._mac_address}:{self._device_id}:{description.unique_id_suffix}"
@@ -326,16 +339,23 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
     """Define a BHyve zone history sensor."""
 
     entity_description: SensorEntityDescription
+    _attr_has_entity_name = True
 
     def __init__(
         self,
         coordinator: BHyveDataUpdateCoordinator,
         device: BHyveDevice,
         zone: dict,
+        zone_name: str,
         description: SensorEntityDescription,
     ) -> None:
         """Initialize the sensor."""
         self.entity_description = description
+        if zone_name == device.get("name"):
+            self._attr_name = "Zone history"
+        else:
+            self._attr_name = f"{zone_name} zone history"
+        self._attr_translation_placeholders = {"zone_name": zone_name}
         super().__init__(coordinator, device)
 
         self._zone = zone

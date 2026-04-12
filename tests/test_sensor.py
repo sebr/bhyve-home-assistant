@@ -42,14 +42,13 @@ def create_mock_coordinator(devices: dict) -> MagicMock:
 
 
 def create_sensor_description(
-    device: BHyveDevice, base_description: BHyveSensorEntityDescription
+    _device: BHyveDevice, base_description: BHyveSensorEntityDescription
 ) -> BHyveSensorEntityDescription:
     """Create a sensor description with device name for testing."""
-    device_name = device.get("name", "Unknown Device")
     return BHyveSensorEntityDescription(
         key=base_description.key,
         translation_key=base_description.translation_key,
-        name=f"{device_name} {base_description.name}",
+        name=base_description.name,
         icon=base_description.icon,
         unique_id_suffix=base_description.unique_id_suffix,
         device_class=base_description.device_class,
@@ -163,7 +162,7 @@ class TestBHyveBatterySensor:
         )
 
         # Test basic properties
-        assert sensor.name == "Test Sprinkler battery level"
+        assert sensor.name == "Battery level"
         assert sensor.device_class == SensorDeviceClass.BATTERY
         assert sensor.entity_description.state_class == SensorStateClass.MEASUREMENT
         assert sensor.entity_description.native_unit_of_measurement == PERCENTAGE
@@ -265,7 +264,7 @@ class TestBHyveStateSensor:
         )
 
         # Test basic properties
-        assert sensor.name == "Test Sprinkler state"
+        assert sensor.name == "State"
         assert sensor.entity_description.entity_category == EntityCategory.DIAGNOSTIC
 
     async def test_state_sensor_values(
@@ -331,7 +330,7 @@ class TestBHyveTemperatureSensor:
         )
 
         # Test basic properties
-        assert sensor.name == "Test Flood Sensor temperature sensor"
+        assert sensor.name == "Temperature sensor"
         assert sensor.device_class == SensorDeviceClass.TEMPERATURE
         assert sensor.entity_description.state_class == SensorStateClass.MEASUREMENT
         assert (
@@ -370,8 +369,6 @@ class TestBHyveTemperatureSensor:
         # Test attributes
         attrs = sensor.extra_state_attributes
         assert attrs["location"] == "Basement"
-        assert attrs["rssi"] == -45
-        assert attrs["temperature_alarm"] == "ok"
 
 
 class TestBHyveZoneHistorySensor:
@@ -397,7 +394,7 @@ class TestBHyveZoneHistorySensor:
         # Create description for the zone
         description = SensorEntityDescription(
             key="zone_history",
-            name="Front Lawn zone history",
+            translation_key="zone_history",
             icon="mdi:history",
             device_class=SensorDeviceClass.TIMESTAMP,
             entity_category=EntityCategory.DIAGNOSTIC,
@@ -407,11 +404,13 @@ class TestBHyveZoneHistorySensor:
             coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
             zone=zone,
+            zone_name="Front Lawn",
             description=description,
         )
 
         # Test basic properties
-        assert sensor.name == "Front Lawn zone history"
+        assert sensor._attr_name == "Front Lawn zone history"
+        assert sensor._attr_translation_placeholders == {"zone_name": "Front Lawn"}
         assert sensor.device_class == SensorDeviceClass.TIMESTAMP
         assert sensor.entity_description.entity_category == EntityCategory.DIAGNOSTIC
 
@@ -436,7 +435,7 @@ class TestBHyveZoneHistorySensor:
         # Create description for the zone
         description = SensorEntityDescription(
             key="zone_history",
-            name="Front Lawn zone history",
+            translation_key="zone_history",
             icon="mdi:history",
             device_class=SensorDeviceClass.TIMESTAMP,
             entity_category=EntityCategory.DIAGNOSTIC,
@@ -446,6 +445,7 @@ class TestBHyveZoneHistorySensor:
             coordinator=coordinator,
             device=mock_sprinkler_device_with_battery,
             zone=zone,
+            zone_name="Front Lawn",
             description=description,
         )
 

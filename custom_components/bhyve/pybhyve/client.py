@@ -249,6 +249,13 @@ class BHyveClient:
         json = {"sprinkler_timer_program": program}
         await self._request("put", path, json=json)
 
+    async def update_device(self, device: dict) -> None:
+        """Update device settings."""
+        device_id = device.get("id")
+        path = f"{DEVICES_PATH}/{device_id}"
+        json = {"device": device}
+        await self._request("put", path, json=json)
+
     async def send_message(self, payload: Any) -> None:
         """Send a message via the websocket."""
         if self._websocket is not None:

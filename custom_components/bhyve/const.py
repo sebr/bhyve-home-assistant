@@ -20,6 +20,7 @@ DEVICE_SPRINKLER = "sprinkler_timer"
 DEVICE_FLOOD = "flood_sensor"
 
 EVENT_BATTERY_STATUS = "battery_status"
+EVENT_FAULT = "fault"
 EVENT_CHANGE_MODE = "change_mode"
 EVENT_DEVICE_IDLE = "device_idle"
 EVENT_FS_ALARM = "fs_status_update"
