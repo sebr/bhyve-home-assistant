@@ -74,9 +74,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         if await client.login() is False:
+            _LOGGER.warning("Invalid credentials for %s", entry.data[CONF_USERNAME])
             msg = "Invalid credentials"
             raise ConfigEntryAuthFailed(msg)
     except AuthenticationError as err:
+        _LOGGER.warning("Authentication failed for %s", entry.data[CONF_USERNAME])
         raise ConfigEntryAuthFailed(err) from err
     except BHyveError as err:
         raise ConfigEntryNotReady(err) from err
@@ -177,6 +179,12 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    data = hass.data[DOMAIN].get(entry.entry_id)
+    if data:
+        client = data.get("client")
+        if client:
+            await client.stop()
+
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
 
