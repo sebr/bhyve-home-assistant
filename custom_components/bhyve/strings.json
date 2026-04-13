@@ -136,6 +136,15 @@
     }
   },
   "entity": {
+    "select": {
+      "device_mode": {
+        "name": "Device mode",
+        "state": {
+          "auto": "Auto",
+          "off": "Off"
+        }
+      }
+    },
     "binary_sensor": {
       "flood": {
         "name": "Flood sensor",
