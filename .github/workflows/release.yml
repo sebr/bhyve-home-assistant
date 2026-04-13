@@ -109,7 +109,7 @@ jobs:
           ls -lh bhyve.zip
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v2.6.1
+        uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Release ${{ steps.version.outputs.version }}
