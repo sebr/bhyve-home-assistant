@@ -82,6 +82,12 @@ class BHyveClient:
             try:
                 resp.raise_for_status()
                 return await resp.json(content_type=None)
+            except ClientResponseError as err:
+                if err.status in (401, 403):
+                    _LOGGER.warning("Authentication error from %s: %s", url, err.status)
+                    raise AuthenticationError from err
+                msg = f"Error requesting data from {url}: {err}"
+                raise RequestError(msg) from err
             except Exception as err:
                 msg = f"Error requesting data from {url}: {err}"
                 raise RequestError(msg) from err
@@ -168,7 +174,7 @@ class BHyveClient:
                 self._token = response["orbit_session_token"]
 
             except ClientResponseError as response_err:
-                if response_err.status == 400:  # noqa: PLR2004
+                if response_err.status in (401, 403):
                     raise AuthenticationError from response_err
                 raise RequestError from response_err
             except Exception as err:

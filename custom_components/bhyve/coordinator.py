@@ -7,6 +7,7 @@ import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -122,8 +123,8 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             return data  # noqa: TRY300
 
         except AuthenticationError as err:
-            msg = "Authentication failed"
-            raise UpdateFailed(msg) from err
+            _LOGGER.warning("Authentication failed, triggering reauth: %s", err)
+            raise ConfigEntryAuthFailed from err
         except BHyveError as err:
             msg = f"Error communicating with API: {err}"
             raise UpdateFailed(msg) from err
