@@ -125,7 +125,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         except AuthenticationError as err:
             _LOGGER.warning("Authentication failed, triggering reauth: %s", err)
             raise ConfigEntryAuthFailed from err
-        except BHyveError as err:
+        except (BHyveError, TimeoutError) as err:
             msg = f"Error communicating with API: {err}"
             raise UpdateFailed(msg) from err
 
@@ -133,7 +133,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         """Fetch watering history for a device."""
         try:
             history = await self.client.get_device_history(device_id)
-        except BHyveError as err:
+        except (BHyveError, TimeoutError) as err:
             _LOGGER.debug("Could not fetch history for device %s: %s", device_id, err)
             return []
         else:
@@ -161,7 +161,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             try:
                 landscape = await self.client.get_landscape(device_id, zone_id)
                 return str(zone_id), landscape if landscape else None
-            except BHyveError as err:
+            except (BHyveError, TimeoutError) as err:
                 _LOGGER.debug(
                     "Could not fetch landscape for device %s zone %s: %s",
                     device_id,
