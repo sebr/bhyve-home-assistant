@@ -211,7 +211,7 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
             devices = await client.devices
         except AuthenticationError:
             return self.async_abort(reason="invalid_auth")
-        except BHyveError:
+        except (BHyveError, TimeoutError):
             return self.async_abort(reason="cannot_connect")
 
         _LOGGER.debug("Devices: %s", json.dumps(devices))
