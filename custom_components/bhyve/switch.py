@@ -4,15 +4,20 @@ from __future__ import annotations
 
 import datetime
 import logging
+import re
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
+import voluptuous as vol
 from homeassistant.components.switch import (
     SwitchEntity,
     SwitchEntityDescription,
 )
-from homeassistant.const import EntityCategory
+from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
+from homeassistant.const import ATTR_ENTITY_ID, EntityCategory
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv
 
 from . import BHyveCoordinatorEntity
 from .const import (
@@ -26,7 +31,7 @@ from .util import orbit_time_to_local_time
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import HomeAssistant, ServiceCall
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
     from .coordinator import BHyveDataUpdateCoordinator
@@ -77,6 +82,42 @@ PROGRAM_UPDATE_KEYS = {
     "run_times",
     "start_times",
 }
+
+# Service constants
+SERVICE_UPDATE_PROGRAM = "update_program"
+ATTR_START_TIMES = "start_times"
+ATTR_FREQUENCY = "frequency"
+
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _validate_time_string(value: Any) -> str:
+    """Validate an HH:MM time string."""
+    if not isinstance(value, str) or not _TIME_RE.match(value):
+        msg = f"Invalid time '{value}', expected HH:MM"
+        raise vol.Invalid(msg)
+    return value
+
+
+FREQUENCY_SCHEMA = vol.Schema(
+    {
+        vol.Required("type"): cv.string,
+        vol.Optional("days"): [vol.All(int, vol.Range(min=0, max=6))],
+        vol.Optional("interval"): vol.All(int, vol.Range(min=0)),
+        vol.Optional("interval_hours"): vol.All(int, vol.Range(min=0)),
+    },
+    extra=vol.ALLOW_EXTRA,
+)
+
+UPDATE_PROGRAM_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): cv.comp_entity_ids,
+        vol.Optional(ATTR_START_TIMES): vol.All(
+            cv.ensure_list, [_validate_time_string]
+        ),
+        vol.Optional(ATTR_FREQUENCY): FREQUENCY_SCHEMA,
+    }
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -170,6 +211,31 @@ async def async_setup_entry(
 
     async_add_entities(switches)
 
+    async def async_update_program_service(call: ServiceCall) -> None:
+        """Handle the update_program service call."""
+        entity_ids = call.data.get(ATTR_ENTITY_ID) or []
+        params = {k: v for k, v in call.data.items() if k != ATTR_ENTITY_ID}
+
+        component = hass.data.get(SWITCH_DOMAIN)
+        if component is None:
+            _LOGGER.warning("Switch component not available, cannot update program")
+            return
+
+        for entity_id in entity_ids:
+            entity = component.get_entity(entity_id)
+            if not isinstance(entity, BHyveProgramSwitch):
+                msg = f"Entity {entity_id} is not a BHyve program switch"
+                raise ServiceValidationError(msg)
+            await entity.async_update_program_config(**params)
+
+    if not hass.services.has_service(DOMAIN, SERVICE_UPDATE_PROGRAM):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_UPDATE_PROGRAM,
+            async_update_program_service,
+            schema=UPDATE_PROGRAM_SCHEMA,
+        )
+
     # Listen for new programs created via WebSocket
     async def async_handle_program_created(event: Any) -> None:
         """Handle creation of new programs."""
@@ -258,6 +324,33 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
             {k: v for k, v in self.program_data.items() if k in PROGRAM_UPDATE_KEYS}
         )
         program["enabled"] = enabled
+        await self.coordinator.client.update_program(self._program_id, program)
+
+    async def async_update_program_config(
+        self,
+        start_times: list[str] | None = None,
+        frequency: dict | None = None,
+    ) -> None:
+        """Update start times and/or frequency on a non-smart program."""
+        if self.program_data.get("is_smart_program"):
+            msg = "Cannot update configuration of a smart program"
+            raise ServiceValidationError(msg)
+
+        if start_times is None and frequency is None:
+            msg = "At least one of start_times or frequency must be provided"
+            raise ServiceValidationError(msg)
+
+        program = BHyveTimerProgram({})
+        if start_times is not None:
+            program["start_times"] = start_times
+        if frequency is not None:
+            program["frequency"] = frequency
+
+        _LOGGER.info(
+            "Updating program %s with fields: %s",
+            self._program_id,
+            list(program.keys()),
+        )
         await self.coordinator.client.update_program(self._program_id, program)
 
     async def start_program(self) -> None:
