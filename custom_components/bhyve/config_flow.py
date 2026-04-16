@@ -211,7 +211,7 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
             devices = await client.devices
         except AuthenticationError:
             return self.async_abort(reason="invalid_auth")
-        except BHyveError:
+        except (BHyveError, TimeoutError):
             return self.async_abort(reason="cannot_connect")
 
         _LOGGER.debug("Devices: %s", json.dumps(devices))
@@ -222,13 +222,18 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
             if d.get("type") != DEVICE_BRIDGE
         }
 
+        # Filter saved defaults to only include devices that still exist,
+        # in case a device was removed from the B-hyve account.
+        saved_devices = self.config_entry.options.get(CONF_DEVICES, [])
+        valid_defaults = [d for d in saved_devices if d in device_options]
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(
                         CONF_DEVICES,
-                        default=self.config_entry.options.get(CONF_DEVICES),
+                        default=valid_defaults,
                     ): cv.multi_select(device_options),
                 }
             ),

@@ -41,6 +41,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.VALVE,
@@ -73,11 +74,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         if await client.login() is False:
+            _LOGGER.warning("Invalid credentials for %s", entry.data[CONF_USERNAME])
             msg = "Invalid credentials"
             raise ConfigEntryAuthFailed(msg)
     except AuthenticationError as err:
+        _LOGGER.warning("Authentication failed for %s", entry.data[CONF_USERNAME])
         raise ConfigEntryAuthFailed(err) from err
-    except BHyveError as err:
+    except (BHyveError, TimeoutError) as err:
         raise ConfigEntryNotReady(err) from err
 
     # Create coordinator
@@ -100,8 +103,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     client.listen(hass.loop, async_update_callback)
 
     # Filter the device list to those that are enabled in options
-    all_devices = await client.devices
-    programs = await client.timer_programs
+    try:
+        all_devices = await client.devices
+        programs = await client.timer_programs
+    except (BHyveError, TimeoutError) as err:
+        raise ConfigEntryNotReady(err) from err
     devices = filter_configured_devices(entry, all_devices)
 
     # Build a mapping from device_gateway_topic to bridge device ID
@@ -168,7 +174,7 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
             if removed_device_ids:
                 # Remove devices from Home Assistant
                 await remove_devices_from_registry(hass, removed_device_ids)
-        except (BHyveError, KeyError) as err:
+        except (BHyveError, KeyError, TimeoutError) as err:
             _LOGGER.warning("Error checking for removed devices: %s", err)
 
     await hass.config_entries.async_reload(entry.entry_id)
@@ -176,6 +182,12 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    data = hass.data[DOMAIN].get(entry.entry_id)
+    if data:
+        client = data.get("client")
+        if client:
+            await client.stop()
+
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
 

@@ -76,15 +76,27 @@ class BHyveClient:
             "Chrome/72.0.3626.81 Safari/537.36"
         )
 
-        async with self._session.request(
-            method, url, params=params, headers=headers, json=json
-        ) as resp:
-            try:
-                resp.raise_for_status()
-                return await resp.json(content_type=None)
-            except Exception as err:
-                msg = f"Error requesting data from {url}: {err}"
-                raise RequestError(msg) from err
+        try:
+            async with self._session.request(
+                method, url, params=params, headers=headers, json=json
+            ) as resp:
+                try:
+                    resp.raise_for_status()
+                    return await resp.json(content_type=None)
+                except ClientResponseError as err:
+                    if err.status in (401, 403):
+                        _LOGGER.warning(
+                            "Authentication error from %s: %s", url, err.status
+                        )
+                        raise AuthenticationError from err
+                    msg = f"Error requesting data from {url}: {err}"
+                    raise RequestError(msg) from err
+                except Exception as err:
+                    msg = f"Error requesting data from {url}: {err}"
+                    raise RequestError(msg) from err
+        except TimeoutError as err:
+            msg = f"Timeout requesting data from {url}"
+            raise RequestError(msg) from err
 
     async def _refresh_devices(self, *, force_update: bool = False) -> None:
         now = time.time()
@@ -160,20 +172,24 @@ class BHyveClient:
         url: str = f"{API_HOST}{LOGIN_PATH}"
         json = {"session": {"email": self._username, "password": self._password}}
 
-        async with self._session.request("post", url, json=json) as resp:
-            try:
-                resp.raise_for_status()
-                response = await resp.json(content_type=None)
-                _LOGGER.debug("Logged in")
-                self._token = response["orbit_session_token"]
+        try:
+            async with self._session.request("post", url, json=json) as resp:
+                try:
+                    resp.raise_for_status()
+                    response = await resp.json(content_type=None)
+                    _LOGGER.debug("Logged in")
+                    self._token = response["orbit_session_token"]
 
-            except ClientResponseError as response_err:
-                if response_err.status == 400:  # noqa: PLR2004
-                    raise AuthenticationError from response_err
-                raise RequestError from response_err
-            except Exception as err:
-                msg = f"Error requesting data from {url}: {err}"
-                raise RequestError(msg) from err
+                except ClientResponseError as response_err:
+                    if response_err.status in (401, 403):
+                        raise AuthenticationError from response_err
+                    raise RequestError from response_err
+                except Exception as err:
+                    msg = f"Error requesting data from {url}: {err}"
+                    raise RequestError(msg) from err
+        except TimeoutError as err:
+            msg = f"Timeout requesting data from {url}"
+            raise RequestError(msg) from err
 
         return self._token is not None
 

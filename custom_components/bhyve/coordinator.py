@@ -7,6 +7,7 @@ import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -122,9 +123,9 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             return data  # noqa: TRY300
 
         except AuthenticationError as err:
-            msg = "Authentication failed"
-            raise UpdateFailed(msg) from err
-        except BHyveError as err:
+            _LOGGER.warning("Authentication failed, triggering reauth: %s", err)
+            raise ConfigEntryAuthFailed from err
+        except (BHyveError, TimeoutError) as err:
             msg = f"Error communicating with API: {err}"
             raise UpdateFailed(msg) from err
 
@@ -132,7 +133,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         """Fetch watering history for a device."""
         try:
             history = await self.client.get_device_history(device_id)
-        except BHyveError as err:
+        except (BHyveError, TimeoutError) as err:
             _LOGGER.debug("Could not fetch history for device %s: %s", device_id, err)
             return []
         else:
@@ -160,7 +161,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             try:
                 landscape = await self.client.get_landscape(device_id, zone_id)
                 return str(zone_id), landscape or None
-            except BHyveError as err:
+            except (BHyveError, TimeoutError) as err:
                 _LOGGER.debug(
                     "Could not fetch landscape for device %s zone %s: %s",
                     device_id,
