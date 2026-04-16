@@ -379,7 +379,7 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         # Filter out any run times which are not for this valve
         active_program_run_times = list(
             filter(
-                lambda x: (x.get("station") == self._zone_id),
+                lambda x: x.get("station") == self._zone_id,
                 program.get("run_times", []),
             )
         )
@@ -403,7 +403,7 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
                 run_times = plan.get("run_times")
                 if run_times:
                     zone_times = list(
-                        filter(lambda x: (x.get("station") == self._zone_id), run_times)
+                        filter(lambda x: x.get("station") == self._zone_id, run_times)
                     )
                     if zone_times:
                         plan_date = orbit_time_to_local_time(plan.get("date"))
