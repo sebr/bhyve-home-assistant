@@ -159,7 +159,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
 
             try:
                 landscape = await self.client.get_landscape(device_id, zone_id)
-                return str(zone_id), landscape if landscape else None
+                return str(zone_id), landscape or None
             except BHyveError as err:
                 _LOGGER.debug(
                     "Could not fetch landscape for device %s zone %s: %s",

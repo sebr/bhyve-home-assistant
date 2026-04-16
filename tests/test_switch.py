@@ -797,7 +797,7 @@ class TestDynamicProgramCreation:
 
         # Setup the entry to support async_on_unload
         unload_callbacks: list = []
-        mock_config_entry.async_on_unload = lambda cb: unload_callbacks.append(cb)
+        mock_config_entry.async_on_unload = unload_callbacks.append
 
         # Call setup entry
         await async_setup_entry(hass, mock_config_entry, async_add_entities)

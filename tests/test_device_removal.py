@@ -92,7 +92,7 @@ async def test_update_listener_removes_filtered_devices(hass: HomeAssistant) -> 
         ]
 
     # Use PropertyMock to return a new coroutine each time the property is accessed
-    type(mock_client).devices = PropertyMock(side_effect=lambda: mock_devices())
+    type(mock_client).devices = PropertyMock(side_effect=mock_devices)
     # Setup mock data in hass
     hass.data[DOMAIN] = {
         "test_entry": {
@@ -154,7 +154,7 @@ async def test_update_listener_handles_errors_gracefully(hass: HomeAssistant) ->
         raise KeyError(msg)
 
     # Use PropertyMock to return a new coroutine each time
-    type(mock_client).devices = PropertyMock(side_effect=lambda: mock_devices_error())
+    type(mock_client).devices = PropertyMock(side_effect=mock_devices_error)
 
     # Setup mock data in hass
     hass.data[DOMAIN] = {
@@ -196,7 +196,7 @@ async def test_device_recreation_after_filtering_back_in(hass: HomeAssistant) ->
         ]
 
     # Use PropertyMock to return a new coroutine each time the property is accessed
-    type(mock_client).devices = PropertyMock(side_effect=lambda: mock_devices())
+    type(mock_client).devices = PropertyMock(side_effect=mock_devices)
     # Setup mock data in hass
     hass.data[DOMAIN] = {
         "test_entry": {
