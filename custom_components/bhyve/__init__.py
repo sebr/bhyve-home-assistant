@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_PASSWORD,
     CONF_USERNAME,
@@ -19,7 +19,6 @@ from homeassistant.exceptions import (
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
-from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
@@ -41,26 +40,11 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.VALVE,
 ]
-
-
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the BHyve component from YAML."""
-    if DOMAIN not in config:
-        return True
-
-    hass.async_create_task(
-        hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": SOURCE_IMPORT},
-            data=config[DOMAIN],
-        )
-    )
-
-    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -73,11 +57,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         if await client.login() is False:
+            _LOGGER.warning("Invalid credentials for %s", entry.data[CONF_USERNAME])
             msg = "Invalid credentials"
             raise ConfigEntryAuthFailed(msg)
     except AuthenticationError as err:
+        _LOGGER.warning("Authentication failed for %s", entry.data[CONF_USERNAME])
         raise ConfigEntryAuthFailed(err) from err
-    except BHyveError as err:
+    except (BHyveError, TimeoutError) as err:
         raise ConfigEntryNotReady(err) from err
 
     # Create coordinator
@@ -100,8 +86,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     client.listen(hass.loop, async_update_callback)
 
     # Filter the device list to those that are enabled in options
-    all_devices = await client.devices
-    programs = await client.timer_programs
+    try:
+        all_devices = await client.devices
+        programs = await client.timer_programs
+    except (BHyveError, TimeoutError) as err:
+        raise ConfigEntryNotReady(err) from err
     devices = filter_configured_devices(entry, all_devices)
 
     # Build a mapping from device_gateway_topic to bridge device ID
@@ -168,7 +157,7 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
             if removed_device_ids:
                 # Remove devices from Home Assistant
                 await remove_devices_from_registry(hass, removed_device_ids)
-        except (BHyveError, KeyError) as err:
+        except (BHyveError, KeyError, TimeoutError) as err:
             _LOGGER.warning("Error checking for removed devices: %s", err)
 
     await hass.config_entries.async_reload(entry.entry_id)
@@ -176,6 +165,12 @@ async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    data = hass.data[DOMAIN].get(entry.entry_id)
+    if data:
+        client = data.get("client")
+        if client:
+            await client.stop()
+
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
 

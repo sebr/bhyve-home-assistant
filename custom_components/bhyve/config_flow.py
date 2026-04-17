@@ -149,36 +149,6 @@ class BHyveConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_import(
-        self, config: dict[str, Any] | None
-    ) -> ConfigFlowResult:
-        """Handle import of BHyve config from YAML."""
-        if config is None:
-            return self.async_abort(reason="cannot_connect")
-        username = config[CONF_USERNAME]
-        password = config[CONF_PASSWORD]
-
-        credentials = {
-            CONF_USERNAME: username,
-            CONF_PASSWORD: password,
-        }
-
-        if not (_errors := await self.async_auth(credentials)):
-            await self.async_set_unique_id(credentials[CONF_USERNAME].lower())
-            self._abort_if_unique_id_configured()
-
-            self.data = credentials
-            self.devices = await self.client.devices  # type: ignore[union-attr]
-            self.programs = await self.client.timer_programs  # type: ignore[union-attr]
-
-            devices = [
-                str(d["id"]) for d in (self.devices or []) if d["type"] != DEVICE_BRIDGE
-            ]
-
-            return await self.async_step_device(user_input={CONF_DEVICES: devices})
-
-        return self.async_abort(reason="cannot_connect")
-
     @staticmethod
     @callback
     def async_get_options_flow(
@@ -211,7 +181,7 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
             devices = await client.devices
         except AuthenticationError:
             return self.async_abort(reason="invalid_auth")
-        except BHyveError:
+        except (BHyveError, TimeoutError):
             return self.async_abort(reason="cannot_connect")
 
         _LOGGER.debug("Devices: %s", json.dumps(devices))
@@ -222,13 +192,18 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
             if d.get("type") != DEVICE_BRIDGE
         }
 
+        # Filter saved defaults to only include devices that still exist,
+        # in case a device was removed from the B-hyve account.
+        saved_devices = self.config_entry.options.get(CONF_DEVICES, [])
+        valid_defaults = [d for d in saved_devices if d in device_options]
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(
                         CONF_DEVICES,
-                        default=self.config_entry.options.get(CONF_DEVICES),
+                        default=valid_defaults,
                     ): cv.multi_select(device_options),
                 }
             ),

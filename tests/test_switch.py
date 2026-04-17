@@ -7,6 +7,7 @@ from homeassistant.components.switch import SwitchDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
 from custom_components.bhyve.pybhyve.typings import BHyveDevice, BHyveTimerProgram
@@ -39,6 +40,8 @@ def create_mock_coordinator(devices: dict, programs: dict) -> MagicMock:
     coordinator.client.send_message = AsyncMock()
     coordinator.client.update_program = AsyncMock()
     coordinator.client.update_device = AsyncMock()
+    coordinator.client.set_rain_delay = AsyncMock()
+    coordinator.client.set_manual_preset_runtime = AsyncMock()
     return coordinator
 
 
@@ -516,6 +519,201 @@ class TestBHyveProgramSwitch:
         # They just read from coordinator.data
         assert switch.is_on is True
 
+    async def test_update_program_config_start_times_only(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_timer_program: BHyveTimerProgram,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test updating only the start_times overrides that field only."""
+        description = create_program_switch_description()
+        switch = BHyveProgramSwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            program=mock_timer_program,
+            description=description,
+        )
+
+        await switch.async_update_program_config(start_times=["07:30", "19:00"])
+
+        mock_coordinator.client.update_program.assert_called_once()
+        program_id, payload = mock_coordinator.client.update_program.call_args[0]
+        assert program_id == TEST_PROGRAM_ID
+        assert payload["start_times"] == ["07:30", "19:00"]
+        # Unchanged fields are preserved
+        assert payload["frequency"] == mock_timer_program["frequency"]
+        assert payload["enabled"] is True
+        assert payload["id"] == TEST_PROGRAM_ID
+
+    async def test_update_program_config_frequency_only(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_timer_program: BHyveTimerProgram,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test updating only the frequency overrides that field only."""
+        description = create_program_switch_description()
+        switch = BHyveProgramSwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            program=mock_timer_program,
+            description=description,
+        )
+
+        frequency = {
+            "type": "days",
+            "days": [1, 3, 4],
+            "interval": 1,
+            "interval_hours": 0,
+        }
+        await switch.async_update_program_config(frequency=frequency)
+
+        mock_coordinator.client.update_program.assert_called_once()
+        program_id, payload = mock_coordinator.client.update_program.call_args[0]
+        assert program_id == TEST_PROGRAM_ID
+        assert payload["frequency"] == frequency
+        # Unchanged fields are preserved
+        assert payload["start_times"] == mock_timer_program["start_times"]
+        assert payload["enabled"] is True
+
+    async def test_update_program_config_both_fields(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_timer_program: BHyveTimerProgram,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test updating both start_times and frequency together."""
+        description = create_program_switch_description()
+        switch = BHyveProgramSwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            program=mock_timer_program,
+            description=description,
+        )
+
+        frequency = {"type": "interval", "interval": 2}
+        await switch.async_update_program_config(
+            start_times=["06:00"], frequency=frequency
+        )
+
+        mock_coordinator.client.update_program.assert_called_once()
+        program_id, payload = mock_coordinator.client.update_program.call_args[0]
+        assert program_id == TEST_PROGRAM_ID
+        assert payload["start_times"] == ["06:00"]
+        assert payload["frequency"] == frequency
+        # Unchanged fields are preserved
+        assert payload["enabled"] is True
+        assert payload["id"] == TEST_PROGRAM_ID
+        assert payload["device_id"] == TEST_DEVICE_ID
+
+    async def test_update_program_config_budget_only(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_timer_program: BHyveTimerProgram,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test updating only the budget overrides that field only."""
+        description = create_program_switch_description()
+        switch = BHyveProgramSwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            program=mock_timer_program,
+            description=description,
+        )
+
+        await switch.async_update_program_config(budget=150)
+
+        mock_coordinator.client.update_program.assert_called_once()
+        program_id, payload = mock_coordinator.client.update_program.call_args[0]
+        assert program_id == TEST_PROGRAM_ID
+        assert payload["budget"] == 150
+        # Unchanged fields are preserved
+        assert payload["start_times"] == mock_timer_program["start_times"]
+        assert payload["frequency"] == mock_timer_program["frequency"]
+        assert payload["enabled"] is True
+
+    async def test_update_program_config_requires_at_least_one_field(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_timer_program: BHyveTimerProgram,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test that the method raises if neither field is provided."""
+        description = create_program_switch_description()
+        switch = BHyveProgramSwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            program=mock_timer_program,
+            description=description,
+        )
+
+        with pytest.raises(ServiceValidationError):
+            await switch.async_update_program_config()
+
+        mock_coordinator.client.update_program.assert_not_called()
+
+    async def test_setup_registers_update_program_service(
+        self,
+        hass: HomeAssistant,
+        mock_config_entry: ConfigEntry,
+        mock_sprinkler_device: BHyveDevice,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test that async_setup_entry registers the update_program service."""
+        hass.data = {
+            "bhyve": {
+                "test_entry_id": {
+                    "coordinator": mock_coordinator,
+                    "devices": [mock_sprinkler_device],
+                }
+            }
+        }
+
+        assert not hass.services.has_service("bhyve", "update_program")
+
+        await async_setup_entry(hass, mock_config_entry, MagicMock())
+
+        assert hass.services.has_service("bhyve", "update_program")
+
+    async def test_update_program_config_rejects_smart_program(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+    ) -> None:
+        """Test that smart programs cannot be updated via this service."""
+        smart_program = BHyveTimerProgram(
+            {
+                "id": TEST_PROGRAM_ID,
+                "device_id": TEST_DEVICE_ID,
+                "name": "Smart",
+                "program": "e",
+                "enabled": True,
+                "is_smart_program": True,
+            }
+        )
+        coordinator = create_mock_coordinator(
+            {
+                TEST_DEVICE_ID: {
+                    "device": mock_sprinkler_device,
+                    "history": [],
+                    "landscapes": {},
+                }
+            },
+            {TEST_PROGRAM_ID: smart_program},
+        )
+
+        description = create_program_switch_description()
+        switch = BHyveProgramSwitch(
+            coordinator=coordinator,
+            device=mock_sprinkler_device,
+            program=smart_program,
+            description=description,
+        )
+
+        with pytest.raises(ServiceValidationError):
+            await switch.async_update_program_config(start_times=["06:00"])
+
+        coordinator.client.update_program.assert_not_called()
+
 
 class TestBHyveRainDelaySwitch:
     """Test BHyveRainDelaySwitch entity."""
@@ -615,12 +813,10 @@ class TestBHyveRainDelaySwitch:
         # Turn on the switch
         await switch.async_turn_on()
 
-        # Verify send_message was called with delay=24
-        mock_coordinator.client.send_message.assert_called_once()
-        payload = mock_coordinator.client.send_message.call_args[0][0]
-        assert payload["event"] == "rain_delay"
-        assert payload["device_id"] == TEST_DEVICE_ID
-        assert payload["delay"] == 24  # Default 24 hours
+        # Verify set_rain_delay was called with the default 24 hours
+        mock_coordinator.client.set_rain_delay.assert_called_once_with(
+            TEST_DEVICE_ID, 24
+        )
 
     async def test_rain_delay_switch_turn_off(
         self,
@@ -650,12 +846,8 @@ class TestBHyveRainDelaySwitch:
         # Turn off the switch
         await switch.async_turn_off()
 
-        # Verify send_message was called with delay=0
-        coordinator.client.send_message.assert_called_once()
-        payload = coordinator.client.send_message.call_args[0][0]
-        assert payload["event"] == "rain_delay"
-        assert payload["device_id"] == TEST_DEVICE_ID
-        assert payload["delay"] == 0
+        # Verify set_rain_delay was called with 0 hours to disable
+        coordinator.client.set_rain_delay.assert_called_once_with(TEST_DEVICE_ID, 0)
 
     async def test_rain_delay_switch_websocket_event(
         self,
@@ -797,7 +989,7 @@ class TestDynamicProgramCreation:
 
         # Setup the entry to support async_on_unload
         unload_callbacks: list = []
-        mock_config_entry.async_on_unload = lambda cb: unload_callbacks.append(cb)
+        mock_config_entry.async_on_unload = unload_callbacks.append
 
         # Call setup entry
         await async_setup_entry(hass, mock_config_entry, async_add_entities)

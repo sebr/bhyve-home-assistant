@@ -9,6 +9,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
+from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 from homeassistant.components.valve import (
     ValveDeviceClass,
     ValveEntity,
@@ -207,20 +208,29 @@ async def async_setup_entry(
         params = {
             key: value for key, value in service.data.items() if key != ATTR_ENTITY_ID
         }
-        entity_ids = service.data.get(ATTR_ENTITY_ID)
-        component = hass.data.get(VALVE_DOMAIN)
-        if entity_ids and component is not None:
-            target_vales = [component.get_entity(entity) for entity in entity_ids]
-        else:
-            return
-
+        entity_ids = service.data.get(ATTR_ENTITY_ID) or []
         method_name = method["method"]
         _LOGGER.debug("Service handler: %s %s", method_name, params)
 
-        for entity in target_vales:
+        valve_component = hass.data.get(VALVE_DOMAIN)
+        switch_component = hass.data.get(SWITCH_DOMAIN)
+
+        for entity_id in entity_ids:
+            entity = None
+            if valve_component is not None:
+                entity = valve_component.get_entity(entity_id)
+            if entity is None and switch_component is not None:
+                entity = switch_component.get_entity(entity_id)
+            if entity is None:
+                _LOGGER.error("Entity not found: %s", entity_id)
+                continue
             if not hasattr(entity, method_name):
-                _LOGGER.error("Service not implemented: %s", method_name)
-                return
+                _LOGGER.error(
+                    "Service %s is not supported by entity %s",
+                    method_name,
+                    entity_id,
+                )
+                continue
             await getattr(entity, method_name)(**params)
 
     for service, details in SERVICE_TO_METHOD.items():
@@ -379,7 +389,7 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         # Filter out any run times which are not for this valve
         active_program_run_times = list(
             filter(
-                lambda x: (x.get("station") == self._zone_id),
+                lambda x: x.get("station") == self._zone_id,
                 program.get("run_times", []),
             )
         )
@@ -403,7 +413,7 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
                 run_times = plan.get("run_times")
                 if run_times:
                     zone_times = list(
-                        filter(lambda x: (x.get("station") == self._zone_id), run_times)
+                        filter(lambda x: x.get("station") == self._zone_id, run_times)
                     )
                     if zone_times:
                         plan_date = orbit_time_to_local_time(plan.get("date"))
@@ -524,6 +534,20 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         station_payload = []
         self._attr_is_closed = True
         await self._send_station_message(station_payload)
+
+    async def enable_rain_delay(self, hours: int = 24) -> None:
+        """Enable rain delay for the device."""
+        await self.coordinator.client.set_rain_delay(self._device_id, hours)
+
+    async def disable_rain_delay(self) -> None:
+        """Disable rain delay for the device."""
+        await self.coordinator.client.set_rain_delay(self._device_id, 0)
+
+    async def set_manual_preset_runtime(self, minutes: int) -> None:
+        """Set the default watering runtime for the device."""
+        await self.coordinator.client.set_manual_preset_runtime(
+            self._device_id, minutes
+        )
 
     async def async_open_valve(self) -> None:
         """Open the valve."""

@@ -19,6 +19,9 @@ debug/sync
 # Home Assistant configuration
 config/*
 !config/configuration.yaml
+!config/automations.yaml
+!config/scripts.yaml
+!config/scenes.yaml
 core
 .venv
 
