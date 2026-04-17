@@ -26,6 +26,8 @@ def create_mock_coordinator(devices: dict, programs: dict | None = None) -> Magi
     coordinator.client.send_message = AsyncMock()
     coordinator.client.get_landscape = AsyncMock()
     coordinator.client.update_landscape = AsyncMock()
+    coordinator.client.set_rain_delay = AsyncMock()
+    coordinator.client.set_manual_preset_runtime = AsyncMock()
     return coordinator
 
 
@@ -352,3 +354,93 @@ async def test_valve_with_landscape_data(
     attrs = valve.extra_state_attributes
     assert attrs.get("landscape_image") == "https://example.com/landscape.jpg"
     assert attrs.get("sprinkler_type") == "spray"
+
+
+async def test_valve_enable_rain_delay(
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """Test enabling rain delay via the valve service method."""
+    coordinator = create_mock_coordinator(
+        {
+            "test-device-123": {
+                "device": mock_sprinkler_device,
+                "history": [],
+                "landscapes": {},
+            }
+        }
+    )
+
+    valve = BHyveZoneValve(
+        coordinator=coordinator,
+        device=mock_sprinkler_device,
+        zone=mock_zone_data,
+        zone_name="Front Yard",
+        device_programs=[],
+    )
+
+    await valve.enable_rain_delay(hours=5)
+
+    coordinator.client.set_rain_delay.assert_called_once_with(
+        mock_sprinkler_device["id"], 5
+    )
+
+
+async def test_valve_disable_rain_delay(
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """Test disabling rain delay via the valve service method."""
+    coordinator = create_mock_coordinator(
+        {
+            "test-device-123": {
+                "device": mock_sprinkler_device,
+                "history": [],
+                "landscapes": {},
+            }
+        }
+    )
+
+    valve = BHyveZoneValve(
+        coordinator=coordinator,
+        device=mock_sprinkler_device,
+        zone=mock_zone_data,
+        zone_name="Front Yard",
+        device_programs=[],
+    )
+
+    await valve.disable_rain_delay()
+
+    coordinator.client.set_rain_delay.assert_called_once_with(
+        mock_sprinkler_device["id"], 0
+    )
+
+
+async def test_valve_set_manual_preset_runtime(
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """Test setting manual preset runtime via the valve service method."""
+    coordinator = create_mock_coordinator(
+        {
+            "test-device-123": {
+                "device": mock_sprinkler_device,
+                "history": [],
+                "landscapes": {},
+            }
+        }
+    )
+
+    valve = BHyveZoneValve(
+        coordinator=coordinator,
+        device=mock_sprinkler_device,
+        zone=mock_zone_data,
+        zone_name="Front Yard",
+        device_programs=[],
+    )
+
+    await valve.set_manual_preset_runtime(minutes=8)
+
+    coordinator.client.set_manual_preset_runtime.assert_called_once_with(
+        mock_sprinkler_device["id"], 8
+    )
