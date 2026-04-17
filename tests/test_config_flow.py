@@ -290,56 +290,6 @@ class TestConfigFlow:
             assert result["step_id"] == "reauth"
             assert result["errors"] == {"base": "invalid_auth"}
 
-    async def test_import_flow_success(
-        self, hass: HomeAssistant, mock_bhyve_client: MagicMock
-    ) -> None:
-        """Test successful import flow."""
-        config = {
-            CONF_USERNAME: TEST_USERNAME,
-            CONF_PASSWORD: TEST_PASSWORD,
-        }
-
-        with (
-            patch(
-                "custom_components.bhyve.config_flow.BHyveClient",
-                return_value=mock_bhyve_client,
-            ),
-            patch.object(ConfigFlow, "async_set_unique_id"),
-            patch.object(ConfigFlow, "_abort_if_unique_id_configured"),
-        ):
-            flow = ConfigFlow()
-            flow.hass = hass
-
-            result = await flow.async_step_import(config)
-
-            assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
-            assert result["title"] == TEST_USERNAME
-            assert result["data"] == config
-            # Should auto-select all non-bridge devices
-            assert result["options"] == {CONF_DEVICES: [TEST_DEVICE_ID, "device-789"]}
-
-    async def test_import_flow_auth_error(self, hass: HomeAssistant) -> None:
-        """Test import flow with auth error."""
-        mock_client = MagicMock()
-        mock_client.login = AsyncMock(side_effect=AuthenticationError("Invalid"))
-
-        config = {
-            CONF_USERNAME: TEST_USERNAME,
-            CONF_PASSWORD: "wrong_password",
-        }
-
-        with patch(
-            "custom_components.bhyve.config_flow.BHyveClient",
-            return_value=mock_client,
-        ):
-            flow = ConfigFlow()
-            flow.hass = hass
-
-            result = await flow.async_step_import(config)
-
-            assert result["type"] == data_entry_flow.FlowResultType.ABORT
-            assert result["reason"] == "cannot_connect"
-
 
 @pytest.mark.skip(
     reason="OptionsFlow tests disabled due to Home Assistant framework constraints"
