@@ -87,6 +87,10 @@ PROGRAM_UPDATE_KEYS = {
 SERVICE_UPDATE_PROGRAM = "update_program"
 ATTR_START_TIMES = "start_times"
 ATTR_FREQUENCY = "frequency"
+ATTR_BUDGET = "budget"
+
+BUDGET_MIN = 0
+BUDGET_MAX = 200
 
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
@@ -116,6 +120,9 @@ UPDATE_PROGRAM_SCHEMA = vol.Schema(
             cv.ensure_list, [_validate_time_string]
         ),
         vol.Optional(ATTR_FREQUENCY): FREQUENCY_SCHEMA,
+        vol.Optional(ATTR_BUDGET): vol.All(
+            vol.Coerce(int), vol.Range(min=BUDGET_MIN, max=BUDGET_MAX)
+        ),
     }
 )
 
@@ -330,14 +337,15 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         self,
         start_times: list[str] | None = None,
         frequency: dict | None = None,
+        budget: int | None = None,
     ) -> None:
-        """Update start times and/or frequency on a non-smart program."""
+        """Update configurable fields on a non-smart program."""
         if self.program_data.get("is_smart_program"):
             msg = "Cannot update configuration of a smart program"
             raise ServiceValidationError(msg)
 
-        if start_times is None and frequency is None:
-            msg = "At least one of start_times or frequency must be provided"
+        if start_times is None and frequency is None and budget is None:
+            msg = "At least one of start_times, frequency or budget must be provided"
             raise ServiceValidationError(msg)
 
         program = BHyveTimerProgram(
@@ -350,6 +358,9 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         if frequency is not None:
             program["frequency"] = frequency
             changed.append("frequency")
+        if budget is not None:
+            program["budget"] = budget
+            changed.append("budget")
 
         _LOGGER.info(
             "Updating program %s, changed fields: %s", self._program_id, changed
