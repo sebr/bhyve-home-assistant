@@ -505,32 +505,8 @@ class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn the switch on."""
-        await self._enable_rain_delay()
+        await self.coordinator.client.set_rain_delay(self._device_id, 24)
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn the switch off."""
-        await self._disable_rain_delay()
-
-    async def _enable_rain_delay(self, hours: int = 24) -> None:
-        """Enable rain delay."""
-        await self._set_rain_delay(hours)
-
-    async def _disable_rain_delay(self) -> None:
-        """Disable rain delay."""
-        await self._set_rain_delay(0)
-
-    async def _set_rain_delay(self, hours: int) -> None:
-        """Set rain delay hours."""
-        try:
-            payload = {
-                "event": "rain_delay",
-                "device_id": self._device_id,
-                "delay": hours,
-            }
-            _LOGGER.info("Setting rain delay: %s", payload)
-            await self.coordinator.client.send_message(payload)
-            # Coordinator updates via WebSocket event
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise
+        await self.coordinator.client.set_rain_delay(self._device_id, 0)
