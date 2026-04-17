@@ -340,16 +340,19 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
             msg = "At least one of start_times or frequency must be provided"
             raise ServiceValidationError(msg)
 
-        program = BHyveTimerProgram({})
+        program = BHyveTimerProgram(
+            {k: v for k, v in self.program_data.items() if k in PROGRAM_UPDATE_KEYS}
+        )
+        changed: list[str] = []
         if start_times is not None:
             program["start_times"] = start_times
+            changed.append("start_times")
         if frequency is not None:
             program["frequency"] = frequency
+            changed.append("frequency")
 
         _LOGGER.info(
-            "Updating program %s with fields: %s",
-            self._program_id,
-            list(program.keys()),
+            "Updating program %s, changed fields: %s", self._program_id, changed
         )
         await self.coordinator.client.update_program(self._program_id, program)
 

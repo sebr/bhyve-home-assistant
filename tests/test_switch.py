@@ -523,7 +523,7 @@ class TestBHyveProgramSwitch:
         mock_timer_program: BHyveTimerProgram,
         mock_coordinator: MagicMock,
     ) -> None:
-        """Test updating only the start_times sends just that field."""
+        """Test updating only the start_times overrides that field only."""
         description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
@@ -537,7 +537,11 @@ class TestBHyveProgramSwitch:
         mock_coordinator.client.update_program.assert_called_once()
         program_id, payload = mock_coordinator.client.update_program.call_args[0]
         assert program_id == TEST_PROGRAM_ID
-        assert payload == {"start_times": ["07:30", "19:00"]}
+        assert payload["start_times"] == ["07:30", "19:00"]
+        # Unchanged fields are preserved
+        assert payload["frequency"] == mock_timer_program["frequency"]
+        assert payload["enabled"] is True
+        assert payload["id"] == TEST_PROGRAM_ID
 
     async def test_update_program_config_frequency_only(
         self,
@@ -545,7 +549,7 @@ class TestBHyveProgramSwitch:
         mock_timer_program: BHyveTimerProgram,
         mock_coordinator: MagicMock,
     ) -> None:
-        """Test updating only the frequency sends just that field."""
+        """Test updating only the frequency overrides that field only."""
         description = create_program_switch_description()
         switch = BHyveProgramSwitch(
             coordinator=mock_coordinator,
@@ -565,7 +569,10 @@ class TestBHyveProgramSwitch:
         mock_coordinator.client.update_program.assert_called_once()
         program_id, payload = mock_coordinator.client.update_program.call_args[0]
         assert program_id == TEST_PROGRAM_ID
-        assert payload == {"frequency": frequency}
+        assert payload["frequency"] == frequency
+        # Unchanged fields are preserved
+        assert payload["start_times"] == mock_timer_program["start_times"]
+        assert payload["enabled"] is True
 
     async def test_update_program_config_both_fields(
         self,
@@ -590,10 +597,12 @@ class TestBHyveProgramSwitch:
         mock_coordinator.client.update_program.assert_called_once()
         program_id, payload = mock_coordinator.client.update_program.call_args[0]
         assert program_id == TEST_PROGRAM_ID
-        assert payload == {
-            "start_times": ["06:00"],
-            "frequency": frequency,
-        }
+        assert payload["start_times"] == ["06:00"]
+        assert payload["frequency"] == frequency
+        # Unchanged fields are preserved
+        assert payload["enabled"] is True
+        assert payload["id"] == TEST_PROGRAM_ID
+        assert payload["device_id"] == TEST_DEVICE_ID
 
     async def test_update_program_config_requires_at_least_one_field(
         self,
