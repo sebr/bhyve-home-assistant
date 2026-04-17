@@ -40,6 +40,8 @@ def create_mock_coordinator(devices: dict, programs: dict) -> MagicMock:
     coordinator.client.send_message = AsyncMock()
     coordinator.client.update_program = AsyncMock()
     coordinator.client.update_device = AsyncMock()
+    coordinator.client.set_rain_delay = AsyncMock()
+    coordinator.client.set_manual_preset_runtime = AsyncMock()
     return coordinator
 
 
@@ -811,12 +813,10 @@ class TestBHyveRainDelaySwitch:
         # Turn on the switch
         await switch.async_turn_on()
 
-        # Verify send_message was called with delay=24
-        mock_coordinator.client.send_message.assert_called_once()
-        payload = mock_coordinator.client.send_message.call_args[0][0]
-        assert payload["event"] == "rain_delay"
-        assert payload["device_id"] == TEST_DEVICE_ID
-        assert payload["delay"] == 24  # Default 24 hours
+        # Verify set_rain_delay was called with the default 24 hours
+        mock_coordinator.client.set_rain_delay.assert_called_once_with(
+            TEST_DEVICE_ID, 24
+        )
 
     async def test_rain_delay_switch_turn_off(
         self,
@@ -846,12 +846,8 @@ class TestBHyveRainDelaySwitch:
         # Turn off the switch
         await switch.async_turn_off()
 
-        # Verify send_message was called with delay=0
-        coordinator.client.send_message.assert_called_once()
-        payload = coordinator.client.send_message.call_args[0][0]
-        assert payload["event"] == "rain_delay"
-        assert payload["device_id"] == TEST_DEVICE_ID
-        assert payload["delay"] == 0
+        # Verify set_rain_delay was called with 0 hours to disable
+        coordinator.client.set_rain_delay.assert_called_once_with(TEST_DEVICE_ID, 0)
 
     async def test_rain_delay_switch_websocket_event(
         self,

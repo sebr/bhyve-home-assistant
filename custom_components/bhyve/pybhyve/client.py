@@ -276,3 +276,23 @@ class BHyveClient:
         """Send a message via the websocket."""
         if self._websocket is not None:
             await self._websocket.send(payload)
+
+    async def set_rain_delay(self, device_id: str, hours: int) -> None:
+        """Set rain delay hours for a device. Use hours=0 to disable."""
+        payload = {
+            "event": "rain_delay",
+            "device_id": device_id,
+            "delay": hours,
+        }
+        _LOGGER.info("Setting rain delay: %s", payload)
+        await self.send_message(payload)
+
+    async def set_manual_preset_runtime(self, device_id: str, minutes: int) -> None:
+        """Set the default watering runtime for a device."""
+        payload = {
+            "event": "set_manual_preset_runtime",
+            "device_id": device_id,
+            "seconds": minutes * 60,
+        }
+        _LOGGER.info("Setting manual preset runtime: %s", payload)
+        await self.send_message(payload)
