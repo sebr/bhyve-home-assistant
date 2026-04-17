@@ -31,10 +31,11 @@ _Note_: The Wifi hub is required to provide the flood sensors with internet conn
 
 ## Supported Entities
 
-- `sensor` for measuring battery levels and watering history of `sprinkler_timer` devices as well as the device on/off state (not to be confused with zone on/off switches).
-- `temperature sensor` for measuring the temperature at the device.
-- `switch` for turning a zone on/off, enabling/disabling rain delays and toggling pre-configured programs.
-- `binary_sensor` for `flood_sensor` devices which provide liquid detection and temperature alerts when out of threshold.
+- `valve` for opening/closing individual zones on `sprinkler_timer` devices.
+- `sensor` for battery levels, zone watering history, device run-mode state, flood-sensor temperature and flood-sensor signal strength.
+- `switch` for enabling/disabling rain delays, toggling pre-configured programs and enabling/disabling per-zone smart watering.
+- `select` for the device run-mode (auto/off) on `sprinkler_timer` devices.
+- `binary_sensor` for flood detection, temperature alerts, sprinkler station faults and Wi-Fi bridge connectivity.
 
 ## Installation
 
@@ -74,11 +75,11 @@ A **battery** `sensor` entity is created for any device which has a battery leve
 
 ### Device State sensor
 
-A **device state** `sensor` entity is created for each device. This reports the state of the device, for example `auto` or `off`. A device may be switched to `off` either manually through the B-hyve app, or may be automatically set when battery levels are too low to operate the device correctly.
+A **device state** `sensor` entity is created for each `sprinkler_timer` device. This reports the state of the device, for example `auto` or `off`. A device may be switched to `off` either manually through the B-hyve app, or may be automatically set when battery levels are too low to operate the device correctly.
 
 ### Zone Watering History sensor
 
-A **zone history** `sensor` entity is created for each zone. This reports the history of zone watering.
+A **zone history** `sensor` entity is created for each zone on a `sprinkler_timer` device. This reports the history of zone watering.
 
 The following attributes are set on zone history sensor entities:
 
@@ -93,51 +94,70 @@ The following attributes are set on zone history sensor entities:
 | `consumption_litres`  | `number` | The amount of water consumed, in litres.                    |
 | `start_time`          | `string` | The start time of the watering.                             |
 
-## Binary Sensor Entities
+### Temperature sensor
 
-The BHyve flood sensor provides the following `binary_sensor` entities:
+A **temperature** `sensor` entity is created for each `flood_sensor` device, reporting the ambient temperature in degrees Fahrenheit.
+
+### Signal strength sensor
+
+A **signal strength** `sensor` entity is created for each `flood_sensor` device, reporting the Wi-Fi RSSI in dBm.
+
+## Binary Sensor Entities
 
 ### Water/Flood
 
-A **binary_sensor** that turns on if water is detected.
+A **binary_sensor** is created for each `flood_sensor` device. It turns on if water is detected.
 
 ### Temperature Alert
 
-A **binary_sensor** that turns on if the detected temperature is over or under the set threshold. The threshold values should be set using the BHyve app.
+A **binary_sensor** is created for each `flood_sensor` device. It turns on if the detected temperature is over or under the set threshold. The threshold values should be set using the BHyve app.
 
-## Switch Entities
+### Fault
 
-### Zone Switch
+A **binary_sensor** is created for each `sprinkler_timer` device. It turns on when B-hyve reports one or more station faults, with the raw fault list exposed via the `station_faults` attribute.
 
-A **zone** `switch` entity is created for each zone of a `sprinkler_timer` device. This switch enables starting/stopping irrigation of a zone. Turning on the switch will enable watering of the zone for a "default" amount of time.
+### Connectivity
 
-This default is often indicated by the `manual_preset_runtime` attribute, and this can be set using the `set_manual_preset_runtime` service or configured in the B-hyve app.
+A **binary_sensor** is created for each Wi-Fi hub / bridge device, reporting whether the bridge is currently online.
+
+## Valve Entities
+
+### Zone Valve
+
+A **zone** `valve` entity is created for each zone of a `sprinkler_timer` device. Opening the valve starts watering the zone for a "default" amount of time; closing it stops watering.
+
+The default run time is often indicated by the `manual_preset_runtime` attribute, and this can be set using the `set_manual_preset_runtime` service or configured in the B-hyve app.
 
 > [!NOTE]  
 > Some BHyve devices do not have the ability to set the default watering time, and it is recommended that you use the `bhyve.start_watering` service to start the watering zone with the desired number of minutes.
 
-The following attributes are set on zone switch entities:
+The following attributes are set on zone valve entities:
 
 | Attribute                     | Type           | Notes                                                                      |
 | ----------------------------- | -------------- | -------------------------------------------------------------------------- |
 | `zone_name`                   | `string`       | The name of the zone                                                       |
 | `device_id`                   | `string`       | The id of the device which this zone belongs to                            |
 | `device_name`                 | `string`       | The name of the device which this zone belongs to                          |
-| `manual_preset_runtime`       | `number`       | The number of seconds to run zone watering when switch is turned on.       |
+| `station`                     | `number`       | The station number of the zone on the device.                              |
+| `manual_preset_runtime`       | `number`       | The number of seconds to run zone watering when the valve is opened.       |
 | `smart_watering_enabled`      | `boolean`      | True if the zone has a smart water schedule enabled.                       |
-| `sprinkler_type`              | `string`       | The configured type of sprinker.                                           |
+| `sprinkler_type`              | `string`       | The configured type of sprinkler.                                          |
 | `image_url`                   | `string`       | The url to zone image.                                                     |
 | `started_watering_station_at` | `string`       | The timestamp the zone started watering.                                   |
-| `program_x`                   | `object`       | Provides details on any configured watering programs for the given switch. |
+| `next_start_time`             | `string`       | ISO-8601 timestamp of the next scheduled watering, if any.                 |
+| `next_start_programs`         | `list[string]` | The programs scheduled to run at `next_start_time`.                        |
+| `program_x`                   | `object`       | Provides details on any configured watering programs for the given zone.   |
 | `program_e[watering_program]` | `list[string]` | List of timestamps for future/scheduled watering times.<sup>†</sup>        |
 
 <sup>†</sup> Only applicable if a Smart Watering program is enabled. Any rain delays or other custom programs must be considered separately.
 
 #### `program_x` attribute
 
-Any watering programs which are configured for a zone switch are made available as an attribute. The `X` denotes the letter of the program slot. Values `A`, `B` and `C` are well known custom slots. Program `E` is reserved for the Smart Watering plan. Slot `D` does not have a known use at this stage.
+Any watering programs which are configured for a zone are made available as an attribute. The `x` denotes the (lowercase) letter of the program slot. Values `a`, `b` and `c` are well-known custom slots. Program `e` is reserved for the Smart Watering plan. Slot `d` does not have a known use at this stage.
 
 Please see [program switches](#program-switch) below for more details.
+
+## Switch Entities
 
 ### Rain Delay Switch
 
@@ -174,18 +194,28 @@ A **program** `switch` entity is created for each program attached to each zone.
 
 <sup>†</sup> Not available on _Smart Watering_ programs
 
+### Smart Watering Switch
+
+A **smart watering** `switch` entity is created for each zone that has smart watering as an available feature. Toggling the switch enables or disables the Smart Watering schedule for that zone.
+
+## Select Entities
+
+### Device Mode
+
+A **device mode** `select` entity is created for each `sprinkler_timer` device, with options `auto` and `off`. This mirrors the device-level run mode exposed by the B-hyve app.
+
 ## Services
 
 This integration provides the following services:
 
 | Service                           | Parameters                                                                                                                                                  | Description                                                      |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `bhyve.start_watering`            | `entity_id` - zone(s) entity to start watering. This should be a reference to a zone switch entity <br/> `minutes` - number of minutes to water for         | Start watering a zone for a specific number of minutes           |
-| `bhyve.stop_watering`             | `entity_id` - zone(s) entity to stop watering. This should be a reference to a zone switch entity                                                           | Stop watering a zone                                             |
-| `bhyve.enable_rain_delay`         | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch <br/> `hours` - number of hours to enable a rain delay   | Enable a rain delay for a device for a specified number of hours |
-| `bhyve.disable_rain_delay`        | `entity_id` - device to enable a rain delay. This can reference either a zone or rain delay switch                                                          | Cancel a rain delay on a given device                            |
-| `bhyve.set_manual_preset_runtime` | `entity_id` - zone(s) entity to set the preset runtime. This should be a reference to a zone switch entity <br/> `minutes` - number of minutes to water for | Set the default time a switch is activated for when enabled. Support for this service appears to be patchy, and it has been difficult to identify the devices or under which conditions it works      |
-| `bhyve.set_smart_watering_soil_moisture` | `entity_id` - zone(s) entity to set the moisture level for. This should be a reference to a zone switch entity <br/> `percentage` - soil moisture level between 0 - 100 | Set Smart Watering soil moisture level for a zone     |
+| `bhyve.start_watering`            | `entity_id` - zone(s) entity to start watering. This should be a reference to a zone valve entity <br/> `minutes` - number of minutes to water for         | Start watering a zone for a specific number of minutes           |
+| `bhyve.stop_watering`             | `entity_id` - zone(s) entity to stop watering. This should be a reference to a zone valve entity                                                           | Stop watering a zone                                             |
+| `bhyve.enable_rain_delay`         | `entity_id` - device to enable a rain delay. This can reference either a zone valve or rain delay switch <br/> `hours` - number of hours to enable a rain delay   | Enable a rain delay for a device for a specified number of hours |
+| `bhyve.disable_rain_delay`        | `entity_id` - device to disable a rain delay. This can reference either a zone valve or rain delay switch                                                          | Cancel a rain delay on a given device                            |
+| `bhyve.set_manual_preset_runtime` | `entity_id` - zone(s) entity to set the preset runtime. This should be a reference to a zone valve entity <br/> `minutes` - number of minutes to water for | Set the default time a zone is watered for when the valve is opened. Support for this service appears to be patchy, and it has been difficult to identify the devices or under which conditions it works      |
+| `bhyve.set_smart_watering_soil_moisture` | `entity_id` - zone(s) entity to set the moisture level for. This should be a reference to a zone valve entity <br/> `percentage` - soil moisture level between 0 - 100 | Set Smart Watering soil moisture level for a zone     |
 | `bhyve.start_program` | `entity_id` - program entity to start. This should be a reference to a program switch entity | Starts a pre-configured watering program. Watering programs cannot be created via this integration and must first be set up in the B-Hyve app |
 | `bhyve.update_program` | `entity_id` - program switch to update <br/> `start_times` - _(optional)_ list of watering start times in `HH:MM` format <br/> `frequency` - _(optional)_ frequency configuration object (must include a `type`, known values: `days`, `interval`) <br/> `budget` - _(optional)_ watering budget as a percentage (0-200) | Update the configuration of an existing non-smart program. At least one of `start_times`, `frequency` or `budget` must be provided |
 
@@ -238,12 +268,12 @@ Usage:
 ```yaml
 service: python_script.bhyve_next_watering
 data:
-  entity_id: switch.backyard_zone
+  entity_id: valve.backyard_zone
 ```
 
-| Argument    | Type     | Required | Notes                            |
-| ----------- | -------- | -------- | -------------------------------- |
-| `entity_id` | `string` | `True`   | The entity id for a zone switch. |
+| Argument    | Type     | Required | Notes                           |
+| ----------- | -------- | -------- | ------------------------------- |
+| `entity_id` | `string` | `True`   | The entity id for a zone valve. |
 
 ### Automation
 
@@ -254,13 +284,13 @@ automation:
   - alias: B-hyve next watering & rain delay finishing updater
     trigger:
       - platform: state
-        entity_id: switch.backyard_zone, switch.rain_delay_lawn
+        entity_id: valve.backyard_zone, switch.rain_delay_lawn
       - platform: homeassistant
         event: start
     action:
       - service: python_script.bhyve_next_watering
         data:
-          entity_id: switch.backyard_zone
+          entity_id: valve.backyard_zone
 ```
 
 ## Debugging
