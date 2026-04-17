@@ -133,6 +133,24 @@
           "description": "The program to start"
         }
       }
+    },
+    "update_program": {
+      "name": "Update program",
+      "description": "Update a program's configuration. Provide at least one of start_times or frequency",
+      "fields": {
+        "entity_id": {
+          "name": "Program switch",
+          "description": "The program switch to update"
+        },
+        "start_times": {
+          "name": "Start times",
+          "description": "List of watering start times in HH:MM format"
+        },
+        "frequency": {
+          "name": "Frequency",
+          "description": "Frequency configuration object. Must include a 'type' key (e.g. days, interval, even, odd)"
+        }
+      }
     }
   },
   "entity": {
