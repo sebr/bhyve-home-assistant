@@ -148,7 +148,7 @@
         },
         "frequency": {
           "name": "Frequency",
-          "description": "Frequency configuration object. Must include a 'type' key (e.g. days, interval, even, odd)"
+          "description": "Frequency configuration object. Must include a 'type' key (known values: days, interval)"
         },
         "budget": {
           "name": "Budget",
