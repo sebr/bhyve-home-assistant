@@ -185,7 +185,7 @@ This integration provides the following services:
 | `bhyve.set_manual_preset_runtime` | `entity_id` - zone(s) entity to set the preset runtime. This should be a reference to a zone switch entity <br/> `minutes` - number of minutes to water for | Set the default time a switch is activated for when enabled. Support for this service appears to be patchy, and it has been difficult to identify the devices or under which conditions it works      |
 | `bhyve.set_smart_watering_soil_moisture` | `entity_id` - zone(s) entity to set the moisture level for. This should be a reference to a zone switch entity <br/> `percentage` - soil moisture level between 0 - 100 | Set Smart Watering soil moisture level for a zone     |
 | `bhyve.start_program` | `entity_id` - program entity to start. This should be a reference to a program switch entity | Starts a pre-configured watering program. Watering programs cannot be created via this integration and must first be set up in the B-Hyve app |
-| `bhyve.update_program` | `entity_id` - program switch to update <br/> `start_times` - _(optional)_ list of watering start times in `HH:MM` format <br/> `frequency` - _(optional)_ frequency configuration object (must include a `type`, e.g. `days`, `interval`, `even`, `odd`) | Update the `start_times` and/or `frequency` of an existing non-smart program. At least one of `start_times` or `frequency` must be provided |
+| `bhyve.update_program` | `entity_id` - program switch to update <br/> `start_times` - _(optional)_ list of watering start times in `HH:MM` format <br/> `frequency` - _(optional)_ frequency configuration object (must include a `type`, e.g. `days`, `interval`, `even`, `odd`) <br/> `budget` - _(optional)_ watering budget as a percentage (0-200) | Update the configuration of an existing non-smart program. At least one of `start_times`, `frequency` or `budget` must be provided |
 
 ### `bhyve.update_program` example
 
@@ -201,6 +201,7 @@ data:
     days: [1, 3, 5]
     interval: 1
     interval_hours: 0
+  budget: 75
 ```
 
 The `frequency` object mirrors the B-Hyve API structure. Common `type` values:
@@ -208,6 +209,8 @@ The `frequency` object mirrors the B-Hyve API structure. Common `type` values:
 - `days` with `days: [0-6]` (where 0 is Sunday) to water on specific weekdays
 - `interval` with `interval: N` to water every N days
 - `even` / `odd` to water on even or odd calendar days
+
+The `budget` is a percentage that scales each zone's run time. `100` means unchanged, `50` halves every run time, `200` doubles it. Valid range is 0&ndash;200.
 
 ## Python Script
 

@@ -604,6 +604,32 @@ class TestBHyveProgramSwitch:
         assert payload["id"] == TEST_PROGRAM_ID
         assert payload["device_id"] == TEST_DEVICE_ID
 
+    async def test_update_program_config_budget_only(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_timer_program: BHyveTimerProgram,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test updating only the budget overrides that field only."""
+        description = create_program_switch_description()
+        switch = BHyveProgramSwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            program=mock_timer_program,
+            description=description,
+        )
+
+        await switch.async_update_program_config(budget=150)
+
+        mock_coordinator.client.update_program.assert_called_once()
+        program_id, payload = mock_coordinator.client.update_program.call_args[0]
+        assert program_id == TEST_PROGRAM_ID
+        assert payload["budget"] == 150
+        # Unchanged fields are preserved
+        assert payload["start_times"] == mock_timer_program["start_times"]
+        assert payload["frequency"] == mock_timer_program["frequency"]
+        assert payload["enabled"] is True
+
     async def test_update_program_config_requires_at_least_one_field(
         self,
         mock_sprinkler_device: BHyveDevice,
