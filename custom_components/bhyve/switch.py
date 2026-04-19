@@ -6,7 +6,6 @@ import datetime
 import logging
 import re
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
@@ -39,35 +38,11 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_MANUAL_RUNTIME = timedelta(minutes=5)
-
-PROGRAM_SMART_WATERING = "e"
-PROGRAM_MANUAL = "manual"
-
-ATTR_MANUAL_RUNTIME = "manual_preset_runtime"
-ATTR_SMART_WATERING_ENABLED = "smart_watering_enabled"
-ATTR_SPRINKLER_TYPE = "sprinkler_type"
-ATTR_IMAGE_URL = "image_url"
-ATTR_STARTED_WATERING_AT = "started_watering_station_at"
-ATTR_SMART_WATERING_PLAN = "watering_program"
-ATTR_CURRENT_STATION = "current_station"
-ATTR_CURRENT_PROGRAM = "current_program"
-ATTR_CURRENT_RUNTIME = "current_runtime"
-ATTR_NEXT_START_TIME = "next_start_time"
-ATTR_NEXT_START_PROGRAMS = "next_start_programs"
-
-# Service Attributes
-ATTR_MINUTES = "minutes"
-ATTR_HOURS = "hours"
-ATTR_PERCENTAGE = "percentage"
-
 # Rain Delay Attributes
 ATTR_CAUSE = "cause"
 ATTR_DELAY = "delay"
 ATTR_WEATHER_TYPE = "weather_type"
 ATTR_STARTED_AT = "started_at"
-
-ATTR_PROGRAM = "program_{}"
 
 # Keys accepted by the B-hyve API for program updates
 PROGRAM_UPDATE_KEYS = {
