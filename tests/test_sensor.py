@@ -469,7 +469,8 @@ class TestBHyveZoneHistorySensor:
         self,
         mock_sprinkler_device_with_battery: BHyveDevice,
     ) -> None:
-        """Selection is by greatest start_time across all irrigation entries.
+        """
+        Selection is by greatest start_time across all irrigation entries.
 
         Skipped runs are not filtered — they still report consumption. The
         latest entry by timestamp wins regardless of array position or which
