@@ -1,8 +1,9 @@
 """Test BHyve valve entities."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.core import HomeAssistant
 
 from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
 from custom_components.bhyve.pybhyve.typings import BHyveDevice, BHyveZone
@@ -444,3 +445,79 @@ async def test_valve_set_manual_preset_runtime(
     coordinator.client.set_manual_preset_runtime.assert_called_once_with(
         mock_sprinkler_device["id"], 8
     )
+
+
+async def test_valve_does_not_toggle_on_change_mode_during_watering(
+    hass: HomeAssistant,
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """
+    Regression for issue #306: valve must not close mid-watering.
+
+    The B-hyve cloud interleaves a `change_mode` (mode=auto) event right after
+    `watering_in_progress_notification` when a program starts. In the old
+    switch-based implementation this flipped the zone switch off/on and showed
+    up as a brief toggle. Drive the real coordinator through that event
+    sequence and assert the valve stays open the whole time.
+    """
+    client = MagicMock()
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    coordinator = BHyveDataUpdateCoordinator(hass, client, entry)
+    device_id = mock_sprinkler_device["id"]
+    coordinator.data = {
+        "devices": {
+            device_id: {
+                "device": dict(mock_sprinkler_device),
+                "history": [],
+                "landscapes": {},
+            }
+        },
+        "programs": {},
+    }
+    coordinator.client = MagicMock()
+    coordinator.client.send_message = AsyncMock()
+
+    valve = BHyveZoneValve(
+        coordinator=coordinator,
+        device=coordinator.data["devices"][device_id]["device"],
+        zone=mock_zone_data,
+        zone_name="Front Yard",
+        device_programs=[],
+    )
+
+    assert valve.is_closed is True
+
+    with patch.object(coordinator, "async_set_updated_data"):
+        await coordinator.async_handle_device_event(
+            {
+                "event": "watering_in_progress_notification",
+                "device_id": device_id,
+                "program": "a",
+                "current_station": "1",
+                "run_time": 49.98,
+                "total_run_time_sec": 3000,
+                "started_watering_station_at": "2025-05-27T10:00:03.000Z",
+            }
+        )
+        assert valve.is_closed is False, "valve should open when watering starts"
+
+        await coordinator.async_handle_device_event(
+            {
+                "event": "change_mode",
+                "mode": "auto",
+                "device_id": device_id,
+            }
+        )
+        assert valve.is_closed is False, (
+            "valve must stay open after change_mode mode=auto (issue #306)"
+        )
+
+        await coordinator.async_handle_device_event(
+            {
+                "event": "device_idle",
+                "device_id": device_id,
+            }
+        )
+        assert valve.is_closed is True, "valve should close when device_idle arrives"
