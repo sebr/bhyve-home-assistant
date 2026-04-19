@@ -194,6 +194,31 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
 
         return landscapes
 
+    @staticmethod
+    def _apply_watering_in_progress(
+        device_data: dict[str, Any], event_data: dict[str, Any]
+    ) -> None:
+        """Apply a watering_in_progress_notification event to device state."""
+        status = device_data.setdefault("status", {})
+        current_station = event_data.get("current_station")
+        run_time = event_data.get("run_time")
+        stations = event_data.get("stations") or []
+        # The event provides run_time at the top level without a stations array.
+        # Synthesize one so the shape matches the API response and
+        # current_runtime stays populated for valve entities.
+        if not stations and run_time is not None and current_station is not None:
+            stations = [{"station": current_station, "run_time": run_time}]
+        status["watering_status"] = {
+            "current_station": current_station,
+            "program": event_data.get("program"),
+            "run_time": run_time,
+            "started_watering_station_at": event_data.get(
+                "started_watering_station_at"
+            ),
+            "stations": stations,
+        }
+        status["run_mode"] = event_data.get("mode", "manual")
+
     async def async_handle_device_event(self, event_data: dict[str, Any]) -> None:  # noqa: PLR0912
         """Handle WebSocket device events."""
         if not self.data:
@@ -234,20 +259,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                 del device_data["status"]["watering_status"]
 
         elif event == EVENT_WATERING_IN_PROGRESS:
-            # Update watering status
-            if "status" not in device_data:
-                device_data["status"] = {}
-            # Store the full watering status from the event
-            device_data["status"]["watering_status"] = {
-                "current_station": event_data.get("current_station"),
-                "program": event_data.get("program"),
-                "run_time": event_data.get("run_time"),
-                "started_watering_station_at": event_data.get(
-                    "started_watering_station_at"
-                ),
-                "stations": event_data.get("stations", []),
-            }
-            device_data["status"]["run_mode"] = event_data.get("mode", "manual")
+            self._apply_watering_in_progress(device_data, event_data)
 
         elif event == EVENT_WATERING_COMPLETE:
             # Clear watering status

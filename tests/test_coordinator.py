@@ -197,3 +197,38 @@ class TestProgramEventHandling:
         # Verify no changes and no update triggered
         assert "unknown-program-id" not in coordinator.data["programs"]
         mock_update.assert_not_called()
+
+
+class TestDeviceEventHandling:
+    """Test device event handling in coordinator."""
+
+    async def test_handle_watering_in_progress_synthesizes_stations(
+        self, hass: HomeAssistant
+    ) -> None:
+        """
+        Synthesize a stations entry from top-level run_time.
+
+        The `watering_in_progress_notification` WebSocket event provides
+        `run_time` at the top level but does not include a `stations` array.
+        Downstream entities read runtime from `watering_status.stations[0]`,
+        so the coordinator must populate it so `current_runtime` is not lost.
+        """
+        coordinator = create_mock_coordinator(hass)
+
+        event_data = {
+            "event": "watering_in_progress_notification",
+            "device_id": TEST_DEVICE_ID,
+            "program": "e",
+            "current_station": 1,
+            "run_time": 14,
+            "started_watering_station_at": "2020-01-09T20:29:59.000Z",
+        }
+
+        with patch.object(coordinator, "async_set_updated_data"):
+            await coordinator.async_handle_device_event(event_data)
+
+        watering_status = coordinator.data["devices"][TEST_DEVICE_ID]["device"][
+            "status"
+        ]["watering_status"]
+        assert watering_status["current_station"] == 1
+        assert watering_status["stations"] == [{"station": 1, "run_time": 14}]
