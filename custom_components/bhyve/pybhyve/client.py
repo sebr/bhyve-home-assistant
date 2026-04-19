@@ -46,10 +46,10 @@ class BHyveClient:
         self._last_poll_programs = 0
 
         self._device_histories: dict[str, Any] = {}
-        self._last_poll_device_histories = 0
+        self._last_poll_device_histories: dict[str, float] = {}
 
-        self._landscapes: list[BHyveZoneLandscape] = []
-        self._last_poll_landscapes = 0
+        self._landscapes: dict[str, list[BHyveZoneLandscape]] = {}
+        self._last_poll_landscapes: dict[str, float] = {}
 
     async def _request(
         self,
@@ -129,7 +129,7 @@ class BHyveClient:
         now = time.time()
         if force_update:
             _LOGGER.info("Forcing refresh of device history %s", device_id)
-        elif now - self._last_poll_device_histories < API_POLL_PERIOD:
+        elif now - self._last_poll_device_histories.get(device_id, 0) < API_POLL_PERIOD:
             return
 
         device_history = await self._request(
@@ -144,7 +144,7 @@ class BHyveClient:
 
         self._device_histories.update({device_id: device_history})
 
-        self._last_poll_device_histories = now
+        self._last_poll_device_histories[device_id] = now
 
     async def _refresh_landscapes(
         self, device_id: str, *, force_update: bool = False
@@ -152,16 +152,17 @@ class BHyveClient:
         now = time.time()
         if force_update:
             _LOGGER.debug("Forcing landscape refresh %s", device_id)
-        elif now - self._last_poll_landscapes < API_POLL_PERIOD:
+        elif now - self._last_poll_landscapes.get(device_id, 0) < API_POLL_PERIOD:
             return
 
-        self._landscapes: list[BHyveZoneLandscape] = await self._request(
+        device_landscapes = await self._request(
             "get",
             f"{LANDSCAPE_DESCRIPTIONS_PATH}/{device_id}",
             params={"t": str(time.time())},
         )
 
-        self._last_poll_landscapes = now
+        self._landscapes[device_id] = device_landscapes or []
+        self._last_poll_landscapes[device_id] = now
 
     async def _async_ws_handler(self, async_callback: Callable, data: Any) -> None:
         """Process incoming websocket message."""
@@ -247,7 +248,7 @@ class BHyveClient:
     ) -> BHyveZoneLandscape | None:
         """Get landscape by zone id."""
         await self._refresh_landscapes(device_id, force_update=force_update)
-        for zone in self._landscapes:
+        for zone in self._landscapes.get(device_id, []):
             if zone.get("station") == zone_id:
                 return zone
         return None
