@@ -367,59 +367,56 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
     @property
     def native_value(self) -> datetime | None:
         """Return the state of the entity."""
-        history = self._get_device_history()
-        if not history:
+        latest = self._get_latest_irrigation()
+        if not latest:
             return None
-
-        for history_item in history:
-            zone_irrigation = list(
-                filter(
-                    lambda i: i.get("station") == self._zone_id,
-                    history_item.get(ATTR_IRRIGATION, []),
-                )
-            )
-            if zone_irrigation:
-                # This is a bit crude - assumes the list is ordered by time.
-                latest_irrigation = zone_irrigation[-1]
-                start_time = latest_irrigation.get("start_time")
-                if start_time:
-                    local_time = orbit_time_to_local_time(start_time)
-                    if local_time:
-                        return local_time
+        start_time = latest.get(ATTR_START_TIME)
+        if start_time:
+            return orbit_time_to_local_time(start_time)
         return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the device state attributes."""
-        history = self._get_device_history()
-        if not history:
+        latest = self._get_latest_irrigation()
+        if not latest:
             return {}
 
-        for history_item in history:
-            zone_irrigation = list(
-                filter(
-                    lambda i: i.get("station") == self._zone_id,
-                    history_item.get(ATTR_IRRIGATION, []),
-                )
-            )
-            if zone_irrigation:
-                # This is a bit crude - assumes the list is ordered by time.
-                latest_irrigation = zone_irrigation[-1]
+        gallons = latest.get("water_volume_gal")
+        litres = round(gallons * 3.785, 2) if gallons else None
 
-                gallons = latest_irrigation.get("water_volume_gal")
-                litres = round(gallons * 3.785, 2) if gallons else None
+        return {
+            ATTR_BUDGET: latest.get(ATTR_BUDGET),
+            ATTR_PROGRAM: latest.get(ATTR_PROGRAM),
+            ATTR_PROGRAM_NAME: latest.get(ATTR_PROGRAM_NAME),
+            ATTR_RUN_TIME: latest.get(ATTR_RUN_TIME),
+            ATTR_STATUS: latest.get(ATTR_STATUS),
+            ATTR_CONSUMPTION_GALLONS: gallons,
+            ATTR_CONSUMPTION_LITRES: litres,
+            ATTR_START_TIME: latest.get(ATTR_START_TIME),
+        }
 
-                return {
-                    ATTR_BUDGET: latest_irrigation.get(ATTR_BUDGET),
-                    ATTR_PROGRAM: latest_irrigation.get(ATTR_PROGRAM),
-                    ATTR_PROGRAM_NAME: latest_irrigation.get(ATTR_PROGRAM_NAME),
-                    ATTR_RUN_TIME: latest_irrigation.get(ATTR_RUN_TIME),
-                    ATTR_STATUS: latest_irrigation.get(ATTR_STATUS),
-                    ATTR_CONSUMPTION_GALLONS: gallons,
-                    ATTR_CONSUMPTION_LITRES: litres,
-                    ATTR_START_TIME: latest_irrigation.get(ATTR_START_TIME),
-                }
-        return {}
+    def _get_latest_irrigation(self) -> dict | None:
+        """
+        Return the irrigation entry with the greatest start_time for this zone.
+
+        All statuses are considered — skipped runs can still report flow
+        consumption. Ordering is derived from start_time rather than array
+        position so we don't depend on how the upstream API sorts entries.
+        """
+        latest: dict | None = None
+        latest_start: str | None = None
+        for history_item in self._get_device_history():
+            for irrigation in history_item.get(ATTR_IRRIGATION, []):
+                if irrigation.get("station") != self._zone_id:
+                    continue
+                start_time = irrigation.get(ATTR_START_TIME)
+                if not start_time:
+                    continue
+                if latest_start is None or start_time > latest_start:
+                    latest_start = start_time
+                    latest = irrigation
+        return latest
 
     def _get_device_history(self) -> list:
         """Get device history from coordinator."""

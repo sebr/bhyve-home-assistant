@@ -125,7 +125,7 @@ def mock_zone_history_data() -> list:
                     "program": "a",
                     "program_name": "Morning Schedule",
                     "run_time": 15,
-                    "status": "completed",
+                    "status": "complete",
                     "water_volume_gal": 25.5,
                     "start_time": "2020-01-09T20:15:00.000Z",
                 }
@@ -461,9 +461,97 @@ class TestBHyveZoneHistorySensor:
         assert attrs["program"] == "a"
         assert attrs["program_name"] == "Morning Schedule"
         assert attrs["run_time"] == 15
-        assert attrs["status"] == "completed"
+        assert attrs["status"] == "complete"
         assert attrs["consumption_gallons"] == 25.5
         assert attrs["consumption_litres"] == 96.52
+
+    async def test_zone_history_sensor_picks_greatest_start_time(
+        self,
+        mock_sprinkler_device_with_battery: BHyveDevice,
+    ) -> None:
+        """
+        Selection is by greatest start_time across all irrigation entries.
+
+        Skipped runs are not filtered — they still report consumption. The
+        latest entry by timestamp wins regardless of array position or which
+        history item it lives in.
+        """
+        history = [
+            {
+                "irrigation": [
+                    {
+                        "station": "1",
+                        "budget": 100,
+                        "program": "e",
+                        "program_name": "Smart Watering",
+                        "run_time": 24,
+                        "status": "complete",
+                        "water_volume_gal": None,
+                        "start_time": "2026-04-18T20:00:00.000Z",
+                    },
+                    {
+                        "station": "1",
+                        "budget": 100,
+                        "program": "manual",
+                        "program_name": "manual",
+                        "run_time": 0.97,
+                        "status": "skipped",
+                        "water_volume_gal": 2,
+                        "start_time": "2026-04-19T04:36:14.000Z",
+                    },
+                ]
+            },
+            {
+                "irrigation": [
+                    {
+                        "station": "1",
+                        "budget": 100,
+                        "program": "e",
+                        "program_name": "Smart Watering",
+                        "run_time": 22,
+                        "status": "complete",
+                        "water_volume_gal": 69,
+                        "start_time": "2026-04-16T20:00:04.000Z",
+                    }
+                ]
+            },
+        ]
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_battery,
+                    "history": history,
+                    "landscapes": {},
+                }
+            }
+        )
+
+        description = SensorEntityDescription(
+            key="zone_history",
+            translation_key="zone_history",
+            icon="mdi:history",
+            device_class=SensorDeviceClass.TIMESTAMP,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+        sensor = BHyveZoneHistorySensor(
+            coordinator=coordinator,
+            device=mock_sprinkler_device_with_battery,
+            zone={"station": "1", "name": "Front Lawn"},
+            zone_name="Front Lawn",
+            description=description,
+        )
+
+        # Greatest start_time is the 2026-04-19 manual skipped run.
+        assert sensor.native_value is not None
+        assert sensor.native_value.day == 19
+        assert sensor.native_value.hour == 4
+
+        attrs = sensor.extra_state_attributes
+        assert attrs["program"] == "manual"
+        assert attrs["status"] == "skipped"
+        assert attrs["run_time"] == 0.97
+        assert attrs["consumption_gallons"] == 2
+        assert attrs["consumption_litres"] == 7.57
 
 
 class TestSensorWebsocketEvents:
