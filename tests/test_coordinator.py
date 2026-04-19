@@ -232,3 +232,75 @@ class TestDeviceEventHandling:
         ]["watering_status"]
         assert watering_status["current_station"] == 1
         assert watering_status["stations"] == [{"station": 1, "run_time": 14}]
+
+    async def test_change_mode_auto_preserves_watering_status(
+        self, hass: HomeAssistant
+    ) -> None:
+        """
+        Issue #306: change_mode auto must not clear active watering_status.
+
+        Reproduces the event sequence from the user's log:
+        1. watering_in_progress_notification arrives (zone 1 starts watering)
+        2. change_mode with mode=auto arrives ~1s later
+
+        Previously, when zone entities were switches, the change_mode handler
+        set is_on=False on all zone switches, producing the on/off toggle
+        reported in the issue. Verify that the coordinator does not wipe the
+        watering_status on change_mode so valve entities stay open.
+        """
+        coordinator = create_mock_coordinator(hass)
+
+        watering_event = {
+            "event": "watering_in_progress_notification",
+            "device_id": TEST_DEVICE_ID,
+            "program": "a",
+            "current_station": 1,
+            "run_time": 49.98,
+            "total_run_time_sec": 3000,
+            "started_watering_station_at": "2025-05-27T10:00:03.000Z",
+            "timestamp": "2025-05-27T10:00:04.000Z",
+            "status": "watering_in_progress",
+            "rain_sensor_hold": False,
+        }
+        change_mode_event = {
+            "event": "change_mode",
+            "mode": "auto",
+            "device_id": TEST_DEVICE_ID,
+            "timestamp": "2025-05-27T10:00:04.000Z",
+        }
+
+        with patch.object(coordinator, "async_set_updated_data"):
+            await coordinator.async_handle_device_event(watering_event)
+            await coordinator.async_handle_device_event(change_mode_event)
+
+        status = coordinator.data["devices"][TEST_DEVICE_ID]["device"]["status"]
+        assert "watering_status" in status
+        assert status["watering_status"]["current_station"] == 1
+        assert status["watering_status"]["program"] == "a"
+
+    async def test_device_idle_clears_watering_status(
+        self, hass: HomeAssistant
+    ) -> None:
+        """Device_idle must clear watering_status so the valve closes."""
+        coordinator = create_mock_coordinator(hass)
+
+        with patch.object(coordinator, "async_set_updated_data"):
+            await coordinator.async_handle_device_event(
+                {
+                    "event": "watering_in_progress_notification",
+                    "device_id": TEST_DEVICE_ID,
+                    "program": "a",
+                    "current_station": 1,
+                    "run_time": 14,
+                }
+            )
+            await coordinator.async_handle_device_event(
+                {
+                    "event": "device_idle",
+                    "device_id": TEST_DEVICE_ID,
+                }
+            )
+
+        status = coordinator.data["devices"][TEST_DEVICE_ID]["device"]["status"]
+        assert "watering_status" not in status
+        assert status["run_mode"] == "off"
