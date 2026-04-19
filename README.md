@@ -128,7 +128,7 @@ A **zone** `valve` entity is created for each zone of a `sprinkler_timer` device
 
 The default run time is often indicated by the `manual_preset_runtime` attribute, and this can be set using the `set_manual_preset_runtime` service or configured in the B-hyve app.
 
-> [!NOTE]  
+> [!NOTE]
 > Some BHyve devices do not have the ability to set the default watering time, and it is recommended that you use the `bhyve.start_watering` service to start the watering zone with the desired number of minutes.
 
 The following attributes are set on zone valve entities:
@@ -243,63 +243,3 @@ The `frequency` object mirrors the B-Hyve API structure. Known `type` values:
 
 The `budget` is a percentage that scales each zone's run time. `100` means unchanged, `50` halves every run time, `200` doubles it. Valid range is 0&ndash;200.
 
-## Python Script
-
-> [!CAUTION]
-> These scripts are expermintal and not supported. YMMV and any support issues will be closed as won't fix.
-
-Bundled in this repository is a [`python_script`](https://www.home-assistant.io/integrations/python_script) which calculates a device's next watering time and when a rain delay is scheduled to finish.
-
-_Note: HACS does not install the script automatically and they must be added manually to your HA instance._
-
-### Scripts
-
-#### [`bhyve_next_watering.py`](https://github.com/sebr/bhyve-home-assistant/blob/master/python_scripts/bhyve_next_watering.py)
-
-Calculates:
-
-1. When the next scheduled watering is for a zone by considering all enabled watering programs
-2. When a device's active rain delay will finish, or `None` if there is no active delay
-
-This script creates or updates entities named `sensor.{zone_name}_next_watering` and `sensor.{device_name}_rain_delay_finishing`.
-
-Usage:
-
-```yaml
-service: python_script.bhyve_next_watering
-data:
-  entity_id: valve.backyard_zone
-```
-
-| Argument    | Type     | Required | Notes                           |
-| ----------- | -------- | -------- | ------------------------------- |
-| `entity_id` | `string` | `True`   | The entity id for a zone valve. |
-
-### Automation
-
-Hook these scripts up to automations to update as required:
-
-```yaml
-automation:
-  - alias: B-hyve next watering & rain delay finishing updater
-    trigger:
-      - platform: state
-        entity_id: valve.backyard_zone, switch.rain_delay_lawn
-      - platform: homeassistant
-        event: start
-    action:
-      - service: python_script.bhyve_next_watering
-        data:
-          entity_id: valve.backyard_zone
-```
-
-## Debugging
-
-To debug this integration and provide device integration for future improvements, please enable debugging in Home Assistant's `configuration.yaml`
-
-```yaml
-logger:
-  logs:
-    custom_components.bhyve: debug
-    pybhyve: debug
-```

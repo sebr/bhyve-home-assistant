@@ -34,7 +34,6 @@ This is a Home Assistant custom integration for Orbit B-hyve irrigation devices.
 - `custom_components/bhyve/__init__.py` - Integration setup and coordinator
 - `custom_components/bhyve/pybhyve/` - B-hyve API client library
 - `config/` - Home Assistant configuration for development
-- `python_scripts/` - Experimental utility scripts for calculating watering schedules
 
 ### Key Components
 - **API Client**: `pybhyve/client.py` - Handles authentication and API communication
