@@ -14,7 +14,7 @@ ignore = [
     "PLR0913",
 ]
 
-exclude = ["python_scripts/*", "debug/*"]
+exclude = ["debug/*"]
 
 [lint.per-file-ignores]
 "tests/*" = [
