@@ -7,11 +7,6 @@ LOGGER: Logger = getLogger(__package__)
 DOMAIN = "bhyve"
 MANUFACTURER = "Orbit BHyve"
 
-DEVICES = "devices"
-PROGRAMS = "programs"
-
-DATA_BHYVE = "bhyve_data"
-
 CONF_CLIENT = "client"
 CONF_DEVICES = "devices"
 
@@ -29,9 +24,3 @@ EVENT_RAIN_DELAY = "rain_delay"
 EVENT_SET_MANUAL_PRESET_TIME = "set_manual_preset_runtime"
 EVENT_WATERING_COMPLETE = "watering_complete"
 EVENT_WATERING_IN_PROGRESS = "watering_in_progress_notification"
-
-SIGNAL_UPDATE_DEVICE = "bhyve_update_device_{}"
-SIGNAL_UPDATE_PROGRAM = "bhyve_update_program_{}"
-
-TYPE_BINARY_SENSOR = "binary_sensor"
-TYPE_SENSOR = "sensor"

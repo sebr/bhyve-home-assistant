@@ -40,9 +40,6 @@ _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_MANUAL_RUNTIME = timedelta(minutes=5)
 
-PROGRAM_SMART_WATERING = "e"
-PROGRAM_MANUAL = "manual"
-
 ATTR_MANUAL_RUNTIME = "manual_preset_runtime"
 ATTR_SMART_WATERING_ENABLED = "smart_watering_enabled"
 ATTR_SPRINKLER_TYPE = "sprinkler_type"
