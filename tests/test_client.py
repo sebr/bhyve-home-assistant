@@ -1,5 +1,6 @@
 """Test BHyve pybhyve client."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -104,5 +105,35 @@ class TestGetLandscape:
 
         await client.get_landscape("device-a", 1)
         await client.get_landscape("device-a", 1)
+
+        assert client._request.await_count == 1
+
+    async def test_concurrent_calls_dedupe_to_single_request(
+        self, client: BHyveClient
+    ) -> None:
+        """
+        Concurrent get_landscape calls for the same device share one HTTP request.
+
+        The coordinator fans out per-zone landscape lookups in parallel. Without
+        single-flight locking, N zones trigger N duplicate requests to the same
+        endpoint.
+        """
+        call_started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def slow_request(*_args: object, **_kwargs: object) -> list:
+            call_started.set()
+            await release.wait()
+            return [{"station": 1}, {"station": 2}, {"station": 3}]
+
+        client._request = AsyncMock(side_effect=slow_request)
+
+        tasks = [
+            asyncio.create_task(client.get_landscape("device-a", zone_id))
+            for zone_id in (1, 2, 3)
+        ]
+        await call_started.wait()
+        release.set()
+        await asyncio.gather(*tasks)
 
         assert client._request.await_count == 1

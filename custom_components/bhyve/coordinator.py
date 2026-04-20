@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
     from .pybhyve import BHyveClient
-    from .pybhyve.typings import BHyveDevice, BHyveTimerProgram
+    from .pybhyve.typings import BHyveDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,63 +58,34 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API (periodic polling)."""
         try:
-            # Fetch devices
-            devices: list[BHyveDevice] = await self.client.devices
+            # devices and timer_programs are independent endpoints; fetch in
+            # parallel so the refresh is bounded by the slower of the two.
+            devices, programs = await asyncio.gather(
+                self.client.devices,
+                self.client.timer_programs,
+            )
 
-            # Build data structure
+            # Fan out per-device history/landscape fetches across all devices in
+            # parallel. Previously this loop was sequential across devices, so
+            # multi-device accounts paid N times the per-device roundtrip.
+            device_results = await asyncio.gather(
+                *[self._fetch_device_bundle(device) for device in devices],
+                return_exceptions=True,
+            )
+
             data: dict[str, Any] = {
                 "devices": {},
                 "programs": {},
             }
 
-            # Process each device - fetch history and landscapes in parallel per device
-            for device in devices:
-                device_id = device.get("id")
-                device_type = device.get("type")
-                if not device_id:
+            for result in device_results:
+                if isinstance(result, BaseException):
+                    _LOGGER.debug("Error fetching device bundle: %s", result)
                     continue
+                if result is None:
+                    continue
+                data["devices"][result["device"]["id"]] = result
 
-                # Only fetch history and landscapes for sprinkler_timer devices
-                # Flood sensors and other device types don't have these features
-                if device_type == DEVICE_SPRINKLER:
-                    # Fetch history and landscapes in parallel for this device
-                    history_task = self._fetch_device_history(device_id)
-                    landscapes_task = self._fetch_landscapes(device_id, device)
-
-                    history, landscapes = await asyncio.gather(
-                        history_task,
-                        landscapes_task,
-                        return_exceptions=True,
-                    )
-
-                    # Handle exceptions from parallel tasks
-                    if isinstance(history, Exception):
-                        _LOGGER.debug(
-                            "Error fetching history for device %s: %s",
-                            device_id,
-                            history,
-                        )
-                        history = []
-                    if isinstance(landscapes, Exception):
-                        _LOGGER.debug(
-                            "Error fetching landscapes for device %s: %s",
-                            device_id,
-                            landscapes,
-                        )
-                        landscapes = {}
-                else:
-                    # Non-sprinkler devices don't have history or landscapes
-                    history = []
-                    landscapes = {}
-
-                data["devices"][device_id] = {
-                    "device": device,
-                    "history": history,
-                    "landscapes": landscapes,
-                }
-
-            # Fetch programs
-            programs: list[BHyveTimerProgram] = await self.client.timer_programs
             for program in programs:
                 program_id = program.get("id")
                 if program_id:
@@ -128,6 +99,41 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         except (BHyveError, TimeoutError) as err:
             msg = f"Error communicating with API: {err}"
             raise UpdateFailed(msg) from err
+
+    async def _fetch_device_bundle(self, device: BHyveDevice) -> dict[str, Any] | None:
+        """Fetch history + landscapes for a single device."""
+        device_id = device.get("id")
+        if not device_id:
+            return None
+
+        if device.get("type") == DEVICE_SPRINKLER:
+            history, landscapes = await asyncio.gather(
+                self._fetch_device_history(device_id),
+                self._fetch_landscapes(device_id, device),
+                return_exceptions=True,
+            )
+
+            if isinstance(history, Exception):
+                _LOGGER.debug(
+                    "Error fetching history for device %s: %s", device_id, history
+                )
+                history = []
+            if isinstance(landscapes, Exception):
+                _LOGGER.debug(
+                    "Error fetching landscapes for device %s: %s",
+                    device_id,
+                    landscapes,
+                )
+                landscapes = {}
+        else:
+            history = []
+            landscapes = {}
+
+        return {
+            "device": device,
+            "history": history,
+            "landscapes": landscapes,
+        }
 
     async def _fetch_device_history(self, device_id: str) -> list[dict[str, Any]]:
         """Fetch watering history for a device."""

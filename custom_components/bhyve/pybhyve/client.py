@@ -1,5 +1,6 @@
 """Define an object to interact with the REST API."""
 
+import asyncio
 import logging
 import re
 import time
@@ -50,6 +51,7 @@ class BHyveClient:
 
         self._landscapes: dict[str, list[BHyveZoneLandscape]] = {}
         self._last_poll_landscapes: dict[str, float] = {}
+        self._landscape_locks: dict[str, asyncio.Lock] = {}
 
     async def _request(
         self,
@@ -149,20 +151,29 @@ class BHyveClient:
     async def _refresh_landscapes(
         self, device_id: str, *, force_update: bool = False
     ) -> None:
-        now = time.time()
-        if force_update:
-            _LOGGER.debug("Forcing landscape refresh %s", device_id)
-        elif now - self._last_poll_landscapes.get(device_id, 0) < API_POLL_PERIOD:
-            return
+        # Single-flight: concurrent callers for the same device share one HTTP
+        # request. Without this, a coordinator refresh that fans out per-zone
+        # landscape lookups for N zones fires N duplicate requests.
+        lock = self._landscape_locks.get(device_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._landscape_locks[device_id] = lock
 
-        device_landscapes = await self._request(
-            "get",
-            f"{LANDSCAPE_DESCRIPTIONS_PATH}/{device_id}",
-            params={"t": str(time.time())},
-        )
+        async with lock:
+            now = time.time()
+            if force_update:
+                _LOGGER.debug("Forcing landscape refresh %s", device_id)
+            elif now - self._last_poll_landscapes.get(device_id, 0) < API_POLL_PERIOD:
+                return
 
-        self._landscapes[device_id] = device_landscapes or []
-        self._last_poll_landscapes[device_id] = now
+            device_landscapes = await self._request(
+                "get",
+                f"{LANDSCAPE_DESCRIPTIONS_PATH}/{device_id}",
+                params={"t": str(time.time())},
+            )
+
+            self._landscapes[device_id] = device_landscapes or []
+            self._last_poll_landscapes[device_id] = now
 
     async def _async_ws_handler(self, async_callback: Callable, data: Any) -> None:
         """Process incoming websocket message."""
