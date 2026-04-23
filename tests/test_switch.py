@@ -849,6 +849,44 @@ class TestBHyveRainDelaySwitch:
         # Verify set_rain_delay was called with 0 hours to disable
         coordinator.client.set_rain_delay.assert_called_once_with(TEST_DEVICE_ID, 0)
 
+    async def test_rain_delay_switch_enable_rain_delay(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test enable_rain_delay service method honours custom hours."""
+        description = create_rain_delay_switch_description(mock_sprinkler_device)
+        switch = BHyveRainDelaySwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            description=description,
+        )
+
+        await switch.enable_rain_delay(hours=5)
+
+        mock_coordinator.client.set_rain_delay.assert_called_once_with(
+            TEST_DEVICE_ID, 5
+        )
+
+    async def test_rain_delay_switch_disable_rain_delay(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test disable_rain_delay service method clears the delay."""
+        description = create_rain_delay_switch_description(mock_sprinkler_device)
+        switch = BHyveRainDelaySwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            description=description,
+        )
+
+        await switch.disable_rain_delay()
+
+        mock_coordinator.client.set_rain_delay.assert_called_once_with(
+            TEST_DEVICE_ID, 0
+        )
+
     async def test_rain_delay_switch_websocket_event(
         self,
         mock_sprinkler_device: BHyveDevice,
