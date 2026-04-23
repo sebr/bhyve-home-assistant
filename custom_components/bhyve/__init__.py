@@ -17,6 +17,7 @@ from homeassistant.exceptions import (
     HomeAssistantError,
 )
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -47,8 +48,45 @@ PLATFORMS: list[Platform] = [
 ]
 
 
+def _migrate_zone_switch_to_valve(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """
+    Remove stale v3 zone-switch registry entries left by the v4 upgrade.
+
+    v3 registered zone controls as `switch` entities with unique_id
+    `{mac}:{device}:{zone}:switch`. v4 moved them to the `valve` platform with
+    unique_id `{mac}:{device}:{zone}:valve`. Because the unique_id changed and
+    HA's registry refuses cross-domain entity_id updates, the old switch
+    entries remain orphaned after the upgrade; HA's automatic entity_id
+    suggestion then collides with the freshly created valve entity,
+    manifesting as the Recorder "cannot migrate history" warning and a
+    red/"Not provided" valve tile (issue #403).
+
+    Drop the orphans so the v4 valve entities are the only zone controls in
+    the registry. Historical data on the old switch entity is not preserved -
+    the platform migration already broke continuity.
+    """
+    ent_reg = er.async_get(hass)
+    switch_suffix = ":switch"
+
+    for registry_entry in list(
+        er.async_entries_for_config_entry(ent_reg, entry.entry_id)
+    ):
+        if registry_entry.domain != "switch" or not registry_entry.unique_id.endswith(
+            switch_suffix
+        ):
+            continue
+
+        _LOGGER.info(
+            "Removing stale v3 zone switch %s (replaced by valve platform in v4)",
+            registry_entry.entity_id,
+        )
+        ent_reg.async_remove(registry_entry.entity_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up BHyve from a config entry."""
+    _migrate_zone_switch_to_valve(hass, entry)
+
     client = BHyveClient(
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],
