@@ -480,8 +480,16 @@ class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn the switch on."""
-        await self.coordinator.client.set_rain_delay(self._device_id, 24)
+        await self.enable_rain_delay()
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn the switch off."""
+        await self.disable_rain_delay()
+
+    async def enable_rain_delay(self, hours: int = 24) -> None:
+        """Enable rain delay for the device."""
+        await self.coordinator.client.set_rain_delay(self._device_id, hours)
+
+    async def disable_rain_delay(self) -> None:
+        """Disable rain delay for the device."""
         await self.coordinator.client.set_rain_delay(self._device_id, 0)
