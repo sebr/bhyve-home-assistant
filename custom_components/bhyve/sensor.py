@@ -44,6 +44,7 @@ ATTR_IRRIGATION = "irrigation"
 ATTR_PROGRAM = "program"
 ATTR_PROGRAM_NAME = "program_name"
 ATTR_RUN_TIME = "run_time"
+ATTR_NEXT_START_PROGRAMS = "programs"
 ATTR_START_TIME = "start_time"
 ATTR_STATUS = "status"
 
@@ -102,6 +103,23 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
         unique_id_suffix="state",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: data.get("status", {}).get("run_mode", "unavailable"),
+    ),
+)
+
+SENSOR_TYPES_ZONE: tuple[BHyveSensorEntityDescription, ...] = (
+    BHyveSensorEntityDescription(
+        key="next_watering",
+        translation_key="next_watering",
+        unique_id_suffix="next_watering",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:sprinkler-variant",
+        entity_registry_enabled_default=False,
+        value_fn=lambda data: orbit_time_to_local_time(
+            data.get("status", {}).get("next_start_time")
+        ),
+        attributes_fn=lambda data: {
+            ATTR_NEXT_START_PROGRAMS: data.get("status", {}).get("next_start_programs"),
+        },
     ),
 )
 
@@ -221,6 +239,18 @@ async def async_setup_entry(
                         ),
                     )
                 )
+
+                # Add per-zone sensors (next watering, etc.)
+                for base_description in SENSOR_TYPES_ZONE:
+                    sensors.append(  # noqa: PERF401
+                        BHyveZoneSensor(
+                            coordinator,
+                            device,
+                            zone,
+                            zone_name,
+                            base_description,
+                        )
+                    )
 
             # Add battery sensor if device has battery
             if device.get("battery", None) is not None:
@@ -425,3 +455,47 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
             .get(self._device_id, {})
             .get("history", [])
         )
+
+
+class BHyveZoneSensor(BHyveCoordinatorEntity, SensorEntity):
+    """Define a BHyve per-zone sensor."""
+
+    entity_description: BHyveSensorEntityDescription
+    _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        coordinator: BHyveDataUpdateCoordinator,
+        device: BHyveDevice,
+        zone: dict,
+        zone_name: str,
+        description: BHyveSensorEntityDescription,
+    ) -> None:
+        """Initialize the sensor."""
+        self.entity_description = description
+        friendly = description.key.replace("_", " ").title()
+        if zone_name == device.get("name"):
+            self._attr_name = friendly
+        else:
+            self._attr_name = f"{zone_name} {friendly}"
+        super().__init__(coordinator, device)
+        self._zone = zone
+        self._zone_id = zone.get("station")
+        self._attr_unique_id = (
+            f"{self._mac_address}:{self._device_id}:{self._zone_id}:{description.unique_id_suffix}"
+        )
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the state of the entity."""
+        if self.entity_description.value_fn:
+            return self.entity_description.value_fn(self.device_data)
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the device state attributes."""
+        if self.entity_description.attributes_fn:
+            return self.entity_description.attributes_fn(self.device_data)
+        return {}
