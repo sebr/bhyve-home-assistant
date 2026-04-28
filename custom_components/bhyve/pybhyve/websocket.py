@@ -17,6 +17,7 @@ STATE_RUNNING = "running"
 STATE_STOPPED = "stopped"
 
 RECONNECT_DELAY = 5
+MAX_RECONNECT_DELAY = 300
 
 
 # pylint: disable=too-many-instance-attributes
@@ -48,6 +49,7 @@ class OrbitWebsocket:
         self._heartbeat: int = 25
         self._ws: ClientWebSocketResponse | None = None
         self._closing: bool = False
+        self._reconnect_delay: int = RECONNECT_DELAY
 
     def _cancel_heartbeat(self) -> None:
         if self._heartbeat_cb is not None:
@@ -111,6 +113,7 @@ class OrbitWebsocket:
                     _LOGGER.info("Websocket connected")
 
                     self._reset_heartbeat()
+                    self._reconnect_delay = RECONNECT_DELAY
 
                     self.state = STATE_RUNNING
 
@@ -173,8 +176,19 @@ class OrbitWebsocket:
                         )
                         self.state = STATE_STOPPED
 
+        except aiohttp.ClientResponseError as err:
+            if err.status in (500, 502, 503, 504):
+                _LOGGER.warning(
+                    "Orbit websocket endpoint returned HTTP %s; retrying with backoff",
+                    err.status,
+                )
+            else:
+                _LOGGER.error("Unexpected websocket HTTP error %s", err)  # noqa: TRY400
+            self.state = STATE_STOPPED
+            self.retry()
+
         except aiohttp.ClientConnectorError:
-            _LOGGER.error("Client connection error; state: %s", self.state)  # noqa: TRY400
+            _LOGGER.warning("Client connection error; state: %s", self.state)
             self.state = STATE_STOPPED
             self.retry()
 
@@ -204,10 +218,16 @@ class OrbitWebsocket:
         """Retry to connect to Orbit."""
         if self.state != STATE_STARTING:
             _LOGGER.info(
-                "Reconnecting to Orbit in %i; state: %s", RECONNECT_DELAY, self.state
+                "Reconnecting to Orbit in %i; state: %s",
+                self._reconnect_delay,
+                self.state,
             )
             self.state = STATE_STARTING
-            self._loop.call_later(RECONNECT_DELAY, self.start)
+            self._loop.call_later(self._reconnect_delay, self.start)
+            self._reconnect_delay = min(
+                self._reconnect_delay * 2,
+                MAX_RECONNECT_DELAY,
+            )
         else:
             _LOGGER.info("Ignoring websocket retry; state: %s", self.state)
 
