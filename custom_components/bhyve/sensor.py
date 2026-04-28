@@ -443,5 +443,3 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
             .get(self._device_id, {})
             .get("history", [])
         )
-
-
