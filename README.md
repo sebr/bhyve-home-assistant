@@ -32,7 +32,7 @@ _Note_: The Wifi hub is required to provide the flood sensors with internet conn
 ## Supported Entities
 
 - `valve` for opening/closing individual zones on `sprinkler_timer` devices.
-- `sensor` for battery levels, zone watering history, zone next watering time, device run-mode state, flood-sensor temperature and flood-sensor signal strength.
+- `sensor` for battery levels, zone watering history, device next watering time, device run-mode state, flood-sensor temperature and flood-sensor signal strength.
 - `switch` for enabling/disabling rain delays, toggling pre-configured programs and enabling/disabling per-zone smart watering.
 - `select` for the device run-mode (auto/off) on `sprinkler_timer` devices.
 - `binary_sensor` for flood detection, temperature alerts, sprinkler station faults and Wi-Fi bridge connectivity.
@@ -94,17 +94,17 @@ The following attributes are set on zone history sensor entities:
 | `consumption_litres`  | `number` | The amount of water consumed, in litres.                    |
 | `start_time`          | `string` | The start time of the watering.                             |
 
-### Zone Next Watering sensor
+### Device Next Watering sensor
 
-A **next watering** `sensor` entity is created for each zone on a `sprinkler_timer` device. This reports the next scheduled watering time as a timestamp, allowing relative-time rendering ("in 14 hours"), long-term statistics, and direct use in automations and dashboard cards.
+A **next watering** `sensor` entity is created for each `sprinkler_timer` device. This reports the next scheduled watering time as a timestamp, allowing relative-time rendering ("in 14 hours"), long-term statistics, and direct use in automations and dashboard cards.
 
 The existing `next_start_time` valve attribute is preserved for backward compatibility.
 
 The following attributes are set on next watering sensor entities:
 
-| Attribute  | Type           | Notes                                           |
-| ---------- | -------------- | ----------------------------------------------- |
-| `programs` | `list[string]` | The programs scheduled to run at this time.     |
+| Attribute  | Type           | Notes                                                          |
+| ---------- | -------------- | -------------------------------------------------------------- |
+| `programs` | `list[string]` | The programs scheduled to run at this time, if any.            |
 
 ### Temperature sensor
 
