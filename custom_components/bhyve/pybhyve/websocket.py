@@ -2,7 +2,7 @@
 
 import json
 import logging
-from asyncio import AbstractEventLoop, ensure_future
+from asyncio import AbstractEventLoop, TimerHandle, ensure_future
 from collections.abc import Callable
 from math import ceil
 from typing import Any
@@ -50,11 +50,17 @@ class OrbitWebsocket:
         self._ws: ClientWebSocketResponse | None = None
         self._closing: bool = False
         self._reconnect_delay: int = RECONNECT_DELAY
+        self._reconnect_cb: TimerHandle | None = None
 
     def _cancel_heartbeat(self) -> None:
         if self._heartbeat_cb is not None:
             self._heartbeat_cb.cancel()
             self._heartbeat_cb = None
+
+    def _cancel_reconnect(self) -> None:
+        if self._reconnect_cb is not None:
+            self._reconnect_cb.cancel()
+            self._reconnect_cb = None
 
     def _reset_heartbeat(self) -> None:
         self._cancel_heartbeat()
@@ -90,6 +96,11 @@ class OrbitWebsocket:
 
     def start(self) -> None:
         """Start the websocket."""
+        self._cancel_reconnect()
+        if self._closing:
+            _LOGGER.info("Websocket closed intentionally, not starting")
+            return
+
         if self.state != STATE_RUNNING:
             self.state = STATE_STARTING
         self._loop.create_task(self.running())
@@ -211,11 +222,16 @@ class OrbitWebsocket:
         self._closing = True
         self.state = STATE_STOPPED
         self._cancel_heartbeat()
+        self._cancel_reconnect()
         if self._ws is not None:
             await self._ws.close()
 
     def retry(self) -> None:
         """Retry to connect to Orbit."""
+        if self._closing:
+            _LOGGER.info("Websocket closed intentionally, not scheduling reconnect")
+            return
+
         if self.state != STATE_STARTING:
             _LOGGER.info(
                 "Reconnecting to Orbit in %i; state: %s",
@@ -223,7 +239,9 @@ class OrbitWebsocket:
                 self.state,
             )
             self.state = STATE_STARTING
-            self._loop.call_later(self._reconnect_delay, self.start)
+            self._reconnect_cb = self._loop.call_later(
+                self._reconnect_delay, self.start
+            )
             self._reconnect_delay = min(
                 self._reconnect_delay * 2,
                 MAX_RECONNECT_DELAY,
