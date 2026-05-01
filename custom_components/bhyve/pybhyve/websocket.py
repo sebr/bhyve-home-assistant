@@ -50,6 +50,7 @@ class OrbitWebsocket:
         self._ws: ClientWebSocketResponse | None = None
         self._closing: bool = False
         self._reconnect_delay: int = RECONNECT_DELAY
+        # Keep the delayed retry handle so an integration unload can cancel it.
         self._reconnect_cb: TimerHandle | None = None
 
     def _cancel_heartbeat(self) -> None:
@@ -124,6 +125,7 @@ class OrbitWebsocket:
                     _LOGGER.info("Websocket connected")
 
                     self._reset_heartbeat()
+                    # The endpoint recovered; future disconnects should retry quickly.
                     self._reconnect_delay = RECONNECT_DELAY
 
                     self.state = STATE_RUNNING
@@ -239,6 +241,7 @@ class OrbitWebsocket:
                 self.state,
             )
             self.state = STATE_STARTING
+            # Track the delayed start so stop() can prevent stale reconnects.
             self._reconnect_cb = self._loop.call_later(
                 self._reconnect_delay, self.start
             )
