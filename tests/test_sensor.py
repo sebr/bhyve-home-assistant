@@ -134,6 +134,50 @@ def mock_zone_history_data() -> list:
     ]
 
 
+@pytest.fixture
+def mock_sprinkler_device_with_next_start_time() -> BHyveDevice:
+    """Mock BHyve sprinkler device with next_start_time in device status."""
+    return BHyveDevice(
+        {
+            "id": "test-device-123",
+            "name": "Test Sprinkler",
+            "type": "sprinkler_timer",
+            "mac_address": "aa:bb:cc:dd:ee:ff",
+            "hardware_version": "v2.0",
+            "firmware_version": "1.2.3",
+            "is_connected": True,
+            "status": {
+                "run_mode": "auto",
+                "watering_status": None,
+                "next_start_time": "2026-05-01T03:30:00-07:00",
+                "next_start_programs": ["e"],
+            },
+            "zones": [{"station": "1", "name": "Front Lawn"}],
+        }
+    )
+
+
+@pytest.fixture
+def mock_sprinkler_device_no_schedule() -> BHyveDevice:
+    """Mock BHyve sprinkler device with no upcoming schedule."""
+    return BHyveDevice(
+        {
+            "id": "test-device-123",
+            "name": "Test Sprinkler",
+            "type": "sprinkler_timer",
+            "mac_address": "aa:bb:cc:dd:ee:ff",
+            "hardware_version": "v2.0",
+            "firmware_version": "1.2.3",
+            "is_connected": True,
+            "status": {
+                "run_mode": "auto",
+                "watering_status": None,
+            },
+            "zones": [{"station": "1", "name": "Front Lawn"}],
+        }
+    )
+
+
 class TestBHyveBatterySensor:
     """Test BHyveBatterySensor entity."""
 
@@ -600,3 +644,98 @@ class TestSensorWebsocketEvents:
         # Sensors should be unavailable
         assert battery_sensor.available is False
         assert state_sensor.available is False
+
+
+class TestBHyveNextWateringSensor:
+    """Test next watering device-level sensor (SENSOR_TYPES_SPRINKLER[1])."""
+
+    async def test_next_watering_sensor_initialization(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """Test next watering sensor entity initialization."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_next_start_time,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
+        description = create_sensor_description(
+            mock_sprinkler_device_with_next_start_time, SENSOR_TYPES_SPRINKLER[1]
+        )
+        sensor = BHyveSensor(
+            coordinator=coordinator,
+            device=mock_sprinkler_device_with_next_start_time,
+            description=description,
+        )
+
+        assert sensor.name == "Next watering"
+        assert sensor.device_class == SensorDeviceClass.TIMESTAMP
+        assert sensor._attr_unique_id.endswith(":next_watering")
+
+    async def test_next_watering_sensor_with_scheduled_time(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """Test next watering sensor returns correct timestamp and programs."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_with_next_start_time,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
+        description = create_sensor_description(
+            mock_sprinkler_device_with_next_start_time, SENSOR_TYPES_SPRINKLER[1]
+        )
+        sensor = BHyveSensor(
+            coordinator=coordinator,
+            device=mock_sprinkler_device_with_next_start_time,
+            description=description,
+        )
+
+        # Value should parse to a datetime
+        assert sensor.native_value is not None
+        assert sensor.native_value.year == 2026
+        assert sensor.native_value.month == 5
+        assert sensor.native_value.day == 1
+
+        # Programs attribute should be present when next_start_programs exists
+        attrs = sensor.extra_state_attributes
+        assert attrs["programs"] == ["e"]
+
+    async def test_next_watering_sensor_no_schedule(
+        self,
+        mock_sprinkler_device_no_schedule: BHyveDevice,
+    ) -> None:
+        """Test next watering sensor returns None when next_start_time is absent."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_device_no_schedule,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+
+        description = create_sensor_description(
+            mock_sprinkler_device_no_schedule, SENSOR_TYPES_SPRINKLER[1]
+        )
+        sensor = BHyveSensor(
+            coordinator=coordinator,
+            device=mock_sprinkler_device_no_schedule,
+            description=description,
+        )
+
+        # No next_start_time in status — should return None (HA renders as Unknown)
+        assert sensor.native_value is None
+        # No programs attribute when there is no schedule
+        assert sensor.extra_state_attributes == {}
