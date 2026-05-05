@@ -1,11 +1,14 @@
 """Test Orbit BHyve websocket transport."""
 
 import json
+import logging
 from collections.abc import Callable, Coroutine
 from types import TracebackType
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
+import pytest
 from aiohttp import WSMsgType
 
 from custom_components.bhyve.pybhyve.websocket import (
@@ -14,6 +17,8 @@ from custom_components.bhyve.pybhyve.websocket import (
     STATE_STOPPED,
     OrbitWebsocket,
 )
+
+WEBSOCKET_LOGGER = "custom_components.bhyve.pybhyve.websocket"
 
 
 class FakeTimerHandle:
@@ -116,16 +121,49 @@ class FakeWebsocketContext:
         self.websocket.closed = True
 
 
+class FailingWebsocketContext:
+    """Fake websocket context that raises on entry."""
+
+    def __init__(self, exc: BaseException) -> None:
+        """Initialize the failing context with the exception to raise."""
+        self.exc = exc
+
+    async def __aenter__(self) -> FakeWebSocket:
+        """Raise the configured exception."""
+        raise self.exc
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Exit the failing context (unreachable when __aenter__ raises)."""
+
+
 class FakeSession:
     """Fake aiohttp client session."""
 
-    def __init__(self) -> None:
-        """Initialize the fake session."""
+    def __init__(self, ws_connect_error: BaseException | None = None) -> None:
+        """Initialize the fake session, optionally raising on ws_connect."""
         self.websocket = FakeWebSocket()
+        self.ws_connect_error = ws_connect_error
 
-    def ws_connect(self, _url: str) -> FakeWebsocketContext:
-        """Return a fake websocket context."""
+    def ws_connect(self, _url: str) -> FakeWebsocketContext | FailingWebsocketContext:
+        """Return a fake websocket context, or one that raises on entry."""
+        if self.ws_connect_error is not None:
+            return FailingWebsocketContext(self.ws_connect_error)
         return FakeWebsocketContext(self.websocket)
+
+
+def make_response_error(status: int) -> aiohttp.ClientResponseError:
+    """Build an aiohttp ClientResponseError with the given status."""
+    return aiohttp.ClientResponseError(
+        request_info=MagicMock(),
+        history=(),
+        status=status,
+        message=f"HTTP {status}",
+    )
 
 
 def create_websocket(
@@ -202,3 +240,44 @@ async def test_stale_reconnect_callback_does_not_restart_after_stop() -> None:
 
     assert websocket.state == STATE_STOPPED
     assert not loop.created_tasks
+
+
+@pytest.mark.parametrize("status", [500, 502, 503, 504, 599])
+async def test_5xx_handshake_warns_and_schedules_retry(
+    caplog: pytest.LogCaptureFixture, status: int
+) -> None:
+    """Test 5xx handshake responses warn and schedule a backoff retry."""
+    loop = FakeLoop()
+    session = FakeSession(ws_connect_error=make_response_error(status))
+    websocket = create_websocket(loop=loop, session=session)
+
+    caplog.set_level(logging.DEBUG, logger=WEBSOCKET_LOGGER)
+    await websocket.running()
+
+    records = [r for r in caplog.records if r.name == WEBSOCKET_LOGGER]
+    assert any(
+        r.levelno == logging.WARNING and str(status) in r.getMessage() for r in records
+    )
+    assert not any(r.levelno >= logging.ERROR for r in records)
+    assert loop.call_later_handles[-1].delay == RECONNECT_DELAY
+    assert websocket._reconnect_delay == RECONNECT_DELAY * 2
+
+
+async def test_non_5xx_handshake_errors_and_schedules_retry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test non-5xx handshake responses log an error and schedule a retry."""
+    loop = FakeLoop()
+    session = FakeSession(ws_connect_error=make_response_error(401))
+    websocket = create_websocket(loop=loop, session=session)
+
+    caplog.set_level(logging.DEBUG, logger=WEBSOCKET_LOGGER)
+    await websocket.running()
+
+    records = [r for r in caplog.records if r.name == WEBSOCKET_LOGGER]
+    assert any(
+        r.levelno == logging.ERROR
+        and "Unexpected websocket HTTP error" in r.getMessage()
+        for r in records
+    )
+    assert loop.call_later_handles[-1].delay == RECONNECT_DELAY

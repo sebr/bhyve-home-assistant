@@ -19,6 +19,9 @@ STATE_STOPPED = "stopped"
 RECONNECT_DELAY = 5
 MAX_RECONNECT_DELAY = 300
 
+HTTP_SERVER_ERROR_MIN = 500
+HTTP_SERVER_ERROR_MAX = 600
+
 
 # pylint: disable=too-many-instance-attributes
 class OrbitWebsocket:
@@ -190,7 +193,7 @@ class OrbitWebsocket:
                         self.state = STATE_STOPPED
 
         except aiohttp.ClientResponseError as err:
-            if err.status in (500, 502, 503, 504):
+            if HTTP_SERVER_ERROR_MIN <= err.status < HTTP_SERVER_ERROR_MAX:
                 _LOGGER.warning(
                     "Orbit websocket endpoint returned HTTP %s; retrying with backoff",
                     err.status,
