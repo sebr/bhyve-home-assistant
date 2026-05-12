@@ -149,7 +149,11 @@ class FakeSession:
         self.websocket = FakeWebSocket()
         self.ws_connect_error = ws_connect_error
 
-    def ws_connect(self, _url: str) -> FakeWebsocketContext | FailingWebsocketContext:
+    def ws_connect(
+        self,
+        _url: str,
+        **_kwargs: object,
+    ) -> FakeWebsocketContext | FailingWebsocketContext:
         """Return a fake websocket context, or one that raises on entry."""
         if self.ws_connect_error is not None:
             return FailingWebsocketContext(self.ws_connect_error)
