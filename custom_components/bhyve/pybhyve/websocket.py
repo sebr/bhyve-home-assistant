@@ -10,7 +10,14 @@ from typing import Any
 import aiohttp
 from aiohttp import ClientWebSocketResponse, WSMsgType
 
+from .const import WEB_HOST
+
 _LOGGER = logging.getLogger(__name__)
+
+_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+)
 
 STATE_STARTING = "starting"
 STATE_RUNNING = "running"
@@ -114,7 +121,11 @@ class OrbitWebsocket:
         background_tasks = set()
         try:
             if self._ws is None or self._ws.closed or self.state != STATE_RUNNING:
-                async with self._session.ws_connect(self._url) as self._ws:
+                async with self._session.ws_connect(
+                    self._url,
+                    origin=WEB_HOST,
+                    headers={"User-Agent": _USER_AGENT},
+                ) as self._ws:
                     _LOGGER.info("Authenticating websocket")
                     await self._ws.send_str(
                         json.dumps(
