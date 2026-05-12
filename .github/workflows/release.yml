@@ -112,7 +112,7 @@ jobs:
         uses: softprops/action-gh-release@v3.0.0
         with:
           tag_name: ${{ steps.version.outputs.version }}
-          name: Release ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
           body: ${{ steps.notes.outputs.notes }}
           files: bhyve.zip
           draft: ${{ inputs.draft }}
