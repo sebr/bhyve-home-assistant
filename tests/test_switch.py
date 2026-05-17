@@ -1246,6 +1246,7 @@ class TestBHyveSmartWateringSwitch:
                 "firmware_version": "0085",
                 "is_connected": True,
                 "status": {"run_mode": "auto"},
+                "water_sense_mode": "auto",
                 "zones": [
                     {"station": 1, "smart_watering_enabled": True},
                 ],
@@ -1266,6 +1267,7 @@ class TestBHyveSmartWateringSwitch:
                 "firmware_version": "0087",
                 "is_connected": True,
                 "status": {"run_mode": "auto"},
+                "water_sense_mode": "auto",
                 "zones": [
                     {
                         "station": 1,
@@ -1280,7 +1282,7 @@ class TestBHyveSmartWateringSwitch:
                     {
                         "station": 3,
                         "name": "Side Garden",
-                        "smart_watering_enabled": False,
+                        "smart_watering_enabled": True,
                     },
                 ],
             }
@@ -1298,61 +1300,60 @@ class TestBHyveSmartWateringSwitch:
         assert "2:smart_watering" in switch_2.unique_id
         assert "3:smart_watering" in switch_3.unique_id
 
-    async def test_is_on_reads_zone_data(self) -> None:
-        """Test is_on reflects the zone's smart_watering_enabled value."""
-        device = BHyveDevice(
+    async def test_is_on_reads_device_water_sense_mode(self) -> None:
+        """is_on reflects the device-level water_sense_mode (not per-zone)."""
+        device_on = BHyveDevice(
             {
-                "id": "device-3",
-                "name": "Monash",
+                "id": "device-on",
+                "name": "On",
                 "type": "sprinkler_timer",
                 "mac_address": "aa:bb:cc:dd:ee:03",
                 "hardware_version": "WT25G2-0001",
                 "firmware_version": "0087",
                 "is_connected": True,
                 "status": {"run_mode": "auto"},
+                "water_sense_mode": "auto",
                 "zones": [
-                    {
-                        "station": 1,
-                        "name": "Front Lawn",
-                        "smart_watering_enabled": True,
-                    },
-                    {
-                        "station": 2,
-                        "name": "Back Lawn",
-                        "smart_watering_enabled": False,
-                    },
+                    {"station": 1, "smart_watering_enabled": True},
+                    {"station": 2, "smart_watering_enabled": True},
                 ],
             }
         )
-        coordinator = create_mock_coordinator(
+        device_off = BHyveDevice(
             {
-                "device-3": {
-                    "device": device,
-                    "history": [],
-                    "landscapes": {},
-                }
-            },
-            {},
-        )
-
-        switch_on = self._create_switch(device, device["zones"][0], coordinator)
-        switch_off = self._create_switch(device, device["zones"][1], coordinator)
-
-        assert switch_on.is_on is True
-        assert switch_off.is_on is False
-
-    async def test_turn_on_patches_zone(self) -> None:
-        """Test turning on sets smart_watering_enabled on the zone."""
-        device = BHyveDevice(
-            {
-                "id": "device-4",
-                "name": "Test",
+                "id": "device-off",
+                "name": "Off",
                 "type": "sprinkler_timer",
                 "mac_address": "aa:bb:cc:dd:ee:04",
+                "hardware_version": "WT25G2-0001",
+                "firmware_version": "0087",
+                "is_connected": True,
+                "status": {"run_mode": "auto"},
+                "water_sense_mode": "off",
+                "zones": [
+                    {"station": 1, "smart_watering_enabled": False},
+                    {"station": 2, "smart_watering_enabled": False},
+                ],
+            }
+        )
+
+        assert self._create_switch(device_on, device_on["zones"][0]).is_on is True
+        assert self._create_switch(device_on, device_on["zones"][1]).is_on is True
+        assert self._create_switch(device_off, device_off["zones"][0]).is_on is False
+
+    async def test_turn_on_sends_device_payload(self) -> None:
+        """Turn on PUTs id+type+mac_address+water_sense_mode=auto for the device."""
+        device = BHyveDevice(
+            {
+                "id": "device-5",
+                "name": "Test",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:05",
                 "hardware_version": "HT25-0000",
                 "firmware_version": "0085",
                 "is_connected": True,
                 "status": {"run_mode": "auto"},
+                "water_sense_mode": "off",
                 "zones": [
                     {"station": 1, "smart_watering_enabled": False},
                     {"station": 2, "smart_watering_enabled": False},
@@ -1360,34 +1361,34 @@ class TestBHyveSmartWateringSwitch:
             }
         )
         coordinator = create_mock_coordinator(
-            {"device-4": {"device": device, "history": [], "landscapes": {}}},
+            {"device-5": {"device": device, "history": [], "landscapes": {}}},
             {},
         )
         switch = self._create_switch(device, device["zones"][0], coordinator)
 
         await switch.async_turn_on()
-        coordinator.client.update_device.assert_called_once()
-        call_args = coordinator.client.update_device.call_args[0][0]
-        assert call_args["id"] == "device-4"
-        # Zone 1 should be enabled, zone 2 unchanged
-        zones = call_args["zones"]
-        assert zones[0]["station"] == 1
-        assert zones[0]["smart_watering_enabled"] is True
-        assert zones[1]["station"] == 2
-        assert zones[1]["smart_watering_enabled"] is False
+        coordinator.client.update_device.assert_called_once_with(
+            {
+                "id": "device-5",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:05",
+                "water_sense_mode": "auto",
+            }
+        )
 
-    async def test_turn_off_patches_zone(self) -> None:
-        """Test turning off sets smart_watering_enabled false on the zone."""
+    async def test_turn_off_sends_device_payload(self) -> None:
+        """Turn off PUTs water_sense_mode=off for the device."""
         device = BHyveDevice(
             {
-                "id": "device-4",
+                "id": "device-6",
                 "name": "Test",
                 "type": "sprinkler_timer",
-                "mac_address": "aa:bb:cc:dd:ee:04",
+                "mac_address": "aa:bb:cc:dd:ee:06",
                 "hardware_version": "HT25-0000",
                 "firmware_version": "0085",
                 "is_connected": True,
                 "status": {"run_mode": "auto"},
+                "water_sense_mode": "auto",
                 "zones": [
                     {"station": 1, "smart_watering_enabled": True},
                     {"station": 2, "smart_watering_enabled": True},
@@ -1395,18 +1396,20 @@ class TestBHyveSmartWateringSwitch:
             }
         )
         coordinator = create_mock_coordinator(
-            {"device-4": {"device": device, "history": [], "landscapes": {}}},
+            {"device-6": {"device": device, "history": [], "landscapes": {}}},
             {},
         )
         switch = self._create_switch(device, device["zones"][0], coordinator)
 
         await switch.async_turn_off()
-        coordinator.client.update_device.assert_called_once()
-        call_args = coordinator.client.update_device.call_args[0][0]
-        zones = call_args["zones"]
-        # Zone 1 should be disabled, zone 2 unchanged
-        assert zones[0]["smart_watering_enabled"] is False
-        assert zones[1]["smart_watering_enabled"] is True
+        coordinator.client.update_device.assert_called_once_with(
+            {
+                "id": "device-6",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:06",
+                "water_sense_mode": "off",
+            }
+        )
 
     async def test_setup_creates_per_zone_switches(self, hass: HomeAssistant) -> None:
         """Test setup creates one smart watering switch per zone."""
@@ -1419,7 +1422,7 @@ class TestBHyveSmartWateringSwitch:
                 "hardware_version": "WT25G2-0001",
                 "firmware_version": "0087",
                 "is_connected": True,
-                "smart_watering_enabled": True,
+                "water_sense_mode": "auto",
                 "status": {
                     "run_mode": "auto",
                     "watering_status": None,
