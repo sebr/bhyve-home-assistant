@@ -16,6 +16,7 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.helpers.icon import icon_for_battery_level
+from homeassistant.util import dt as dt_util
 
 from . import BHyveCoordinatorEntity
 from .const import (
@@ -371,10 +372,19 @@ class BHyveNextWateringSensor(BHyveSensor):
         if (status.get("rain_delay") or 0) > 0:
             return True
 
+        parsed = orbit_time_to_local_time(status.get("next_start_time"))
+        if parsed is None:
+            return False
+
         # Orbit's "nothing scheduled" sentinel — show Unknown rather than a
         # timestamp 80+ years in the future.
-        parsed = orbit_time_to_local_time(status.get("next_start_time"))
-        return parsed is not None and parsed.year >= self._SENTINEL_YEAR
+        if parsed.year >= self._SENTINEL_YEAR:
+            return True
+
+        # A "next watering" in the past is stale (e.g. Orbit hasn't yet
+        # recalculated after a rain delay was cleared). It will refresh on the
+        # next poll; until then, show Unknown rather than a past timestamp.
+        return parsed <= dt_util.now()
 
     @property
     def native_value(self) -> datetime | int | float | str | None:

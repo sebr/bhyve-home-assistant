@@ -649,8 +649,9 @@ class TestSensorWebsocketEvents:
         assert state_sensor.available is False
 
 
+@pytest.mark.freeze_time("2026-04-01T00:00:00+00:00")
 class TestBHyveNextWateringSensor:
-    """Test next watering device-level sensor (SENSOR_TYPES_SPRINKLER[1])."""
+    """Test next watering device sensor (frozen pre-fixture for past-time gate)."""
 
     @staticmethod
     def _build_sensor(
@@ -734,6 +735,22 @@ class TestBHyveNextWateringSensor:
         """Orbit's far-future sentinel (~2106) should render as Unknown (#430)."""
         mock_sprinkler_device_with_next_start_time["status"]["next_start_time"] = (
             "2106-02-07T06:28:15+00:00"
+        )
+
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
+
+        assert sensor.native_value is None
+        assert sensor.extra_state_attributes == {}
+
+    async def test_returns_none_when_next_start_time_is_in_the_past(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """A past next_start_time (e.g. just after clearing a rain delay) → Unknown."""
+        # Frozen "now" is 2026-04-01; fixture is 2026-05-01 (future).
+        # Push the timestamp to yesterday so it falls behind frozen now.
+        mock_sprinkler_device_with_next_start_time["status"]["next_start_time"] = (
+            "2026-03-31T12:00:00+00:00"
         )
 
         sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
