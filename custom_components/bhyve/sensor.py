@@ -111,14 +111,10 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
         unique_id_suffix="next_watering",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:sprinkler-variant",
-        value_fn=lambda data: orbit_time_to_local_time(
-            data.get("status", {}).get("next_start_time")
-        ),
-        attributes_fn=lambda data: (
-            {ATTR_NEXT_START_PROGRAMS: programs}
-            if (programs := data.get("status", {}).get("next_start_programs"))
-            else {}
-        ),
+        # value_fn / attributes_fn intentionally unset: BHyveNextWateringSensor
+        # overrides those properties so it can read coordinator-level program
+        # data when gating the sensor on smart-watering / rain-delay / manual
+        # program state (#430).
     ),
 )
 
@@ -212,7 +208,12 @@ async def async_setup_entry(
                     icon_fn=base_description.icon_fn,
                     available_fn=base_description.available_fn,
                 )
-                sensors.append(BHyveSensor(coordinator, device, description))
+                if description.key == "next_watering":
+                    sensors.append(
+                        BHyveNextWateringSensor(coordinator, device, description)
+                    )
+                else:
+                    sensors.append(BHyveSensor(coordinator, device, description))
 
             # Add zone history sensors
             all_zones = device.get("zones", [])
@@ -351,6 +352,54 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
                 self.device_data, self.native_value
             )
         return super().available
+
+
+class BHyveNextWateringSensor(BHyveSensor):
+    """Next-watering sensor that gates on real-time state (#430)."""
+
+    @property
+    def _is_scheduled(self) -> bool:
+        """Return True if a watering is genuinely scheduled."""
+        status = self.device_data.get("status") or {}
+
+        # Active rain delay suppresses all watering.
+        rain_delay = status.get("rain_delay") or 0
+        if rain_delay > 0:
+            return False
+
+        # Smart watering enabled at the device level → a schedule exists via the
+        # smart program. ``water_sense_mode`` is the source of truth from the
+        # Orbit API ("auto" = enabled, "off" or absent = disabled).
+        if self.device_data.get("water_sense_mode") == "auto":
+            return True
+
+        # Otherwise, look for any enabled non-smart program targeting this
+        # device. Smart programs are skipped because their state is already
+        # represented by water_sense_mode above.
+        programs = (self.coordinator.data or {}).get("programs", {})
+        return any(
+            program.get("device_id") == self._device_id
+            and program.get("enabled")
+            and not program.get("is_smart_program")
+            for program in programs.values()
+        )
+
+    @property
+    def native_value(self) -> datetime | int | float | str | None:
+        """Return the next watering time, or None when nothing is scheduled."""
+        if not self._is_scheduled:
+            return None
+        return orbit_time_to_local_time(
+            self.device_data.get("status", {}).get("next_start_time")
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return programs attribute only when a watering is scheduled."""
+        if not self._is_scheduled:
+            return {}
+        programs = self.device_data.get("status", {}).get("next_start_programs")
+        return {ATTR_NEXT_START_PROGRAMS: programs} if programs else {}
 
 
 class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):

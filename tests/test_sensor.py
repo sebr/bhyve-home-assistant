@@ -16,6 +16,7 @@ from custom_components.bhyve.sensor import (
     SENSOR_TYPES_BATTERY,
     SENSOR_TYPES_FLOOD,
     SENSOR_TYPES_SPRINKLER,
+    BHyveNextWateringSensor,
     BHyveSensor,
     BHyveSensorEntityDescription,
     BHyveZoneHistorySensor,
@@ -146,9 +147,11 @@ def mock_sprinkler_device_with_next_start_time() -> BHyveDevice:
             "hardware_version": "v2.0",
             "firmware_version": "1.2.3",
             "is_connected": True,
+            "water_sense_mode": "auto",
             "status": {
                 "run_mode": "auto",
                 "watering_status": None,
+                "rain_delay": 0,
                 "next_start_time": "2026-05-01T03:30:00-07:00",
                 "next_start_programs": ["e"],
             },
@@ -649,29 +652,35 @@ class TestSensorWebsocketEvents:
 class TestBHyveNextWateringSensor:
     """Test next watering device-level sensor (SENSOR_TYPES_SPRINKLER[1])."""
 
-    async def test_next_watering_sensor_initialization(
-        self,
-        mock_sprinkler_device_with_next_start_time: BHyveDevice,
-    ) -> None:
-        """Test next watering sensor entity initialization."""
+    @staticmethod
+    def _build_sensor(
+        device: BHyveDevice, programs: dict | None = None
+    ) -> BHyveNextWateringSensor:
         coordinator = create_mock_coordinator(
             {
-                "test-device-123": {
-                    "device": mock_sprinkler_device_with_next_start_time,
+                device["id"]: {
+                    "device": device,
                     "history": [],
                     "landscapes": {},
                 }
             }
         )
+        if programs is not None:
+            coordinator.data["programs"] = programs
 
-        description = create_sensor_description(
-            mock_sprinkler_device_with_next_start_time, SENSOR_TYPES_SPRINKLER[1]
-        )
-        sensor = BHyveSensor(
+        description = create_sensor_description(device, SENSOR_TYPES_SPRINKLER[1])
+        return BHyveNextWateringSensor(
             coordinator=coordinator,
-            device=mock_sprinkler_device_with_next_start_time,
+            device=device,
             description=description,
         )
+
+    async def test_next_watering_sensor_initialization(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """Test next watering sensor entity initialization."""
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
 
         assert sensor.name == "Next watering"
         assert sensor.device_class == SensorDeviceClass.TIMESTAMP
@@ -682,24 +691,7 @@ class TestBHyveNextWateringSensor:
         mock_sprinkler_device_with_next_start_time: BHyveDevice,
     ) -> None:
         """Test next watering sensor returns correct timestamp and programs."""
-        coordinator = create_mock_coordinator(
-            {
-                "test-device-123": {
-                    "device": mock_sprinkler_device_with_next_start_time,
-                    "history": [],
-                    "landscapes": {},
-                }
-            }
-        )
-
-        description = create_sensor_description(
-            mock_sprinkler_device_with_next_start_time, SENSOR_TYPES_SPRINKLER[1]
-        )
-        sensor = BHyveSensor(
-            coordinator=coordinator,
-            device=mock_sprinkler_device_with_next_start_time,
-            description=description,
-        )
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
 
         # Value should parse to a datetime
         assert sensor.native_value is not None
@@ -716,26 +708,109 @@ class TestBHyveNextWateringSensor:
         mock_sprinkler_device_no_schedule: BHyveDevice,
     ) -> None:
         """Test next watering sensor returns None when next_start_time is absent."""
-        coordinator = create_mock_coordinator(
-            {
-                "test-device-123": {
-                    "device": mock_sprinkler_device_no_schedule,
-                    "history": [],
-                    "landscapes": {},
-                }
-            }
-        )
-
-        description = create_sensor_description(
-            mock_sprinkler_device_no_schedule, SENSOR_TYPES_SPRINKLER[1]
-        )
-        sensor = BHyveSensor(
-            coordinator=coordinator,
-            device=mock_sprinkler_device_no_schedule,
-            description=description,
-        )
+        sensor = self._build_sensor(mock_sprinkler_device_no_schedule)
 
         # No next_start_time in status — should return None (HA renders as Unknown)
         assert sensor.native_value is None
         # No programs attribute when there is no schedule
         assert sensor.extra_state_attributes == {}
+
+    async def test_returns_none_when_rain_delay_active(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """Rain delay > 0 should mask any cached next_start_time (#430)."""
+        mock_sprinkler_device_with_next_start_time["status"]["rain_delay"] = 24
+
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
+
+        assert sensor.native_value is None
+        assert sensor.extra_state_attributes == {}
+
+    async def test_returns_none_when_smart_off_and_no_enabled_programs(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """Smart off + no enabled manual program → Unknown even if cached (#430)."""
+        # Smart watering disabled at the device level; only a smart program in
+        # coordinator data (which doesn't count as a "manual" enabled program).
+        mock_sprinkler_device_with_next_start_time["water_sense_mode"] = "off"
+        programs = {
+            "smart-program-e": {
+                "id": "smart-program-e",
+                "device_id": "test-device-123",
+                "enabled": True,
+                "is_smart_program": True,
+            },
+        }
+
+        sensor = self._build_sensor(
+            mock_sprinkler_device_with_next_start_time, programs=programs
+        )
+
+        assert sensor.native_value is None
+        assert sensor.extra_state_attributes == {}
+
+    async def test_returns_value_when_smart_off_but_manual_program_enabled(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """Smart off + an enabled non-smart program → still a real schedule."""
+        mock_sprinkler_device_with_next_start_time["water_sense_mode"] = "off"
+        programs = {
+            "manual-program-a": {
+                "id": "manual-program-a",
+                "device_id": "test-device-123",
+                "enabled": True,
+                "is_smart_program": False,
+            },
+        }
+
+        sensor = self._build_sensor(
+            mock_sprinkler_device_with_next_start_time, programs=programs
+        )
+
+        assert sensor.native_value is not None
+        assert sensor.extra_state_attributes == {"programs": ["e"]}
+
+    async def test_manual_program_for_other_device_does_not_count(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """Enabled program on a different device must not unmask this sensor."""
+        mock_sprinkler_device_with_next_start_time["water_sense_mode"] = "off"
+        programs = {
+            "manual-program-a": {
+                "id": "manual-program-a",
+                "device_id": "some-other-device",
+                "enabled": True,
+                "is_smart_program": False,
+            },
+        }
+
+        sensor = self._build_sensor(
+            mock_sprinkler_device_with_next_start_time, programs=programs
+        )
+
+        assert sensor.native_value is None
+
+    async def test_disabled_manual_program_does_not_count(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """A non-smart program with enabled=False should not unmask the sensor."""
+        mock_sprinkler_device_with_next_start_time["water_sense_mode"] = "off"
+        programs = {
+            "manual-program-a": {
+                "id": "manual-program-a",
+                "device_id": "test-device-123",
+                "enabled": False,
+                "is_smart_program": False,
+            },
+        }
+
+        sensor = self._build_sensor(
+            mock_sprinkler_device_with_next_start_time, programs=programs
+        )
+
+        assert sensor.native_value is None
