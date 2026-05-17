@@ -727,90 +727,28 @@ class TestBHyveNextWateringSensor:
         assert sensor.native_value is None
         assert sensor.extra_state_attributes == {}
 
-    async def test_returns_none_when_smart_off_and_no_enabled_programs(
+    async def test_returns_none_when_next_start_time_is_sentinel(
         self,
         mock_sprinkler_device_with_next_start_time: BHyveDevice,
     ) -> None:
-        """Smart off + no enabled manual program → Unknown even if cached (#430)."""
-        # Smart watering disabled at the device level; only a smart program in
-        # coordinator data (which doesn't count as a "manual" enabled program).
-        mock_sprinkler_device_with_next_start_time["water_sense_mode"] = "off"
-        programs = {
-            "smart-program-e": {
-                "id": "smart-program-e",
-                "device_id": "test-device-123",
-                "enabled": True,
-                "is_smart_program": True,
-            },
-        }
-
-        sensor = self._build_sensor(
-            mock_sprinkler_device_with_next_start_time, programs=programs
+        """Orbit's far-future sentinel (~2106) should render as Unknown (#430)."""
+        mock_sprinkler_device_with_next_start_time["status"]["next_start_time"] = (
+            "2106-02-07T06:28:15+00:00"
         )
+
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
 
         assert sensor.native_value is None
         assert sensor.extra_state_attributes == {}
 
-    async def test_returns_value_when_smart_off_but_manual_program_enabled(
+    async def test_returns_value_when_smart_off_but_orbit_has_schedule(
         self,
         mock_sprinkler_device_with_next_start_time: BHyveDevice,
     ) -> None:
-        """Smart off + an enabled non-smart program → still a real schedule."""
+        """Smart off but Orbit still reports a next_start_time → surface it."""
         mock_sprinkler_device_with_next_start_time["water_sense_mode"] = "off"
-        programs = {
-            "manual-program-a": {
-                "id": "manual-program-a",
-                "device_id": "test-device-123",
-                "enabled": True,
-                "is_smart_program": False,
-            },
-        }
 
-        sensor = self._build_sensor(
-            mock_sprinkler_device_with_next_start_time, programs=programs
-        )
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
 
         assert sensor.native_value is not None
         assert sensor.extra_state_attributes == {"programs": ["e"]}
-
-    async def test_manual_program_for_other_device_does_not_count(
-        self,
-        mock_sprinkler_device_with_next_start_time: BHyveDevice,
-    ) -> None:
-        """Enabled program on a different device must not unmask this sensor."""
-        mock_sprinkler_device_with_next_start_time["water_sense_mode"] = "off"
-        programs = {
-            "manual-program-a": {
-                "id": "manual-program-a",
-                "device_id": "some-other-device",
-                "enabled": True,
-                "is_smart_program": False,
-            },
-        }
-
-        sensor = self._build_sensor(
-            mock_sprinkler_device_with_next_start_time, programs=programs
-        )
-
-        assert sensor.native_value is None
-
-    async def test_disabled_manual_program_does_not_count(
-        self,
-        mock_sprinkler_device_with_next_start_time: BHyveDevice,
-    ) -> None:
-        """A non-smart program with enabled=False should not unmask the sensor."""
-        mock_sprinkler_device_with_next_start_time["water_sense_mode"] = "off"
-        programs = {
-            "manual-program-a": {
-                "id": "manual-program-a",
-                "device_id": "test-device-123",
-                "enabled": False,
-                "is_smart_program": False,
-            },
-        }
-
-        sensor = self._build_sensor(
-            mock_sprinkler_device_with_next_start_time, programs=programs
-        )
-
-        assert sensor.native_value is None

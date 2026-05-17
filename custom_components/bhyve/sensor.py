@@ -355,39 +355,31 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
 
 
 class BHyveNextWateringSensor(BHyveSensor):
-    """Next-watering sensor that gates on real-time state (#430)."""
+    """Next-watering sensor that suppresses known-invalid values (#430)."""
 
-    @property
-    def _is_scheduled(self) -> bool:
-        """Return True if a watering is genuinely scheduled."""
+    # Orbit returns ~2106-02-07 (epoch-max) as a sentinel for "nothing
+    # scheduled". Treat any far-future timestamp as that sentinel so a clock
+    # skew between Orbit and us doesn't matter.
+    _SENTINEL_YEAR = 2100
+
+    def _is_suppressed(self) -> bool:
+        """Return True when the cached next_start_time should be hidden."""
         status = self.device_data.get("status") or {}
 
-        # Active rain delay suppresses all watering.
-        rain_delay = status.get("rain_delay") or 0
-        if rain_delay > 0:
-            return False
-
-        # Smart watering enabled at the device level → a schedule exists via the
-        # smart program. ``water_sense_mode`` is the source of truth from the
-        # Orbit API ("auto" = enabled, "off" or absent = disabled).
-        if self.device_data.get("water_sense_mode") == "auto":
+        # Active rain delay: Orbit won't water through it, even if a future
+        # next_start_time is still cached on the device summary.
+        if (status.get("rain_delay") or 0) > 0:
             return True
 
-        # Otherwise, look for any enabled non-smart program targeting this
-        # device. Smart programs are skipped because their state is already
-        # represented by water_sense_mode above.
-        programs = (self.coordinator.data or {}).get("programs", {})
-        return any(
-            program.get("device_id") == self._device_id
-            and program.get("enabled")
-            and not program.get("is_smart_program")
-            for program in programs.values()
-        )
+        # Orbit's "nothing scheduled" sentinel — show Unknown rather than a
+        # timestamp 80+ years in the future.
+        parsed = orbit_time_to_local_time(status.get("next_start_time"))
+        return parsed is not None and parsed.year >= self._SENTINEL_YEAR
 
     @property
     def native_value(self) -> datetime | int | float | str | None:
         """Return the next watering time, or None when nothing is scheduled."""
-        if not self._is_scheduled:
+        if self._is_suppressed():
             return None
         return orbit_time_to_local_time(
             self.device_data.get("status", {}).get("next_start_time")
@@ -396,7 +388,7 @@ class BHyveNextWateringSensor(BHyveSensor):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return programs attribute only when a watering is scheduled."""
-        if not self._is_scheduled:
+        if self._is_suppressed():
             return {}
         programs = self.device_data.get("status", {}).get("next_start_programs")
         return {ATTR_NEXT_START_PROGRAMS: programs} if programs else {}
