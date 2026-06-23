@@ -16,6 +16,7 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.helpers.icon import icon_for_battery_level
+from homeassistant.util import dt as dt_util
 
 from . import BHyveCoordinatorEntity
 from .const import (
@@ -111,14 +112,10 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
         unique_id_suffix="next_watering",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:sprinkler-variant",
-        value_fn=lambda data: orbit_time_to_local_time(
-            data.get("status", {}).get("next_start_time")
-        ),
-        attributes_fn=lambda data: (
-            {ATTR_NEXT_START_PROGRAMS: programs}
-            if (programs := data.get("status", {}).get("next_start_programs"))
-            else {}
-        ),
+        # value_fn / attributes_fn intentionally unset: BHyveNextWateringSensor
+        # overrides those properties so it can read coordinator-level program
+        # data when gating the sensor on smart-watering / rain-delay / manual
+        # program state (#430).
     ),
 )
 
@@ -212,7 +209,12 @@ async def async_setup_entry(
                     icon_fn=base_description.icon_fn,
                     available_fn=base_description.available_fn,
                 )
-                sensors.append(BHyveSensor(coordinator, device, description))
+                if description.key == "next_watering":
+                    sensors.append(
+                        BHyveNextWateringSensor(coordinator, device, description)
+                    )
+                else:
+                    sensors.append(BHyveSensor(coordinator, device, description))
 
             # Add zone history sensors
             all_zones = device.get("zones", [])
@@ -351,6 +353,55 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
                 self.device_data, self.native_value
             )
         return super().available
+
+
+class BHyveNextWateringSensor(BHyveSensor):
+    """Next-watering sensor that suppresses known-invalid values (#430)."""
+
+    # Orbit returns ~2106-02-07 (epoch-max) as a sentinel for "nothing
+    # scheduled". Treat any far-future timestamp as that sentinel so a clock
+    # skew between Orbit and us doesn't matter.
+    _SENTINEL_YEAR = 2100
+
+    def _is_suppressed(self) -> bool:
+        """Return True when the cached next_start_time should be hidden."""
+        status = self.device_data.get("status") or {}
+
+        # Active rain delay: Orbit won't water through it, even if a future
+        # next_start_time is still cached on the device summary.
+        if (status.get("rain_delay") or 0) > 0:
+            return True
+
+        parsed = orbit_time_to_local_time(status.get("next_start_time"))
+        if parsed is None:
+            return False
+
+        # Orbit's "nothing scheduled" sentinel — show Unknown rather than a
+        # timestamp 80+ years in the future.
+        if parsed.year >= self._SENTINEL_YEAR:
+            return True
+
+        # A "next watering" in the past is stale (e.g. Orbit hasn't yet
+        # recalculated after a rain delay was cleared). It will refresh on the
+        # next poll; until then, show Unknown rather than a past timestamp.
+        return parsed <= dt_util.now()
+
+    @property
+    def native_value(self) -> datetime | int | float | str | None:
+        """Return the next watering time, or None when nothing is scheduled."""
+        if self._is_suppressed():
+            return None
+        return orbit_time_to_local_time(
+            self.device_data.get("status", {}).get("next_start_time")
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return programs attribute only when a watering is scheduled."""
+        if self._is_suppressed():
+            return {}
+        programs = self.device_data.get("status", {}).get("next_start_programs")
+        return {ATTR_NEXT_START_PROGRAMS: programs} if programs else {}
 
 
 class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
