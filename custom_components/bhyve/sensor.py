@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
@@ -14,6 +15,7 @@ from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.helpers.icon import icon_for_battery_level
 
@@ -47,6 +49,10 @@ ATTR_RUN_TIME = "run_time"
 ATTR_NEXT_START_PROGRAMS = "programs"
 ATTR_START_TIME = "start_time"
 ATTR_STATUS = "status"
+ATTR_DELAY_TOTAL = "delay"
+ATTR_CAUSE = "cause"
+ATTR_WEATHER_TYPE = "weather_type"
+ATTR_STARTED_AT = "started_at"
 
 
 def _parse_battery_level(battery_data: dict) -> int:
@@ -120,7 +126,51 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
             else {}
         ),
     ),
+    BHyveSensorEntityDescription(
+        key="rain_delay_remaining",
+        translation_key="rain_delay_remaining",
+        name="Rain delay",
+        unique_id_suffix="rain_delay_remaining",
+        icon="mdi:weather-pouring",
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTime.HOURS,
+        value_fn=_rain_delay_remaining,
+        attributes_fn=_rain_delay_attributes,
+        available_fn=lambda _data, value: value is not None,
+    ),
 )
+
+
+def _rain_delay_remaining(data: dict) -> float | None:
+    """Return remaining rain-delay hours, or None when inactive/unknown."""
+    status = data.get("status", {})
+    delay = status.get("rain_delay")
+    # No delay key or explicitly zero => not in a rain delay.
+    if delay is None:
+        return None
+    if delay <= 0:
+        return 0.0
+    remaining = float(delay)
+    started = orbit_time_to_local_time(status.get("rain_delay_started_at", ""))
+    if started is not None:
+        elapsed_hours = (datetime.now().astimezone() - started).total_seconds() / 3600
+        remaining = max(0.0, float(delay) - elapsed_hours)
+    return remaining
+
+
+def _rain_delay_attributes(data: dict) -> dict:
+    """Return rain-delay attributes (duration, cause, weather type)."""
+    status = data.get("status", {})
+    attrs: dict[str, Any] = {}
+    if (delay := status.get("rain_delay", 0)) is not None and delay > 0:
+        attrs[ATTR_DELAY_TOTAL] = delay
+        attrs[ATTR_CAUSE] = status.get("rain_delay_cause", "Unknown")
+        attrs[ATTR_WEATHER_TYPE] = status.get("rain_delay_weather_type", "Unknown")
+        attrs[ATTR_STARTED_AT] = orbit_time_to_local_time(
+            status.get("rain_delay_started_at", "")
+        )
+    return attrs
 
 SENSOR_TYPES_FLOOD: tuple[BHyveSensorEntityDescription, ...] = (
     BHyveSensorEntityDescription(

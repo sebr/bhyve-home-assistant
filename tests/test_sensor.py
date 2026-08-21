@@ -737,5 +737,124 @@ class TestBHyveNextWateringSensor:
 
         # No next_start_time in status — should return None (HA renders as Unknown)
         assert sensor.native_value is None
-        # No programs attribute when there is no schedule
+
+
+class TestBHyveRainDelaySensor:
+    """Test rain-delay remaining sensor (SENSOR_TYPES_SPRINKLER[2])."""
+
+    @pytest.fixture
+    def mock_sprinkler_with_rain_delay(self) -> BHyveDevice:
+        """Mock sprinkler with an active rain delay."""
+        return BHyveDevice(
+            {
+                "id": "test-device-123",
+                "name": "Test Sprinkler",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:ff",
+                "is_connected": True,
+                "status": {
+                    "run_mode": "auto",
+                    "rain_delay": 24,
+                    "rain_delay_cause": "Weather",
+                    "rain_delay_weather_type": "Rain",
+                    "rain_delay_started_at": "2026-05-01T00:00:00Z",
+                },
+                "zones": [{"station": "1", "name": "Front Lawn"}],
+            }
+        )
+
+    @pytest.fixture
+    def mock_sprinkler_no_rain_delay(self) -> BHyveDevice:
+        """Mock sprinkler with no active rain delay."""
+        return BHyveDevice(
+            {
+                "id": "test-device-123",
+                "name": "Test Sprinkler",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:ff",
+                "is_connected": True,
+                "status": {"run_mode": "auto", "rain_delay": 0},
+                "zones": [{"station": "1", "name": "Front Lawn"}],
+            }
+        )
+
+    async def test_rain_delay_sensor_initialization(
+        self, mock_sprinkler_with_rain_delay: BHyveDevice
+    ) -> None:
+        """Test rain-delay sensor entity initialization."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_with_rain_delay,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        description = create_sensor_description(
+            mock_sprinkler_with_rain_delay, SENSOR_TYPES_SPRINKLER[2]
+        )
+        sensor = BHyveSensor(
+            coordinator=coordinator,
+            device=mock_sprinkler_with_rain_delay,
+            description=description,
+        )
+        assert sensor.name == "Rain delay"
+        assert sensor.device_class == SensorDeviceClass.DURATION
+        assert sensor._attr_unique_id.endswith(":rain_delay_remaining")
+
+    async def test_rain_delay_sensor_active_returns_remaining(
+        self, mock_sprinkler_with_rain_delay: BHyveDevice
+    ) -> None:
+        """Test remaining hours computed from delay minus elapsed."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_with_rain_delay,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        description = create_sensor_description(
+            mock_sprinkler_with_rain_delay, SENSOR_TYPES_SPRINKLER[2]
+        )
+        sensor = BHyveSensor(
+            coordinator=coordinator,
+            device=mock_sprinkler_with_rain_delay,
+            description=description,
+        )
+        # Native value is a float >= 0 and <= the set delay.
+        assert sensor.native_value is not None
+        assert 0 <= float(sensor.native_value) <= 24
+        # Attributes carry total delay + cause.
+        attrs = sensor.extra_state_attributes
+        assert attrs.get("delay") == 24
+        assert attrs.get("cause") == "Weather"
+        assert attrs.get("weather_type") == "Rain"
+
+    async def test_rain_delay_sensor_no_delay_returns_zero(
+        self, mock_sprinkler_no_rain_delay: BHyveDevice
+    ) -> None:
+        """Test remaining is 0.0 when no rain delay is active."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_no_rain_delay,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        description = create_sensor_description(
+            mock_sprinkler_no_rain_delay, SENSOR_TYPES_SPRINKLER[2]
+        )
+        sensor = BHyveSensor(
+            coordinator=coordinator,
+            device=mock_sprinkler_no_rain_delay,
+            description=description,
+        )
+        assert sensor.native_value == 0.0
+        assert sensor.available is True
+        # No delay attrs when inactive.
         assert sensor.extra_state_attributes == {}
