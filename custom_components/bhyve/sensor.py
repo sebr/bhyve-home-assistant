@@ -120,6 +120,16 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
             else {}
         ),
     ),
+    BHyveSensorEntityDescription(
+        key="firmware_version",
+        translation_key="firmware_version",
+        name="Firmware version",
+        unique_id_suffix="firmware_version",
+        icon="mdi:chip",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda data: data.get("firmware_version") or None,
+        available_fn=lambda _data, value: value is not None,
+    ),
 )
 
 SENSOR_TYPES_FLOOD: tuple[BHyveSensorEntityDescription, ...] = (
