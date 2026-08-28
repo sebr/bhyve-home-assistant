@@ -272,10 +272,20 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         self._entity_picture: str | None = zone.get("image_url")
         self._zone_name: str = zone_name
         self._smart_watering_enabled: bool = zone.get("smart_watering_enabled", False)
-        self._manual_preset_runtime: int = device.get(
+        self._initial_programs = device_programs
+
+    @property
+    def _manual_preset_runtime(self) -> int:
+        """
+        Return the device's manual preset runtime, in seconds.
+
+        Read from live coordinator data (like `is_closed` and the rest of this
+        entity) so a `set_manual_preset_runtime` websocket echo or a poll
+        refresh is reflected without re-creating the entity.
+        """
+        return self.device_data.get(
             "manual_preset_runtime_sec", DEFAULT_MANUAL_RUNTIME.seconds
         )
-        self._initial_programs = device_programs
 
     @property
     def is_closed(self) -> bool:
