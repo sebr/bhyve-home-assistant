@@ -310,10 +310,14 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                     device_data["status"][key] = event_data[key]
 
         elif event == EVENT_SET_MANUAL_PRESET_TIME:
-            # Update manual preset runtime
-            if "status" not in device_data:
-                device_data["status"] = {}
-            device_data["status"]["manual_preset_runtime"] = event_data.get("runtime")
+            # The device echoes the new preset back on the same key it was sent
+            # on: {"event": "set_manual_preset_runtime", "seconds": 480, ...}.
+            # Write it to the device-level key the REST device object uses
+            # (manual_preset_runtime_sec) so websocket echoes and poll refreshes
+            # land in the same place. Both are seconds, so no conversion.
+            seconds = event_data.get("seconds")
+            if seconds is not None:
+                device_data["manual_preset_runtime_sec"] = seconds
 
         # Notify all listening entities
         self.async_set_updated_data(self.data)
