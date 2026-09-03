@@ -1,8 +1,23 @@
 #!/usr/bin/env bash
+#
+# Run Home Assistant with this worktree's integration loaded.
+#
+#   scripts/develop                 listen on 8123
+#   HA_PORT=8124 scripts/develop    listen on another port (second worktree)
+#   scripts/develop --watch         restart on any change under custom_components (needs watchexec)
 
 set -e
 
 cd "$(dirname "$0")/.."
+source scripts/_venv
+
+if [[ "${1:-}" == "--watch" ]]; then
+    if ! command -v watchexec >/dev/null 2>&1; then
+        echo "watchexec is required for --watch: brew install watchexec" >&2
+        exit 1
+    fi
+    exec watchexec --restart --exts py,json --watch custom_components -- "$0"
+fi
 
 # Create config dir if not present
 if [[ ! -d "${PWD}/config" ]]; then
@@ -15,6 +30,9 @@ fi
 ## while at the same time have Home Assistant configuration inside <root>/config
 ## without resulting to symlinks.
 export PYTHONPATH="${PYTHONPATH}:${PWD}/custom_components"
+export HA_PORT="${HA_PORT:-8123}"
 
-# Start Home Assistant
-hass --config "${PWD}/config" --debug
+echo "Home Assistant on http://localhost:${HA_PORT}"
+
+# --skip-pip: the integration has no requirements, so skip pip on every boot.
+hass --config "${PWD}/config" --debug --skip-pip

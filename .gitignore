@@ -26,3 +26,4 @@ core
 .venv
 
 .claude/settings.local.json
+.env.local

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# Create (or refresh) a Python environment on the host without a dev container.
+#
+#   scripts/bootstrap            shared venv at ~/.venvs/bhyve, used by every worktree
+#   scripts/bootstrap --local    venv at ./.venv, for a branch that changes requirements.txt
+#
+# Needs uv: https://docs.astral.sh/uv/  (brew install uv)
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+PYTHON_VERSION="3.13"
+
+if ! command -v uv >/dev/null 2>&1; then
+    echo "uv is required: brew install uv" >&2
+    exit 1
+fi
+
+if [[ "${1:-}" == "--local" ]]; then
+    venv="${PWD}/.venv"
+else
+    venv="${BHYVE_VENV:-${HOME}/.venvs/bhyve}"
+fi
+
+if [[ ! -x "${venv}/bin/python" ]]; then
+    uv venv "${venv}" --python "${PYTHON_VERSION}"
+fi
+
+uv pip install --python "${venv}/bin/python" --requirement requirements.txt
+
+# Install what the integrations in config/configuration.yaml need, so that
+# scripts/develop can boot with --skip-pip instead of resolving them each start.
+domains="$(grep -oE '^[a-z_]+:' config/configuration.yaml | tr -d ':' | tr '\n' ' ')"
+"${venv}/bin/python" scripts/_ha_requirements.py ${domains} \
+    | uv pip install --python "${venv}/bin/python" --requirement -
+
+echo
+echo "Ready: ${venv}"
+echo "scripts/develop and scripts/test will pick it up automatically."

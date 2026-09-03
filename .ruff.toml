@@ -17,6 +17,10 @@ ignore = [
 exclude = ["debug/*"]
 
 [lint.per-file-ignores]
+"scripts/*" = [
+    "INP001",  # standalone scripts, not a package
+    "T201",    # scripts print their output
+]
 "tests/*" = [
     "S101", # Use of assert detected (tests need assert)
     "S106", # Possible hardcoded password in tests (test data is fine)

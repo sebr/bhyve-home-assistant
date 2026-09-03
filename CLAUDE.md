@@ -13,8 +13,14 @@ This is a Home Assistant custom integration for Orbit B-hyve irrigation devices.
 - `pip install -r requirements.txt` - Install Python dependencies
 
 ### Development
+- `./scripts/bootstrap` - Create a shared host venv at `~/.venvs/bhyve` with uv (no dev container needed)
 - `./scripts/develop` - Run Home Assistant in development mode with this integration loaded
+- `HA_PORT=8124 ./scripts/develop` - Run on another port so two worktrees can run at once
+- `./scripts/develop --watch` - Restart Home Assistant when files under `custom_components/` change
+- `./scripts/worktree <branch>` - Create a sibling git worktree seeded with this checkout's HA state and a free port
 - `./scripts/lint` - Format and lint code using ruff
+
+Scripts pick the Python from `./.venv`, then `$BHYVE_VENV`, then `~/.venvs/bhyve`, then `PATH`.
 
 ### Testing
 - `./scripts/test` - Run all tests with verbose output

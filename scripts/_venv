@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Sourced by the other scripts. Puts the right Python on PATH.
+#
+# Order of preference:
+#   1. ./.venv                  a venv local to this worktree
+#   2. $BHYVE_VENV              an explicit override
+#   3. ~/.venvs/bhyve           the shared venv created by scripts/bootstrap
+#   4. whatever is already on PATH (the dev container)
+
+_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+for _candidate in "${_root}/.venv" "${BHYVE_VENV:-}" "${HOME}/.venvs/bhyve"; do
+    if [[ -n "${_candidate}" && -x "${_candidate}/bin/python" ]]; then
+        export VIRTUAL_ENV="${_candidate}"
+        export PATH="${_candidate}/bin:${PATH}"
+        break
+    fi
+done
+
+unset _root _candidate
