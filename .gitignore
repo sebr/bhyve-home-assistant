@@ -27,3 +27,7 @@ core
 
 .claude/settings.local.json
 .env.local
+
+
+# portree runtime state
+.portree/
