@@ -521,3 +521,68 @@ async def test_valve_does_not_toggle_on_change_mode_during_watering(
             }
         )
         assert valve.is_closed is True, "valve should close when device_idle arrives"
+
+
+async def test_valve_manual_preset_runtime_reflects_coordinator_update(
+    hass: HomeAssistant,
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """
+    Regression for issue #478: preset runtime must update after entity setup.
+
+    The `set_manual_preset_runtime` websocket echo carries the new value on the
+    `seconds` key. Drive a real coordinator through that event and assert the
+    already-constructed entity reports the new value, and waters for it.
+    """
+    client = MagicMock()
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    coordinator = BHyveDataUpdateCoordinator(hass, client, entry)
+    device_id = mock_sprinkler_device["id"]
+    coordinator.data = {
+        "devices": {
+            device_id: {
+                "device": dict(mock_sprinkler_device),
+                "history": [],
+                "landscapes": {},
+            }
+        },
+        "programs": {},
+    }
+    coordinator.client = MagicMock()
+    coordinator.client.send_message = AsyncMock()
+
+    valve = BHyveZoneValve(
+        coordinator=coordinator,
+        device=coordinator.data["devices"][device_id]["device"],
+        zone=mock_zone_data,
+        zone_name="Front Yard",
+        device_programs=[],
+    )
+
+    # Device has no preset configured, so the entity falls back to the default.
+    assert valve.extra_state_attributes["manual_preset_runtime"] == 300
+
+    with patch.object(coordinator, "async_set_updated_data"):
+        await coordinator.async_handle_device_event(
+            {
+                "event": "set_manual_preset_runtime",
+                "device_id": device_id,
+                "seconds": TEST_PRESET_RUNTIME_SECONDS,
+                "timestamp": "2020-01-18T17:00:35.000Z",
+            }
+        )
+
+    # Same entity instance, no re-creation.
+    assert (
+        valve.extra_state_attributes["manual_preset_runtime"]
+        == TEST_PRESET_RUNTIME_SECONDS
+    )
+
+    # The echoed value is seconds, so opening the valve waters for 8 minutes.
+    await valve.async_open_valve()
+    sent_message = coordinator.client.send_message.call_args[0][0]
+    assert sent_message["stations"] == [
+        {"station": mock_zone_data["station"], "run_time": 8.0}
+    ]
