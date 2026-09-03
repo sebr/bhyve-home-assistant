@@ -8,7 +8,8 @@
 #   scripts/worktree existing-branch         checks out a branch that already exists
 #
 # Worktrees are created as siblings of this repo: ../<repo>-<branch>.
-# Each gets the next free port starting at 8124.
+# Each shares this checkout's .venv through a symlink; run scripts/bootstrap
+# inside the worktree if the branch needs its own. Ports come from portree.
 
 set -e
 
@@ -40,21 +41,14 @@ if [[ -d config/.storage ]]; then
     [[ -f config/.HA_VERSION ]] && cp config/.HA_VERSION "${dir}/config/"
 fi
 
-# Pick the first port from 8124 upwards that nothing is listening on.
-port=8124
-while lsof -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1; do
-    port=$((port + 1))
-done
-
-# Leave a per-worktree env file that direnv or the shell can source.
-cat > "${dir}/.env.local" <<ENV
-export HA_PORT=${port}
-ENV
+# Share this checkout's venv. scripts/bootstrap in the worktree replaces it.
+if [[ -x .venv/bin/python ]]; then
+    ln -s "${PWD}/.venv" "${dir}/.venv"
+fi
 
 echo
 echo "Worktree: ${dir}"
 echo "Branch:   ${branch}"
-echo "Port:     ${port}"
 echo
 echo "  cd ${dir}"
-echo "  source .env.local && scripts/develop"
+echo "  portree up && portree ls"

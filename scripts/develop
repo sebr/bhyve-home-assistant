@@ -3,7 +3,8 @@
 # Run Home Assistant with this worktree's integration loaded.
 #
 #   scripts/develop                 listen on 8123
-#   HA_PORT=8124 scripts/develop    listen on another port (second worktree)
+#   HA_PORT=8124 scripts/develop    listen on another port
+#   portree up                      let portree pick the port (it sets $PORT)
 #   scripts/develop --watch         restart on any change under custom_components (needs watchexec)
 
 set -e
@@ -30,7 +31,7 @@ fi
 ## while at the same time have Home Assistant configuration inside <root>/config
 ## without resulting to symlinks.
 export PYTHONPATH="${PYTHONPATH}:${PWD}/custom_components"
-export HA_PORT="${HA_PORT:-8123}"
+export HA_PORT="${HA_PORT:-${PORT:-8123}}"
 
 echo "Home Assistant on http://localhost:${HA_PORT}"
 
