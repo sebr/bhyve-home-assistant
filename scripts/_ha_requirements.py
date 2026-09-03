@@ -20,7 +20,30 @@ CORE_DOMAINS = {
     "frontend",
     "http",
 }
-DOMAINS = set(sys.argv[1:]) | CORE_DOMAINS
+# homeassistant.helpers.service imports these whenever a services.yaml uses
+# `supported_features`, so their requirements must be present too.
+BASE_COMPONENTS = {
+    "ai_task",
+    "alarm_control_panel",
+    "assist_satellite",
+    "calendar",
+    "camera",
+    "climate",
+    "cover",
+    "fan",
+    "humidifier",
+    "light",
+    "lock",
+    "media_player",
+    "notify",
+    "remote",
+    "siren",
+    "todo",
+    "update",
+    "vacuum",
+    "water_heater",
+}
+DOMAINS = set(sys.argv[1:]) | CORE_DOMAINS | BASE_COMPONENTS
 
 seen: set[str] = set()
 requirements: set[str] = set()
