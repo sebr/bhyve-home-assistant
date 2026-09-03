@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#
+# Create a git worktree for a branch and seed it with this checkout's Home
+# Assistant state, so you can run it straight away without onboarding again.
+#
+#   scripts/worktree my-feature              new branch off HEAD
+#   scripts/worktree my-feature origin/main  new branch off a given start point
+#   scripts/worktree existing-branch         checks out a branch that already exists
+#
+# Worktrees are created as siblings of this repo: ../<repo>-<branch>.
+# Each shares this checkout's .venv through a symlink; run scripts/bootstrap
+# inside the worktree if the branch needs its own. Ports come from portree.
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+branch="${1:?usage: scripts/worktree <branch> [start-point]}"
+start="${2:-HEAD}"
+
+repo_name="$(basename "${PWD}")"
+dir="$(dirname "${PWD}")/${repo_name}-${branch//\//-}"
+
+if [[ -e "${dir}" ]]; then
+    echo "${dir} already exists" >&2
+    exit 1
+fi
+
+if git show-ref --verify --quiet "refs/heads/${branch}"; then
+    git worktree add "${dir}" "${branch}"
+else
+    git worktree add -b "${branch}" "${dir}" "${start}"
+fi
+
+# Seed HA state. .storage holds auth, onboarding and the bhyve config entry.
+# The recorder database and logs are left behind on purpose.
+if [[ -d config/.storage ]]; then
+    mkdir -p "${dir}/config"
+    cp -R config/.storage "${dir}/config/.storage"
+    rm -f "${dir}/config/.storage/core.restore_state"
+    [[ -f config/.HA_VERSION ]] && cp config/.HA_VERSION "${dir}/config/"
+fi
+
+# Share this checkout's venv. scripts/bootstrap in the worktree replaces it.
+if [[ -x .venv/bin/python ]]; then
+    ln -s "${PWD}/.venv" "${dir}/.venv"
+fi
+
+echo
+echo "Worktree: ${dir}"
+echo "Branch:   ${branch}"
+echo
+echo "  cd ${dir}"
+echo "  portree up && portree ls"

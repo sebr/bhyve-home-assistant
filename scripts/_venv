@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Sourced by the other scripts. Puts ./.venv on PATH if it exists,
+# otherwise leaves PATH alone (the dev container already has hass installed).
+
+_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ -x "${_root}/.venv/bin/python" ]]; then
+    export VIRTUAL_ENV="${_root}/.venv"
+    export PATH="${_root}/.venv/bin:${PATH}"
+fi
+
+unset _root

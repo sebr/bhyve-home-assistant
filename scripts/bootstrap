@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# Create (or refresh) ./.venv so the repo runs on the host without a dev container.
+#
+# Worktrees made by scripts/worktree symlink .venv to the main checkout's venv.
+# Running this inside such a worktree replaces the symlink with a venv of its
+# own, for branches that change requirements.txt.
+#
+# Needs uv: https://docs.astral.sh/uv/  (brew install uv)
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+PYTHON_VERSION="3.13"
+venv="${PWD}/.venv"
+
+if ! command -v uv >/dev/null 2>&1; then
+    echo "uv is required: brew install uv" >&2
+    exit 1
+fi
+
+if [[ -L "${venv}" ]]; then
+    echo "Replacing shared venv symlink with a venv local to this worktree"
+    rm "${venv}"
+fi
+
+if [[ ! -x "${venv}/bin/python" ]]; then
+    uv venv "${venv}" --python "${PYTHON_VERSION}"
+fi
+
+uv pip install --python "${venv}/bin/python" --requirement requirements.txt
+
+# Install what the integrations in config/configuration.yaml need, so that
+# scripts/develop can boot with --skip-pip instead of resolving them each start.
+domains="$(grep -oE '^[a-z_]+:' config/configuration.yaml | tr -d ':' | tr '\n' ' ')"
+"${venv}/bin/python" scripts/_ha_requirements.py ${domains} \
+    | uv pip install --python "${venv}/bin/python" --requirement -
+
+echo
+echo "Ready: ${venv}"

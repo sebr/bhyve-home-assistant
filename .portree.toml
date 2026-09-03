@@ -1,0 +1,13 @@
+# portree per-worktree dev server config. `portree up` runs Home Assistant on a
+# port it picks from the range below and routes <branch>.localhost:8100 to it.
+# scripts/develop reads the $PORT portree assigns.
+#
+#   portree up            start HA for this worktree
+#   portree ls --json     find its direct_url
+#   portree logs          tail its output
+#   portree down          stop it
+[services.hass]
+command = "scripts/develop"
+dir = "."
+port_range = { min = 8123, max = 8149 }
+proxy_port = 8100
