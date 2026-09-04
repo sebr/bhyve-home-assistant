@@ -3,6 +3,7 @@
 set -e
 
 cd "$(dirname "$0")/.."
+source scripts/_venv
 
 ruff format .
 ruff check . --fix
