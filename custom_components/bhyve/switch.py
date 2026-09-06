@@ -63,6 +63,7 @@ SERVICE_UPDATE_PROGRAM = "update_program"
 ATTR_START_TIMES = "start_times"
 ATTR_FREQUENCY = "frequency"
 ATTR_BUDGET = "budget"
+ATTR_RUN_TIMES = "run_times"
 
 BUDGET_MIN = 0
 BUDGET_MAX = 200
@@ -88,6 +89,21 @@ FREQUENCY_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 
+# A run_times entry: station id + minutes to run for that station.
+RUN_TIMES_SCHEMA = vol.All(
+    [
+        vol.Schema(
+            {
+                vol.Required("station"): vol.Coerce(int),
+                vol.Required("run_time"): vol.All(
+                    vol.Coerce(int), vol.Range(min=0)
+                ),
+            },
+            extra=vol.ALLOW_EXTRA,
+        )
+    ]
+)
+
 UPDATE_PROGRAM_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTITY_ID): cv.comp_entity_ids,
@@ -98,6 +114,7 @@ UPDATE_PROGRAM_SCHEMA = vol.Schema(
         vol.Optional(ATTR_BUDGET): vol.All(
             vol.Coerce(int), vol.Range(min=BUDGET_MIN, max=BUDGET_MAX)
         ),
+        vol.Optional(ATTR_RUN_TIMES): RUN_TIMES_SCHEMA,
     }
 )
 
@@ -316,14 +333,23 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         start_times: list[str] | None = None,
         frequency: dict | None = None,
         budget: int | None = None,
+        run_times: list[dict] | None = None,
     ) -> None:
         """Update configurable fields on a non-smart program."""
         if self.program_data.get("is_smart_program"):
             msg = "Cannot update configuration of a smart program"
             raise ServiceValidationError(msg)
 
-        if start_times is None and frequency is None and budget is None:
-            msg = "At least one of start_times, frequency or budget must be provided"
+        if (
+            start_times is None
+            and frequency is None
+            and budget is None
+            and run_times is None
+        ):
+            msg = (
+                "At least one of start_times, frequency, budget or run_times "
+                "must be provided"
+            )
             raise ServiceValidationError(msg)
 
         program = BHyveTimerProgram(
@@ -339,6 +365,9 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         if budget is not None:
             program["budget"] = budget
             changed.append("budget")
+        if run_times is not None:
+            program["run_times"] = run_times
+            changed.append("run_times")
 
         _LOGGER.info(
             "Updating program %s, changed fields: %s", self._program_id, changed
