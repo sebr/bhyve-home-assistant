@@ -739,3 +739,111 @@ class TestBHyveNextWateringSensor:
         assert sensor.native_value is None
         # No programs attribute when there is no schedule
         assert sensor.extra_state_attributes == {}
+
+
+class TestBHyveFirmwareSensor:
+    """Test firmware-version diagnostic sensor (SENSOR_TYPES_SPRINKLER[2])."""
+
+    @pytest.fixture
+    def mock_sprinkler_with_firmware(self) -> BHyveDevice:
+        """Mock sprinkler with a firmware version."""
+        return BHyveDevice(
+            {
+                "id": "test-device-123",
+                "name": "Test Sprinkler",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:ff",
+                "firmware_version": "1.2.3",
+                "is_connected": True,
+                "status": {"run_mode": "auto"},
+                "zones": [{"station": "1", "name": "Front Lawn"}],
+            }
+        )
+
+    @pytest.fixture
+    def mock_sprinkler_no_firmware(self) -> BHyveDevice:
+        """Mock sprinkler without a firmware version."""
+        return BHyveDevice(
+            {
+                "id": "test-device-123",
+                "name": "Test Sprinkler",
+                "type": "sprinkler_timer",
+                "mac_address": "aa:bb:cc:dd:ee:ff",
+                "is_connected": True,
+                "status": {"run_mode": "auto"},
+                "zones": [{"station": "1", "name": "Front Lawn"}],
+            }
+        )
+
+    async def test_firmware_sensor_initialization(
+        self, mock_sprinkler_with_firmware: BHyveDevice
+    ) -> None:
+        """Test firmware sensor entity initialization."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_with_firmware,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        description = create_sensor_description(
+            mock_sprinkler_with_firmware, SENSOR_TYPES_SPRINKLER[2]
+        )
+        sensor = BHyveSensor(
+            coordinator=coordinator,
+            device=mock_sprinkler_with_firmware,
+            description=description,
+        )
+        assert sensor.name == "Firmware version"
+        assert sensor.entity_category == EntityCategory.DIAGNOSTIC
+        assert sensor._attr_unique_id.endswith(":firmware_version")
+
+    async def test_firmware_sensor_value(
+        self, mock_sprinkler_with_firmware: BHyveDevice
+    ) -> None:
+        """Test firmware sensor returns the device firmware version."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_with_firmware,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        description = create_sensor_description(
+            mock_sprinkler_with_firmware, SENSOR_TYPES_SPRINKLER[2]
+        )
+        sensor = BHyveSensor(
+            coordinator=coordinator,
+            device=mock_sprinkler_with_firmware,
+            description=description,
+        )
+        assert sensor.native_value == "1.2.3"
+
+    async def test_firmware_sensor_unavailable_without_version(
+        self, mock_sprinkler_no_firmware: BHyveDevice
+    ) -> None:
+        """Test firmware sensor is unavailable when device has no version."""
+        coordinator = create_mock_coordinator(
+            {
+                "test-device-123": {
+                    "device": mock_sprinkler_no_firmware,
+                    "history": [],
+                    "landscapes": {},
+                }
+            }
+        )
+        description = create_sensor_description(
+            mock_sprinkler_no_firmware, SENSOR_TYPES_SPRINKLER[2]
+        )
+        sensor = BHyveSensor(
+            coordinator=coordinator,
+            device=mock_sprinkler_no_firmware,
+            description=description,
+        )
+        assert sensor.native_value is None
+        assert sensor.available is False
+
