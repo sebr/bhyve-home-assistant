@@ -12,6 +12,7 @@ ignore = [
     "COM812",  # incompatible with formatter
     "ISC001",  # incompatible with formatter
     "PLR0913",
+    "CPY001",  # no copyright headers in this project
 ]
 
 exclude = ["debug/*"]
