@@ -3,109 +3,56 @@
 import logging
 from typing import Any
 
-import voluptuous as vol
-from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_PASSWORD,
     CONF_USERNAME,
     EVENT_HOMEASSISTANT_STOP,
     Platform,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
     HomeAssistantError,
 )
-from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.dispatcher import (
-    async_dispatcher_connect,
-    async_dispatcher_send,
-)
-from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
 
 from .const import (
     CONF_DEVICES,
+    DEVICE_BRIDGE,
     DOMAIN,
     EVENT_PROGRAM_CHANGED,
-    EVENT_RAIN_DELAY,
-    EVENT_SET_MANUAL_PRESET_TIME,
+    LOGGER,
     MANUFACTURER,
-    SIGNAL_UPDATE_DEVICE,
-    SIGNAL_UPDATE_PROGRAM,
 )
+from .coordinator import BHyveDataUpdateCoordinator
 from .pybhyve import BHyveClient
 from .pybhyve.errors import AuthenticationError, BHyveError
 from .util import filter_configured_devices
 
 _LOGGER = logging.getLogger(__name__)
 
-CONFIG_SCHEMA: vol.Schema = vol.Schema(
-    cv.deprecated(DOMAIN),
-    {
-        DOMAIN: vol.Schema(
-            {
-                vol.Required(CONF_USERNAME): cv.string,
-                vol.Required(CONF_PASSWORD): cv.string,
-            }
-        )
-    },
-    extra=vol.ALLOW_EXTRA,
-)
+# Home Assistant 2026.8 added `via_device_id` to DeviceInfo and deprecated
+# `via_device`, which stops working in 2027.8. Older releases reject the new key.
+VIA_DEVICE_ID_SUPPORTED = "via_device_id" in DeviceInfo.__optional_keys__
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.VALVE,
 ]
 
 
-async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the BHyve component from YAML."""
-    if DOMAIN not in config:
-        return True
-
-    hass.async_create_task(
-        hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": SOURCE_IMPORT},
-            data=config[DOMAIN],
-        )
-    )
-
-    return True
-
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up BHyve from a config entry."""
-
-    async def async_update_callback(data: dict) -> None:
-        event = data.get("event")
-        device_id = None
-        program_id = None
-
-        if event == EVENT_PROGRAM_CHANGED:
-            device_id = data.get("program", {}).get("device_id")
-            program_id = data.get("program", {}).get("id")
-        else:
-            device_id = data.get("device_id")
-
-        if device_id is not None:
-            async_dispatcher_send(
-                hass, SIGNAL_UPDATE_DEVICE.format(device_id), device_id, data
-            )
-        if program_id is not None:
-            async_dispatcher_send(
-                hass, SIGNAL_UPDATE_PROGRAM.format(program_id), program_id, data
-            )
-
     client = BHyveClient(
         entry.data[CONF_USERNAME],
         entry.data[CONF_PASSWORD],
@@ -114,28 +61,82 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         if await client.login() is False:
+            _LOGGER.warning("Invalid credentials for %s", entry.data[CONF_USERNAME])
             msg = "Invalid credentials"
             raise ConfigEntryAuthFailed(msg)
-
-        client.listen(hass.loop, async_update_callback)
-        all_devices = await client.devices
-        programs = await client.timer_programs
     except AuthenticationError as err:
+        _LOGGER.warning("Authentication failed for %s", entry.data[CONF_USERNAME])
         raise ConfigEntryAuthFailed(err) from err
-    except BHyveError as err:
+    except (BHyveError, TimeoutError) as err:
         raise ConfigEntryNotReady(err) from err
 
+    # Create coordinator
+    coordinator = BHyveDataUpdateCoordinator(hass, client, entry)
+
+    # Initial data fetch
+    await coordinator.async_config_entry_first_refresh()
+
+    # WebSocket callback routes to coordinator
+    async def async_update_callback(data: dict) -> None:
+        event = data.get("event")
+
+        # Route to coordinator - coordinator handles all entity updates
+        if event == EVENT_PROGRAM_CHANGED:
+            await coordinator.async_handle_program_event(data)
+        else:
+            await coordinator.async_handle_device_event(data)
+
+    # Start WebSocket
+    client.listen(hass.loop, async_update_callback)
+
     # Filter the device list to those that are enabled in options
+    try:
+        all_devices = await client.devices
+        programs = await client.timer_programs
+    except (BHyveError, TimeoutError) as err:
+        raise ConfigEntryNotReady(err) from err
     devices = filter_configured_devices(entry, all_devices)
+
+    # Remove any leaf devices that are no longer selected in options from the
+    # device registry. OptionsFlowWithReload triggers a reload after options
+    # change, so this runs on every setup and cleans up de-selected devices.
+    configured_ids = set(entry.options.get(CONF_DEVICES, []))
+    leaf_device_ids = {
+        str(d["id"]) for d in all_devices if d.get("type") != DEVICE_BRIDGE
+    }
+    if removed_device_ids := leaf_device_ids - configured_ids:
+        await remove_devices_from_registry(hass, entry.entry_id, removed_device_ids)
+
+    # Register bridges before any platform loads, so child devices can point at
+    # a bridge that already exists in the device registry. Record each bridge's
+    # gateway topic and registry id for the entities to look up.
+    # Bridges are always included by filter_configured_devices.
+    device_registry = dr.async_get(hass)
+    gateway_to_bridge: dict[str, str] = {}
+    bridge_device_ids: dict[str, str] = {}
+    for device in devices:
+        if device.get("type") != DEVICE_BRIDGE:
+            continue
+        bridge_id = device.get("id")
+        if not bridge_id:
+            continue
+        bridge_entry = device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id, **build_device_info(device)
+        )
+        bridge_device_ids[bridge_id] = bridge_entry.id
+        if gateway_topic := device.get("device_gateway_topic"):
+            gateway_to_bridge[gateway_topic] = bridge_id
+    coordinator.gateway_to_bridge = gateway_to_bridge
+    coordinator.bridge_device_ids = bridge_device_ids
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "client": client,
+        "coordinator": coordinator,
         "devices": devices,
         "programs": programs,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    entry.async_on_unload(entry.add_update_listener(update_listener))
 
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, client.stop)
 
@@ -143,277 +144,107 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def remove_devices_from_registry(
-    hass: HomeAssistant, device_ids: set[str]
+    hass: HomeAssistant, entry_id: str, device_ids: set[str]
 ) -> None:
-    """Remove devices from registry by domain-specific string identifiers."""
+    """Remove this entry's devices from the registry by their B-hyve ids."""
     device_registry = dr.async_get(hass)
+    identifiers = {(DOMAIN, device_id) for device_id in device_ids}
 
-    for device_id in device_ids:
-        # Find the device in the registry by its identifiers
-        device = device_registry.async_get_device(identifiers={(DOMAIN, device_id)})
-        if device:
-            _LOGGER.info("Removing device %s from registry", device_id)
-            try:
-                device_registry.async_remove_device(device.id)
-            except HomeAssistantError:
-                _LOGGER.exception("Failed to remove device %s from registry", device_id)
-
-
-async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload to update options and remove filtered devices."""
-    # Get the current client and all devices before reload
-    data = hass.data[DOMAIN].get(entry.entry_id)
-    if data:
-        client = data["client"]
+    for device in dr.async_entries_for_config_entry(device_registry, entry_id):
+        if device.identifiers.isdisjoint(identifiers):
+            continue
+        _LOGGER.info("Removing device %s from registry", device.identifiers)
         try:
-            all_devices = await client.devices
-            # Get currently configured device IDs
-            configured_ids = set(entry.options.get(CONF_DEVICES, []))
-
-            # Find devices that were removed from configuration
-            all_device_ids = {str(d["id"]) for d in all_devices}
-            removed_device_ids = all_device_ids - configured_ids
-
-            if removed_device_ids:
-                # Remove devices from Home Assistant
-                await remove_devices_from_registry(hass, removed_device_ids)
-        except (BHyveError, KeyError) as err:
-            _LOGGER.warning("Error checking for removed devices: %s", err)
-
-    await hass.config_entries.async_reload(entry.entry_id)
+            device_registry.async_remove_device(device.id)
+        except HomeAssistantError:
+            _LOGGER.exception("Failed to remove device %s from registry", device.id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    data = hass.data[DOMAIN].get(entry.entry_id)
+    if data:
+        client = data.get("client")
+        if client:
+            await client.stop()
+
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
 
 
-class BHyveEntity(Entity):
-    """Define a base BHyve entity."""
+def build_device_info(device: BHyveDevice) -> DeviceInfo:
+    """Describe a B-hyve device for the device registry."""
+    device_id = device.get("id", "")
+    connections: set[tuple[str, str]] = set()
+    if mac_address := device.get("mac_address"):
+        # Format raw MAC (e.g. "4467552a366e") with colons
+        raw = mac_address.replace(":", "").replace("-", "").lower()
+        formatted_mac = ":".join(raw[i : i + 2] for i in range(0, len(raw), 2))
+        connections.add((CONNECTION_NETWORK_MAC, formatted_mac))
+
+    return DeviceInfo(
+        identifiers={(DOMAIN, device_id)},
+        connections=connections,
+        manufacturer=MANUFACTURER,
+        configuration_url=f"https://techsupport.orbitbhyve.com/dashboard/support/device/{device_id}",
+        name=device.get("name", ""),
+        model=device.get("hardware_version"),
+        hw_version=device.get("hardware_version"),
+        sw_version=device.get("firmware_version"),
+    )
+
+
+class BHyveCoordinatorEntity(CoordinatorEntity[BHyveDataUpdateCoordinator]):
+    """Base entity for coordinator-based B-hyve entities."""
 
     def __init__(
         self,
-        hass: HomeAssistant,
-        bhyve: BHyveClient,
+        coordinator: BHyveDataUpdateCoordinator,
         device: BHyveDevice,
-        name: str,
-        icon: str,
-        device_class: str | None = None,
     ) -> None:
-        """Initialize the sensor."""
-        self._hass = hass
-        self._bhyve: BHyveClient = bhyve
-        self._device_class = device_class
+        """Initialize the entity."""
+        super().__init__(coordinator)
+        self._device_id = device.get("id", "")
+        self._device_type = device.get("type", "")
+        self._device_name = device.get("name", "")
+        self._mac_address = device.get("mac_address")
 
-        self._name = name
-        self._icon = f"mdi:{icon}"
-        self._state = None
-        self._available = False
-        self._attrs = {}
+        device_info = build_device_info(device)
 
-        self._device_id: str = device.get("id", "")
-        self._device_type: str = device.get("type", "")
-        self._device_name: str = device.get("name", "")
+        # Link non-bridge devices to their bridge via device_gateway_topic
+        if self._device_type != DEVICE_BRIDGE:
+            gateway_topic = device.get("device_gateway_topic")
+            gateway_to_bridge = getattr(coordinator, "gateway_to_bridge", {})
+            bridge_id = gateway_to_bridge.get(gateway_topic) if gateway_topic else None
+            if bridge_id and VIA_DEVICE_ID_SUPPORTED:
+                # async_setup_entry registered the bridge, so its id is known.
+                bridge_device_ids = getattr(coordinator, "bridge_device_ids", {})
+                if bridge_entry_id := bridge_device_ids.get(bridge_id):
+                    device_info["via_device_id"] = bridge_entry_id
+            elif bridge_id:
+                device_info["via_device"] = (DOMAIN, bridge_id)
 
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, self._device_id)},
-            manufacturer=MANUFACTURER,
-            configuration_url=f"https://techsupport.orbitbhyve.com/dashboard/support/device/{self._device_id}",
-            name=self._device_name,
-            model=device.get("hardware_version"),
-            hw_version=device.get("hardware_version"),
-            sw_version=device.get("firmware_version"),
+        self._attr_device_info = device_info
+
+        LOGGER.debug(
+            "Creating %s: %s - %s",
+            self.__class__.__name__,
+            self._device_name,
+            getattr(self, "_attr_name", None) or self._device_name,
+        )
+
+    @property
+    def device_data(self) -> dict[str, Any]:
+        """Get device data from coordinator."""
+        return (
+            self.coordinator.data.get("devices", {})
+            .get(self._device_id, {})
+            .get("device", {})
         )
 
     @property
     def available(self) -> bool:
-        """Return True if entity is available."""
-        return self._available
-
-    @property
-    def device_class(self) -> str | None:
-        """Return the device class."""
-        return self._device_class
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Return the device state attributes."""
-        return self._attrs
-
-    @property
-    def name(self) -> str:
-        """Return the name of the sensor."""
-        return f"{self._name}"
-
-    @property
-    def icon(self) -> str:
-        """Icon to use in the frontend, if any."""
-        return self._icon
-
-    @property
-    def should_poll(self) -> bool:
-        """Disable polling."""
-        return False
-
-    @property
-    def device_info(self) -> DeviceInfo | None:
-        """Return device registry information for this entity."""
-        return self._attr_device_info
-
-
-class BHyveWebsocketEntity(BHyveEntity):
-    """An entity which responds to websocket events."""
-
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        bhyve: BHyveClient,
-        device: BHyveDevice,
-        name: str,
-        icon: str,
-        device_class: Any = None,
-    ) -> None:
-        """Initialise the websocket entity."""
-        self._async_unsub_dispatcher_connect = None
-        self._ws_unprocessed_events = []
-        super().__init__(hass, bhyve, device, name, icon, device_class)
-
-    def _on_ws_data(self, _data: dict) -> None:
-        pass
-
-    def _should_handle_event(self, _event_name: str, _data: dict) -> bool:
-        """Handle all events."""
-        return True
-
-    async def async_update(self) -> None:
-        """Retrieve latest state."""
-        ws_updates = list(self._ws_unprocessed_events)
-        self._ws_unprocessed_events[:] = []
-
-        for ws_event in ws_updates:
-            self._on_ws_data(ws_event)
-
-
-class BHyveDeviceEntity(BHyveWebsocketEntity):
-    """Define a base BHyve entity with a device."""
-
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        bhyve: BHyveClient,
-        device: BHyveDevice,
-        name: str,
-        icon: str,
-        device_class: str | None = None,
-    ) -> None:
-        """Initialize the sensor."""
-        self._mac_address = device.get("mac_address")
-
-        super().__init__(hass, bhyve, device, name, icon, device_class)
-
-        self._setup(device)
-
-    def _setup(self, device: Any) -> None:
-        pass
-
-    async def _refetch_device(self, *, force_update: bool = False) -> None:
-        try:
-            device = await self._bhyve.get_device(
-                self._device_id, force_update=force_update
-            )
-            if not device:
-                _LOGGER.info("No device found with id %s", self._device_id)
-                self._available = False
-                return
-
-            self._setup(device)
-
-        except BHyveError as err:
-            _LOGGER.warning("Unable to retreive data for %s: %s", self.name, err)
-
-    async def _fetch_device_history(self, *, force_update: bool = False) -> dict | None:
-        return await self._bhyve.get_device_history(
-            self._device_id, force_update=force_update
-        )
-
-    @property
-    def unique_id(self) -> str:
-        """Return a unique, unchanging string that represents this sensor."""
-        msg = f"{self.__class__.__name__} does not define a unique_id"
-        raise HomeAssistantError(msg)
-
-    async def async_added_to_hass(self) -> None:
-        """Register callbacks."""
-
-        @callback
-        def update(_device_id: str, data: dict) -> None:
-            """Update the state."""
-            event = data.get("event", "")
-            if event == "device_disconnected":
-                _LOGGER.warning(
-                    "Device %s disconnected and is no longer available", self.name
-                )
-                self._available = False
-            elif event == "device_connected":
-                _LOGGER.info("Device %s reconnected and is now available", self.name)
-                self._available = True
-            if self._should_handle_event(event, data):
-                _LOGGER.info(
-                    "Message received: %s - %s - %s",
-                    self.name,
-                    self._device_id,
-                    str(data),
-                )
-                self._ws_unprocessed_events.append(data)
-                self.async_schedule_update_ha_state(True)  # noqa: FBT003
-
-        self._async_unsub_dispatcher_connect = async_dispatcher_connect(
-            self.hass, SIGNAL_UPDATE_DEVICE.format(self._device_id), update
-        )
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Disconnect dispatcher listener when removed."""
-        if self._async_unsub_dispatcher_connect:
-            self._async_unsub_dispatcher_connect()
-
-    async def set_manual_preset_runtime(self, minutes: int) -> None:
-        """
-        Set the default watering runtime for the device.
-
-        # {event: "set_manual_preset_runtime", device_id: "abc", seconds: 900}
-        """
-        payload = {
-            "event": EVENT_SET_MANUAL_PRESET_TIME,
-            "device_id": self._device_id,
-            "seconds": minutes * 60,
-        }
-        _LOGGER.info("Setting manual preset runtime: %s", payload)
-        await self._bhyve.send_message(payload)
-
-    async def enable_rain_delay(self, hours: int = 24) -> None:
-        """Enable rain delay."""
-        await self._set_rain_delay(hours)
-
-    async def disable_rain_delay(self) -> None:
-        """Disable rain delay."""
-        await self._set_rain_delay(0)
-
-    async def _set_rain_delay(self, hours: int) -> None:
-        try:
-            """
-            # {event: "rain_delay", device_id: "abc", delay: 48}
-            """
-            payload = {
-                "event": EVENT_RAIN_DELAY,
-                "device_id": self._device_id,
-                "delay": hours,
-            }
-            _LOGGER.info("Setting rain delay: %s", payload)
-            await self._bhyve.send_message(payload)
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise BHyveError(err) from err
+        """Entity available when device connected."""
+        return self.device_data.get("is_connected", False)
