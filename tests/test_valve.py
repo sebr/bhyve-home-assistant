@@ -182,6 +182,8 @@ async def test_zone_valve_open_close(
     assert sent_message["mode"] == "manual"
     assert sent_message["stations"] == []
 
+    await valve.async_will_remove_from_hass()
+
 
 async def test_zone_valve_availability(
     mock_sprinkler_device: BHyveDevice,
@@ -600,6 +602,8 @@ async def test_valve_manual_preset_runtime_reflects_coordinator_update(
     assert sent_message["stations"] == [
         {"station": mock_zone_data["station"], "run_time": 8.0}
     ]
+
+    await valve.async_will_remove_from_hass()
 
 
 def create_optimistic_valve(

@@ -12,7 +12,7 @@ set -eo pipefail
 
 cd "$(dirname "$0")/.."
 
-PYTHON_VERSION="3.13"
+PYTHON_VERSION="3.14"
 venv="${PWD}/.venv"
 
 if ! command -v uv >/dev/null 2>&1; then
