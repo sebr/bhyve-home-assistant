@@ -16,7 +16,6 @@ from custom_components.bhyve.sensor import (
     SENSOR_TYPES_BATTERY,
     SENSOR_TYPES_FLOOD,
     SENSOR_TYPES_SPRINKLER,
-    BHyveNextWateringSensor,
     BHyveSensor,
     BHyveSensorEntityDescription,
     BHyveZoneHistorySensor,
@@ -654,9 +653,7 @@ class TestBHyveNextWateringSensor:
     """Test next watering device sensor (frozen pre-fixture for past-time gate)."""
 
     @staticmethod
-    def _build_sensor(
-        device: BHyveDevice, programs: dict | None = None
-    ) -> BHyveNextWateringSensor:
+    def _build_sensor(device: BHyveDevice) -> BHyveSensor:
         coordinator = create_mock_coordinator(
             {
                 device["id"]: {
@@ -666,11 +663,9 @@ class TestBHyveNextWateringSensor:
                 }
             }
         )
-        if programs is not None:
-            coordinator.data["programs"] = programs
 
         description = create_sensor_description(device, SENSOR_TYPES_SPRINKLER[1])
-        return BHyveNextWateringSensor(
+        return BHyveSensor(
             coordinator=coordinator,
             device=device,
             description=description,
