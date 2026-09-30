@@ -646,32 +646,35 @@ class TestSensorWebsocketEvents:
         assert state_sensor.available is False
 
 
+@pytest.mark.freeze_time("2026-04-01T00:00:00+00:00")
 class TestBHyveNextWateringSensor:
-    """Test next watering device-level sensor (SENSOR_TYPES_SPRINKLER[1])."""
+    """Test next watering sensor, frozen before the fixture's next_start_time."""
 
-    async def test_next_watering_sensor_initialization(
-        self,
-        mock_sprinkler_device_with_next_start_time: BHyveDevice,
-    ) -> None:
-        """Test next watering sensor entity initialization."""
+    @staticmethod
+    def _build_sensor(device: BHyveDevice) -> BHyveSensor:
         coordinator = create_mock_coordinator(
             {
-                "test-device-123": {
-                    "device": mock_sprinkler_device_with_next_start_time,
+                device["id"]: {
+                    "device": device,
                     "history": [],
                     "landscapes": {},
                 }
             }
         )
 
-        description = create_sensor_description(
-            mock_sprinkler_device_with_next_start_time, SENSOR_TYPES_SPRINKLER[1]
-        )
-        sensor = BHyveSensor(
+        description = create_sensor_description(device, SENSOR_TYPES_SPRINKLER[1])
+        return BHyveSensor(
             coordinator=coordinator,
-            device=mock_sprinkler_device_with_next_start_time,
+            device=device,
             description=description,
         )
+
+    async def test_next_watering_sensor_initialization(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """Test next watering sensor entity initialization."""
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
 
         assert sensor.name == "Next watering"
         assert sensor.device_class == SensorDeviceClass.TIMESTAMP
@@ -682,24 +685,7 @@ class TestBHyveNextWateringSensor:
         mock_sprinkler_device_with_next_start_time: BHyveDevice,
     ) -> None:
         """Test next watering sensor returns correct timestamp and programs."""
-        coordinator = create_mock_coordinator(
-            {
-                "test-device-123": {
-                    "device": mock_sprinkler_device_with_next_start_time,
-                    "history": [],
-                    "landscapes": {},
-                }
-            }
-        )
-
-        description = create_sensor_description(
-            mock_sprinkler_device_with_next_start_time, SENSOR_TYPES_SPRINKLER[1]
-        )
-        sensor = BHyveSensor(
-            coordinator=coordinator,
-            device=mock_sprinkler_device_with_next_start_time,
-            description=description,
-        )
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
 
         # Value should parse to a datetime
         assert sensor.native_value is not None
@@ -716,26 +702,67 @@ class TestBHyveNextWateringSensor:
         mock_sprinkler_device_no_schedule: BHyveDevice,
     ) -> None:
         """Test next watering sensor returns None when next_start_time is absent."""
-        coordinator = create_mock_coordinator(
-            {
-                "test-device-123": {
-                    "device": mock_sprinkler_device_no_schedule,
-                    "history": [],
-                    "landscapes": {},
-                }
-            }
-        )
-
-        description = create_sensor_description(
-            mock_sprinkler_device_no_schedule, SENSOR_TYPES_SPRINKLER[1]
-        )
-        sensor = BHyveSensor(
-            coordinator=coordinator,
-            device=mock_sprinkler_device_no_schedule,
-            description=description,
-        )
+        sensor = self._build_sensor(mock_sprinkler_device_no_schedule)
 
         # No next_start_time in status — should return None (HA renders as Unknown)
         assert sensor.native_value is None
         # No programs attribute when there is no schedule
         assert sensor.extra_state_attributes == {}
+
+    async def test_returns_none_when_rain_delay_active(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """Rain delay > 0 should mask any cached next_start_time (#430)."""
+        mock_sprinkler_device_with_next_start_time["status"]["rain_delay"] = 24
+
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
+
+        assert sensor.native_value is None
+        assert sensor.extra_state_attributes == {}
+
+    async def test_returns_none_when_next_start_time_is_sentinel(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """Orbit's far-future sentinel (~2106) should render as Unknown (#430)."""
+        mock_sprinkler_device_with_next_start_time["status"]["next_start_time"] = (
+            "2106-02-07T06:28:15+00:00"
+        )
+
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
+
+        assert sensor.native_value is None
+        assert sensor.extra_state_attributes == {}
+
+    async def test_returns_none_when_next_start_time_is_in_the_past(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """A past next_start_time (e.g. just after clearing a rain delay) → Unknown."""
+        # Before the frozen now.
+        mock_sprinkler_device_with_next_start_time["status"]["next_start_time"] = (
+            "2026-03-31T12:00:00+00:00"
+        )
+
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
+
+        assert sensor.native_value is None
+        assert sensor.extra_state_attributes == {}
+
+    async def test_returns_value_when_smart_off_but_orbit_has_schedule(
+        self,
+        mock_sprinkler_device_with_next_start_time: BHyveDevice,
+    ) -> None:
+        """
+        Smart off but Orbit still reports a next_start_time → surface it.
+
+        Orbit can schedule runs the integration doesn't model, so smart
+        watering being off must not hide the value.
+        """
+        mock_sprinkler_device_with_next_start_time["water_sense_mode"] = "off"
+
+        sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
+
+        assert sensor.native_value is not None
+        assert sensor.extra_state_attributes == {"programs": ["e"]}
