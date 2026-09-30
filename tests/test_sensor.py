@@ -146,11 +146,9 @@ def mock_sprinkler_device_with_next_start_time() -> BHyveDevice:
             "hardware_version": "v2.0",
             "firmware_version": "1.2.3",
             "is_connected": True,
-            "water_sense_mode": "auto",
             "status": {
                 "run_mode": "auto",
                 "watering_status": None,
-                "rain_delay": 0,
                 "next_start_time": "2026-05-01T03:30:00-07:00",
                 "next_start_programs": ["e"],
             },
@@ -650,7 +648,7 @@ class TestSensorWebsocketEvents:
 
 @pytest.mark.freeze_time("2026-04-01T00:00:00+00:00")
 class TestBHyveNextWateringSensor:
-    """Test next watering device sensor (frozen pre-fixture for past-time gate)."""
+    """Test next watering sensor, frozen before the fixture's next_start_time."""
 
     @staticmethod
     def _build_sensor(device: BHyveDevice) -> BHyveSensor:
@@ -742,8 +740,7 @@ class TestBHyveNextWateringSensor:
         mock_sprinkler_device_with_next_start_time: BHyveDevice,
     ) -> None:
         """A past next_start_time (e.g. just after clearing a rain delay) → Unknown."""
-        # Frozen "now" is 2026-04-01; fixture is 2026-05-01 (future).
-        # Push the timestamp to yesterday so it falls behind frozen now.
+        # Before the frozen now.
         mock_sprinkler_device_with_next_start_time["status"]["next_start_time"] = (
             "2026-03-31T12:00:00+00:00"
         )
@@ -757,7 +754,12 @@ class TestBHyveNextWateringSensor:
         self,
         mock_sprinkler_device_with_next_start_time: BHyveDevice,
     ) -> None:
-        """Smart off but Orbit still reports a next_start_time → surface it."""
+        """
+        Smart off but Orbit still reports a next_start_time → surface it.
+
+        Orbit can schedule runs the integration doesn't model, so smart
+        watering being off must not hide the value.
+        """
         mock_sprinkler_device_with_next_start_time["water_sense_mode"] = "off"
 
         sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)

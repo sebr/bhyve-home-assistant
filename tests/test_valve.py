@@ -133,6 +133,45 @@ async def test_zone_valve_attributes(
     assert attrs["smart_watering_enabled"] == mock_zone_data["smart_watering_enabled"]
 
 
+@pytest.mark.freeze_time("2026-04-01T00:00:00+00:00")
+@pytest.mark.parametrize(
+    ("status", "shown"),
+    [
+        ({"next_start_time": "2026-05-01T03:30:00+00:00"}, True),
+        ({"next_start_time": "2026-05-01T03:30:00+00:00", "rain_delay": 24}, False),
+        ({"next_start_time": "2106-02-07T06:28:15+00:00"}, False),
+        ({"next_start_time": "2026-03-31T12:00:00+00:00"}, False),
+    ],
+    ids=["scheduled", "rain_delay", "sentinel", "past"],
+)
+async def test_zone_valve_hides_wrong_next_start_time(
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+    status: dict,
+    *,
+    shown: bool,
+) -> None:
+    """Valve attributes hide next_start_time like the next_watering sensor (#430)."""
+    device = {
+        **mock_sprinkler_device,
+        "status": {**status, "next_start_programs": ["e"]},
+    }
+    coordinator = create_mock_coordinator(
+        {device["id"]: {"device": device, "history": [], "landscapes": {}}}
+    )
+    valve = BHyveZoneValve(
+        coordinator=coordinator,
+        device=device,
+        zone=mock_zone_data,
+        zone_name="Front Yard",
+        device_programs=[],
+    )
+
+    attrs = valve.extra_state_attributes
+    assert ("next_start_time" in attrs) is shown
+    assert ("next_start_programs" in attrs) is shown
+
+
 async def test_zone_valve_open_close(
     hass: HomeAssistant,
     mock_sprinkler_device: BHyveDevice,

@@ -28,7 +28,7 @@ from custom_components.bhyve.pybhyve.typings import BHyveZoneLandscape
 from . import BHyveCoordinatorEntity
 from .const import DEVICE_SPRINKLER, DOMAIN, EVENT_CHANGE_MODE
 from .pybhyve.errors import BHyveError
-from .util import orbit_time_to_local_time
+from .util import next_watering_time, orbit_time_to_local_time
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -351,7 +351,7 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
                 attrs[ATTR_IMAGE_URL] = image_url
 
         # Add next start time if available
-        next_start_time = orbit_time_to_local_time(status.get("next_start_time"))
+        next_start_time = next_watering_time(status)
         if next_start_time is not None:
             next_start_programs = status.get("next_start_programs")
             attrs.update(

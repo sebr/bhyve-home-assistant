@@ -16,7 +16,6 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.helpers.icon import icon_for_battery_level
-from homeassistant.util import dt as dt_util
 
 from . import BHyveCoordinatorEntity
 from .const import (
@@ -24,7 +23,7 @@ from .const import (
     DEVICE_SPRINKLER,
     DOMAIN,
 )
-from .util import orbit_time_to_local_time
+from .util import next_watering_time, orbit_time_to_local_time
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -95,33 +94,6 @@ class BHyveSensorEntityDescription(SensorEntityDescription):
     available_fn: Any = None
 
 
-# Orbit returns ~2106-02-07 (epoch max) as a sentinel for "nothing scheduled".
-# Treat any timestamp from this year on as that sentinel.
-_NEXT_WATERING_SENTINEL_YEAR = 2100
-
-
-def _next_watering_time(data: dict[str, Any]) -> datetime | None:
-    """
-    Return the device's next watering time, or None when it is known to be wrong.
-
-    Orbit only refreshes next_start_time on the 5-minute poll, and does not
-    always clear it, so hide it when (#430):
-    - a rain delay is active, since Orbit won't water through it;
-    - it is Orbit's "nothing scheduled" sentinel;
-    - it is in the past, e.g. the skipped run just after a rain delay ends.
-    """
-    status = data.get("status") or {}
-    if (status.get("rain_delay") or 0) > 0:
-        return None
-
-    next_start = orbit_time_to_local_time(status.get("next_start_time"))
-    if next_start is None or next_start.year >= _NEXT_WATERING_SENTINEL_YEAR:
-        return None
-    if next_start <= dt_util.now():
-        return None
-    return next_start
-
-
 SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
     BHyveSensorEntityDescription(
         key="state",
@@ -139,11 +111,11 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
         unique_id_suffix="next_watering",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:sprinkler-variant",
-        value_fn=_next_watering_time,
+        value_fn=lambda data: next_watering_time(data.get("status", {})),
         attributes_fn=lambda data: (
             {ATTR_NEXT_START_PROGRAMS: programs}
-            if _next_watering_time(data) is not None
-            and (programs := data.get("status", {}).get("next_start_programs"))
+            if next_watering_time(status := data.get("status", {})) is not None
+            and (programs := status.get("next_start_programs"))
             else {}
         ),
     ),
