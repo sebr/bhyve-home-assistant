@@ -1,11 +1,15 @@
 """Test BHyve valve entities."""
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
+from custom_components.bhyve.pybhyve.errors import BHyveError
 from custom_components.bhyve.pybhyve.typings import BHyveDevice, BHyveZone
 from custom_components.bhyve.valve import BHyveZoneValve
 
@@ -30,6 +34,12 @@ def create_mock_coordinator(devices: dict, programs: dict | None = None) -> Magi
     coordinator.client.set_rain_delay = AsyncMock()
     coordinator.client.set_manual_preset_runtime = AsyncMock()
     return coordinator
+
+
+def attach_to_hass(valve: BHyveZoneValve, hass: HomeAssistant) -> None:
+    """Give a hand-built valve what it needs to write state."""
+    valve.hass = hass
+    valve.entity_id = "valve.front_yard_zone"
 
 
 @pytest.fixture
@@ -124,6 +134,7 @@ async def test_zone_valve_attributes(
 
 
 async def test_zone_valve_open_close(
+    hass: HomeAssistant,
     mock_sprinkler_device: BHyveDevice,
     mock_zone_data: BHyveZone,
 ) -> None:
@@ -145,6 +156,8 @@ async def test_zone_valve_open_close(
         zone_name="Front Yard",
         device_programs=[],
     )
+
+    attach_to_hass(valve, hass)
 
     # Test opening valve (start watering)
     await valve.async_open_valve()
@@ -168,6 +181,8 @@ async def test_zone_valve_open_close(
     assert sent_message["device_id"] == mock_sprinkler_device["id"]
     assert sent_message["mode"] == "manual"
     assert sent_message["stations"] == []
+
+    await valve.async_will_remove_from_hass()
 
 
 async def test_zone_valve_availability(
@@ -521,3 +536,231 @@ async def test_valve_does_not_toggle_on_change_mode_during_watering(
             }
         )
         assert valve.is_closed is True, "valve should close when device_idle arrives"
+
+
+async def test_valve_manual_preset_runtime_reflects_coordinator_update(
+    hass: HomeAssistant,
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """
+    Regression for issue #478: preset runtime must update after entity setup.
+
+    The `set_manual_preset_runtime` websocket echo carries the new value on the
+    `seconds` key. Drive a real coordinator through that event and assert the
+    already-constructed entity reports the new value, and waters for it.
+    """
+    client = MagicMock()
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    coordinator = BHyveDataUpdateCoordinator(hass, client, entry)
+    device_id = mock_sprinkler_device["id"]
+    coordinator.data = {
+        "devices": {
+            device_id: {
+                "device": dict(mock_sprinkler_device),
+                "history": [],
+                "landscapes": {},
+            }
+        },
+        "programs": {},
+    }
+    coordinator.client = MagicMock()
+    coordinator.client.send_message = AsyncMock()
+
+    valve = BHyveZoneValve(
+        coordinator=coordinator,
+        device=coordinator.data["devices"][device_id]["device"],
+        zone=mock_zone_data,
+        zone_name="Front Yard",
+        device_programs=[],
+    )
+
+    # Device has no preset configured, so the entity falls back to the default.
+    assert valve.extra_state_attributes["manual_preset_runtime"] == 300
+
+    with patch.object(coordinator, "async_set_updated_data"):
+        await coordinator.async_handle_device_event(
+            {
+                "event": "set_manual_preset_runtime",
+                "device_id": device_id,
+                "seconds": TEST_PRESET_RUNTIME_SECONDS,
+                "timestamp": "2020-01-18T17:00:35.000Z",
+            }
+        )
+
+    # Same entity instance, no re-creation.
+    assert (
+        valve.extra_state_attributes["manual_preset_runtime"]
+        == TEST_PRESET_RUNTIME_SECONDS
+    )
+
+    # The echoed value is seconds, so opening the valve waters for 8 minutes.
+    attach_to_hass(valve, hass)
+    await valve.async_open_valve()
+    sent_message = coordinator.client.send_message.call_args[0][0]
+    assert sent_message["stations"] == [
+        {"station": mock_zone_data["station"], "run_time": 8.0}
+    ]
+
+    await valve.async_will_remove_from_hass()
+
+
+def create_optimistic_valve(
+    hass: HomeAssistant,
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> tuple[BHyveDataUpdateCoordinator, BHyveZoneValve]:
+    """Build a valve on a real coordinator whose updates reach the valve."""
+    client = MagicMock()
+    client.send_message = AsyncMock()
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    coordinator = BHyveDataUpdateCoordinator(hass, client, entry)
+    device_id = mock_sprinkler_device["id"]
+    coordinator.data = {
+        "devices": {
+            device_id: {
+                "device": {**mock_sprinkler_device, "is_connected": True},
+                "history": [],
+                "landscapes": {},
+            }
+        },
+        "programs": {},
+    }
+    coordinator.client = client
+    coordinator.last_update_success = True
+
+    valve = BHyveZoneValve(
+        coordinator=coordinator,
+        device=coordinator.data["devices"][device_id]["device"],
+        zone=mock_zone_data,
+        zone_name="Front Yard",
+        device_programs=[],
+    )
+    attach_to_hass(valve, hass)
+    return coordinator, valve
+
+
+def watering_in_progress_event(device_id: str) -> dict:
+    """Return the cloud's confirmation that zone 1 is watering."""
+    return {
+        "event": "watering_in_progress_notification",
+        "device_id": device_id,
+        "current_station": "1",
+        "run_time": 5,
+        "started_watering_station_at": "2025-05-27T10:00:03.000Z",
+    }
+
+
+async def test_valve_start_watering_is_optimistic(
+    hass: HomeAssistant,
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """Regression for issue #486: the valve opens before the cloud confirms."""
+    coordinator, valve = create_optimistic_valve(
+        hass, mock_sprinkler_device, mock_zone_data
+    )
+    device_id = mock_sprinkler_device["id"]
+
+    with patch.object(
+        coordinator,
+        "async_set_updated_data",
+        lambda _: valve._handle_coordinator_update(),
+    ):
+        await valve.start_watering(5)
+        assert valve.is_closed is False
+        assert hass.states.get(valve.entity_id).state == "open"
+
+        # The echo of our own command does not set watering_status.
+        await coordinator.async_handle_device_event(
+            {"event": "change_mode", "mode": "manual", "device_id": device_id}
+        )
+        assert valve.is_closed is False, "change_mode echo must not close the valve"
+
+        # An update that says nothing about this zone keeps the valve open.
+        valve._handle_coordinator_update()
+        assert valve.is_closed is False
+
+        await coordinator.async_handle_device_event(
+            watering_in_progress_event(device_id)
+        )
+        assert valve.is_closed is False
+        assert valve._optimistic_is_closed is None, "confirmation clears it"
+
+        # From here the coordinator is in charge again.
+        await coordinator.async_handle_device_event(
+            {"event": "device_idle", "device_id": device_id}
+        )
+        assert valve.is_closed is True
+        assert hass.states.get(valve.entity_id).state == "closed"
+
+
+async def test_valve_stop_watering_is_optimistic(
+    hass: HomeAssistant,
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """The valve closes before the cloud confirms the stop."""
+    coordinator, valve = create_optimistic_valve(
+        hass, mock_sprinkler_device, mock_zone_data
+    )
+    device_id = mock_sprinkler_device["id"]
+
+    with patch.object(
+        coordinator,
+        "async_set_updated_data",
+        lambda _: valve._handle_coordinator_update(),
+    ):
+        await coordinator.async_handle_device_event(
+            watering_in_progress_event(device_id)
+        )
+        assert valve.is_closed is False
+
+        await valve.stop_watering()
+        assert valve.is_closed is True
+        assert hass.states.get(valve.entity_id).state == "closed"
+
+        await coordinator.async_handle_device_event(
+            {"event": "watering_complete", "device_id": device_id}
+        )
+        assert valve.is_closed is True
+        assert valve._optimistic_is_closed is None
+
+
+async def test_valve_optimistic_state_times_out(
+    hass: HomeAssistant,
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """Fall back to coordinator state when the cloud never confirms."""
+    _, valve = create_optimistic_valve(hass, mock_sprinkler_device, mock_zone_data)
+
+    await valve.start_watering(5)
+    assert valve.is_closed is False
+
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
+    await hass.async_block_till_done()
+
+    assert valve.is_closed is True
+    assert hass.states.get(valve.entity_id).state == "closed"
+
+
+async def test_valve_optimistic_state_cleared_on_send_failure(
+    hass: HomeAssistant,
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """A failed command does not leave the valve reporting open."""
+    coordinator, valve = create_optimistic_valve(
+        hass, mock_sprinkler_device, mock_zone_data
+    )
+    coordinator.client.send_message.side_effect = BHyveError("offline")
+
+    with pytest.raises(BHyveError):
+        await valve.start_watering(5)
+
+    assert valve.is_closed is True
+    assert valve._cancel_optimistic_timeout is None
+    assert hass.states.get(valve.entity_id).state == "closed"

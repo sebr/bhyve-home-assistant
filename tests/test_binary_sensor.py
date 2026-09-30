@@ -1,6 +1,6 @@
 """Test BHyve binary sensor entities."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
@@ -889,40 +889,71 @@ class TestBHyveBridgeConnectivitySensor:
 
 
 class TestBridgeViaDevice:
-    """Test that child devices reference their bridge via via_device."""
+    """Test that child devices link to their bridge."""
 
-    async def test_child_device_has_via_device(self) -> None:
-        """Test that a flood sensor references its bridge."""
-        flood_device = BHyveDevice(
-            {
-                "id": "test-flood-123",
-                "name": "Basement Flood",
-                "type": "flood_sensor",
-                "mac_address": "aa:bb:cc:dd:ee:ff",
-                "is_connected": True,
-                "device_gateway_topic": "devices-1",
-            }
+    @staticmethod
+    def _flood_sensor(
+        coordinator: MagicMock, gateway_topic: str | None
+    ) -> BHyveBinarySensor:
+        device = {
+            "id": "test-flood-123",
+            "name": "Basement Flood",
+            "type": "flood_sensor",
+            "mac_address": "aa:bb:cc:dd:ee:ff",
+            "is_connected": True,
+        }
+        if gateway_topic:
+            device["device_gateway_topic"] = gateway_topic
+        flood_device = BHyveDevice(device)
+        coordinator.data["devices"]["test-flood-123"] = {
+            "device": flood_device,
+            "history": [],
+            "landscapes": {},
+        }
+        return BHyveBinarySensor(
+            coordinator=coordinator,
+            device=flood_device,
+            description=BINARY_SENSOR_TYPES[0],
         )
-        coordinator = create_mock_coordinator(
-            {
-                "test-flood-123": {
-                    "device": flood_device,
-                    "history": [],
-                    "landscapes": {},
-                }
-            }
-        )
+
+    async def test_child_device_links_by_registry_id(self) -> None:
+        """A flood sensor points at the bridge's device registry id."""
+        coordinator = create_mock_coordinator({})
         coordinator.gateway_to_bridge = {"devices-1": "bridge-id-123"}
+        coordinator.bridge_device_ids = {"bridge-id-123": "registry-id-abc"}
 
-        description = BINARY_SENSOR_TYPES[0]
-        sensor = BHyveBinarySensor(
-            coordinator=coordinator, device=flood_device, description=description
-        )
+        with patch("custom_components.bhyve.VIA_DEVICE_ID_SUPPORTED", new=True):
+            sensor = self._flood_sensor(coordinator, "devices-1")
+
+        assert sensor.device_info["via_device_id"] == "registry-id-abc"
+        assert "via_device" not in sensor.device_info
+
+    async def test_child_device_links_by_identifier_on_old_ha(self) -> None:
+        """Before HA 2026.8 the link uses the deprecated via_device identifier."""
+        coordinator = create_mock_coordinator({})
+        coordinator.gateway_to_bridge = {"devices-1": "bridge-id-123"}
+        coordinator.bridge_device_ids = {"bridge-id-123": "registry-id-abc"}
+
+        with patch("custom_components.bhyve.VIA_DEVICE_ID_SUPPORTED", new=False):
+            sensor = self._flood_sensor(coordinator, "devices-1")
 
         assert sensor.device_info["via_device"] == ("bhyve", "bridge-id-123")
+        assert "via_device_id" not in sensor.device_info
+
+    async def test_child_device_with_unregistered_bridge_has_no_link(self) -> None:
+        """No link is set when the bridge is missing from the registry."""
+        coordinator = create_mock_coordinator({})
+        coordinator.gateway_to_bridge = {"devices-1": "bridge-id-123"}
+        coordinator.bridge_device_ids = {}
+
+        with patch("custom_components.bhyve.VIA_DEVICE_ID_SUPPORTED", new=True):
+            sensor = self._flood_sensor(coordinator, "devices-1")
+
+        assert "via_device_id" not in sensor.device_info
+        assert "via_device" not in sensor.device_info
 
     async def test_bridge_device_has_no_via_device(self) -> None:
-        """Test that a bridge device does not have via_device."""
+        """A bridge device does not link to itself."""
         bridge_device = BHyveDevice(
             {
                 "id": "test-bridge-123",
@@ -943,6 +974,7 @@ class TestBridgeViaDevice:
             }
         )
         coordinator.gateway_to_bridge = {"devices-1": "test-bridge-123"}
+        coordinator.bridge_device_ids = {"test-bridge-123": "registry-id-abc"}
 
         description = BINARY_SENSOR_TYPES[3]
         sensor = BHyveBinarySensor(
@@ -950,31 +982,13 @@ class TestBridgeViaDevice:
         )
 
         assert "via_device" not in sensor.device_info
+        assert "via_device_id" not in sensor.device_info
 
     async def test_child_device_without_gateway_has_no_via_device(self) -> None:
-        """Test that a device without gateway_topic has no via_device."""
-        flood_device = BHyveDevice(
-            {
-                "id": "test-flood-123",
-                "name": "Basement Flood",
-                "type": "flood_sensor",
-                "mac_address": "aa:bb:cc:dd:ee:ff",
-                "is_connected": True,
-            }
-        )
-        coordinator = create_mock_coordinator(
-            {
-                "test-flood-123": {
-                    "device": flood_device,
-                    "history": [],
-                    "landscapes": {},
-                }
-            }
-        )
+        """A device without a gateway topic has no link."""
+        coordinator = create_mock_coordinator({})
 
-        description = BINARY_SENSOR_TYPES[0]
-        sensor = BHyveBinarySensor(
-            coordinator=coordinator, device=flood_device, description=description
-        )
+        sensor = self._flood_sensor(coordinator, None)
 
         assert "via_device" not in sensor.device_info
+        assert "via_device_id" not in sensor.device_info

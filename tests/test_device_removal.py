@@ -55,7 +55,7 @@ async def test_remove_devices_from_registry(hass: HomeAssistant) -> None:
     assert device_registry.async_get(device3.id) is not None
 
     # Remove device1 and device3
-    await remove_devices_from_registry(hass, {"device1", "device3"})
+    await remove_devices_from_registry(hass, "test_entry", {"device1", "device3"})
 
     # Verify device1 and device3 are removed, device2 remains
     assert device_registry.async_get(device1.id) is None
