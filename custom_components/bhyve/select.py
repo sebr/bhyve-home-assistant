@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
 from homeassistant.const import EntityCategory
 
-from . import BHyveCoordinatorEntity
+from . import BHyveCoordinatorEntity, bhyve_command
 from .const import DEVICE_SPRINKLER, DOMAIN
 
 if TYPE_CHECKING:
@@ -86,6 +86,7 @@ class BHyveSelectEntity(BHyveCoordinatorEntity, SelectEntity):
         status = self.device_data.get("status", {})
         return status.get("mode", status.get("run_mode"))
 
+    @bhyve_command
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
         await self.coordinator.client.send_message(

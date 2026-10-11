@@ -6,11 +6,13 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.bhyve.const import CONF_DEVICES, DOMAIN
+from custom_components.bhyve.pybhyve.errors import BHyveError
 
 if TYPE_CHECKING:
     from asyncio import AbstractEventLoop
@@ -90,3 +92,46 @@ async def test_setup_links_child_devices_to_bridge(
     assert bridge.via_device_id is None
     assert flood.via_device_id == bridge.id
     assert "deprecated `via_device`" not in caplog.text
+
+
+class FlakyClient(FakeClient):
+    """Client whose device list fails after the coordinator's first refresh."""
+
+    listen_calls = 0
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Count device fetches."""
+        super().__init__(*args, **kwargs)
+        self._device_fetches = 0
+
+    def listen(self, _loop: AbstractEventLoop, _async_callback: Callable) -> None:
+        """Record that a websocket would have been opened."""
+        FlakyClient.listen_calls += 1
+
+    @property
+    async def devices(self) -> list[dict[str, Any]]:
+        """Serve the first fetch, then fail."""
+        self._device_fetches += 1
+        if self._device_fetches > 1:
+            msg = "Orbit unavailable"
+            raise BHyveError(msg)
+        return [dict(BRIDGE), dict(FLOOD)]
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+async def test_failed_setup_does_not_start_websocket(hass: HomeAssistant) -> None:
+    """A setup that ends in ConfigEntryNotReady leaves no websocket running."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_USERNAME: "user", CONF_PASSWORD: "password"},
+        options={CONF_DEVICES: ["flood-1"]},
+    )
+    entry.add_to_hass(hass)
+    FlakyClient.listen_calls = 0
+
+    with patch("custom_components.bhyve.BHyveClient", FlakyClient):
+        assert not await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+    assert FlakyClient.listen_calls == 0

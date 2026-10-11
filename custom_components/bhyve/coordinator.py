@@ -319,8 +319,9 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             if seconds is not None:
                 device_data["manual_preset_runtime_sec"] = seconds
 
-        # Notify all listening entities
-        self.async_set_updated_data(self.data)
+        # Notify all listening entities. Not async_set_updated_data: that
+        # restarts the poll timer, so a chatty device would starve the poll.
+        self.async_update_listeners()
 
     def _set_device_smart_watering(
         self, device_id: str | None, *, enabled: bool
@@ -373,7 +374,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                         "bhyve_program_created",
                         {"program_id": program_id, "program": program_data},
                     )
-            self.async_set_updated_data(self.data)
+            self.async_update_listeners()
             return
 
         # Handle program deletion (smart programs use "destroy" but should
@@ -389,7 +390,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                     "bhyve_program_deleted",
                     {"program_id": program_id},
                 )
-                self.async_set_updated_data(self.data)
+                self.async_update_listeners()
                 return
             if is_smart:
                 # Smart program destroy means smart watering was disabled.
@@ -415,4 +416,4 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             self.data["programs"][program_id]["enabled"] = event_data["enabled"]
 
         # Notify all listening entities
-        self.async_set_updated_data(self.data)
+        self.async_update_listeners()

@@ -1,7 +1,9 @@
 """Support for Orbit BHyve irrigation devices."""
 
 import logging
-from typing import Any
+from collections.abc import Awaitable, Callable, Coroutine
+from functools import wraps
+from typing import Any, Concatenate
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -76,19 +78,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Initial data fetch
     await coordinator.async_config_entry_first_refresh()
 
-    # WebSocket callback routes to coordinator
-    async def async_update_callback(data: dict) -> None:
-        event = data.get("event")
-
-        # Route to coordinator - coordinator handles all entity updates
-        if event == EVENT_PROGRAM_CHANGED:
-            await coordinator.async_handle_program_event(data)
-        else:
-            await coordinator.async_handle_device_event(data)
-
-    # Start WebSocket
-    client.listen(hass.loop, async_update_callback)
-
     # Filter the device list to those that are enabled in options
     try:
         all_devices = await client.devices
@@ -136,9 +125,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "programs": programs,
     }
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # WebSocket callback routes to coordinator
+    async def async_update_callback(data: dict) -> None:
+        event = data.get("event")
 
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, client.stop)
+        # Route to coordinator - coordinator handles all entity updates
+        if event == EVENT_PROGRAM_CHANGED:
+            await coordinator.async_handle_program_event(data)
+        else:
+            await coordinator.async_handle_device_event(data)
+
+    # Start the websocket only once nothing above can raise ConfigEntryNotReady,
+    # otherwise a failed setup leaves it running and reconnecting forever.
+    client.listen(hass.loop, async_update_callback)
+    entry.async_on_unload(
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, client.stop)
+    )
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
@@ -248,3 +252,30 @@ class BHyveCoordinatorEntity(CoordinatorEntity[BHyveDataUpdateCoordinator]):
     def available(self) -> bool:
         """Entity available when device connected."""
         return self.device_data.get("is_connected", False)
+
+
+def bhyve_command[EntityT: BHyveCoordinatorEntity, **P](
+    func: Callable[Concatenate[EntityT, P], Awaitable[None]],
+) -> Callable[Concatenate[EntityT, P], Coroutine[Any, Any, None]]:
+    """
+    Report a failed B-hyve command as a HomeAssistantError.
+
+    Home Assistant shows a HomeAssistantError's message to the user, but a
+    library error only as "unknown error".
+    """
+
+    @wraps(func)
+    async def wrapper(self: EntityT, *args: P.args, **kwargs: P.kwargs) -> None:
+        try:
+            await func(self, *args, **kwargs)
+        except BHyveError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_failed",
+                translation_placeholders={
+                    "device": self._device_name,
+                    "error": str(err),
+                },
+            ) from err
+
+    return wrapper

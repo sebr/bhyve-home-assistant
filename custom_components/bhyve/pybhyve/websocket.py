@@ -11,6 +11,7 @@ import aiohttp
 from aiohttp import ClientWebSocketResponse, WSMsgType
 
 from .const import WEB_HOST
+from .errors import WebsocketError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +49,8 @@ class OrbitWebsocket:
         async_callback: Callable,
     ) -> None:
         """Create resources for websocket communication."""
-        self._token: str = token
+        # Public so the client can hand over a refreshed session token.
+        self.token: str = token
         self._loop = loop
         self._session: aiohttp.ClientSession = session
         self._url: str = url
@@ -131,7 +133,7 @@ class OrbitWebsocket:
                         json.dumps(
                             {
                                 "event": "app_connection",
-                                "orbit_session_token": self._token,
+                                "orbit_session_token": self.token,
                             }
                         )
                     )
@@ -267,10 +269,17 @@ class OrbitWebsocket:
             _LOGGER.info("Ignoring websocket retry; state: %s", self.state)
 
     async def send(self, payload: Any) -> None:
-        """Send a websocket message."""
-        if self._ws is not None and not self._ws.closed:
+        """
+        Send a websocket message.
+
+        Raises WebsocketError when the message could not be sent, so callers
+        do not report a command as sent when it was dropped.
+        """
+        if self._ws is None or self._ws.closed:
+            msg = f"Websocket is not connected (state: {self.state})"
+            raise WebsocketError(msg)
+        try:
             await self._ws.send_str(json.dumps(payload))
-        else:
-            _LOGGER.warning(
-                "Tried to send message whilst websocket closed; state: %s", self.state
-            )
+        except (aiohttp.ClientError, ConnectionError) as err:
+            msg = f"Error sending websocket message: {err}"
+            raise WebsocketError(msg) from err

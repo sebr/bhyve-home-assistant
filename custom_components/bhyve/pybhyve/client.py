@@ -21,7 +21,7 @@ from .const import (
     WEB_HOST,
     WS_HOST,
 )
-from .errors import AuthenticationError, BHyveError, RequestError
+from .errors import AuthenticationError, BHyveError, RequestError, WebsocketError
 from .typings import BHyveDevice, BHyveTimerProgram, BHyveZoneLandscape
 from .websocket import OrbitWebsocket
 
@@ -42,6 +42,8 @@ class BHyveClient:
         self._password: str = password
         self._ws_url: str = WS_HOST
         self._token: str | None = None
+        # Serialises re-logins so concurrent 401s share one new session.
+        self._login_lock = asyncio.Lock()
 
         self._websocket: OrbitWebsocket | None = None
         self._session = session
@@ -66,7 +68,37 @@ class BHyveClient:
         params: dict | None = None,
         json: dict | None = None,
     ) -> list:
-        """Make a request against the API."""
+        """
+        Make a request against the API.
+
+        Orbit sessions expire. On an authentication error, log in again with
+        the stored credentials and retry once, so an expired session does not
+        force the user through reauth. Rejected credentials still raise
+        AuthenticationError from login().
+        """
+        token = self._token
+        try:
+            return await self._send_request(method, endpoint, params, json)
+        except AuthenticationError:
+            _LOGGER.info("Orbit rejected the session, logging in again")
+            await self._relogin(token)
+            return await self._send_request(method, endpoint, params, json)
+
+    async def _relogin(self, stale_token: str | None) -> None:
+        """Log in again unless another request already replaced stale_token."""
+        async with self._login_lock:
+            if self._token != stale_token:
+                return
+            await self.login()
+
+    async def _send_request(
+        self,
+        method: str,
+        endpoint: str,
+        params: dict | None = None,
+        json: dict | None = None,
+    ) -> list:
+        """Send one request against the API."""
         url: str = f"{API_HOST}{endpoint}"
 
         if not params:
@@ -206,7 +238,6 @@ class BHyveClient:
                 try:
                     resp.raise_for_status()
                     response = await resp.json(content_type=None)
-                    self._token = response["orbit_api_key"]
 
                 except ClientResponseError as response_err:
                     if response_err.status in (401, 403):
@@ -219,7 +250,19 @@ class BHyveClient:
             msg = f"Timeout requesting data from {url}"
             raise RequestError(msg) from err
 
-        return self._token is not None
+        # Orbit renamed the session field from orbit_api_key (#474); accept both.
+        token = None
+        if isinstance(response, dict):
+            token = response.get("orbit_session_token") or response.get("orbit_api_key")
+        if not token:
+            msg = f"No session token in login response from {url}"
+            raise RequestError(msg)
+
+        self._token = token
+        if self._websocket is not None:
+            # Used the next time the websocket (re)connects.
+            self._websocket.token = token
+        return True
 
     def listen(self, loop: AbstractEventLoop, async_callback: Callable) -> None:
         """Start listening to the Orbit event stream."""
@@ -301,9 +344,11 @@ class BHyveClient:
         await self._request("put", path, json=json)
 
     async def send_message(self, payload: Any) -> None:
-        """Send a message via the websocket."""
-        if self._websocket is not None:
-            await self._websocket.send(payload)
+        """Send a message via the websocket. Raises WebsocketError if not sent."""
+        if self._websocket is None:
+            msg = "Websocket not started, cannot send message"
+            raise WebsocketError(msg)
+        await self._websocket.send(payload)
 
     async def set_rain_delay(self, device_id: str, hours: int) -> None:
         """Set rain delay hours for a device. Use hours=0 to disable."""

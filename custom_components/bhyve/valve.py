@@ -25,7 +25,7 @@ from homeassistant.util import dt
 
 from custom_components.bhyve.pybhyve.typings import BHyveZoneLandscape
 
-from . import BHyveCoordinatorEntity
+from . import BHyveCoordinatorEntity, bhyve_command
 from .const import DEVICE_SPRINKLER, DOMAIN, EVENT_CHANGE_MODE
 from .pybhyve.errors import BHyveError
 from .util import next_watering_time, orbit_time_to_local_time
@@ -552,11 +552,13 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
                 self._zone_name,
             )
 
+    @bhyve_command
     async def start_watering(self, minutes: float) -> None:
         """Open the valve and starts watering."""
         station_payload = [{"station": self._zone_id, "run_time": minutes}]
         await self._send_optimistic_station_message(station_payload, is_closed=False)
 
+    @bhyve_command
     async def stop_watering(self) -> None:
         """Close the valve and stops watering."""
         station_payload = []
@@ -614,14 +616,17 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         self._clear_optimistic_is_closed()
         await super().async_will_remove_from_hass()
 
+    @bhyve_command
     async def enable_rain_delay(self, hours: int = 24) -> None:
         """Enable rain delay for the device."""
         await self.coordinator.client.set_rain_delay(self._device_id, hours)
 
+    @bhyve_command
     async def disable_rain_delay(self) -> None:
         """Disable rain delay for the device."""
         await self.coordinator.client.set_rain_delay(self._device_id, 0)
 
+    @bhyve_command
     async def set_manual_preset_runtime(self, minutes: int) -> None:
         """Set the default watering runtime for the device."""
         await self.coordinator.client.set_manual_preset_runtime(

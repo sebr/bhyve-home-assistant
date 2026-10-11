@@ -18,7 +18,7 @@ from homeassistant.const import ATTR_ENTITY_ID, EntityCategory
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
-from . import BHyveCoordinatorEntity
+from . import BHyveCoordinatorEntity, bhyve_command
 from .const import (
     DEVICE_SPRINKLER,
     DOMAIN,
@@ -303,6 +303,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         """Turn the switch off."""
         await self._update_program(enabled=False)
 
+    @bhyve_command
     async def _update_program(self, *, enabled: bool) -> None:
         """Update a non-smart program via the API."""
         program = BHyveTimerProgram(
@@ -311,6 +312,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         program["enabled"] = enabled
         await self.coordinator.client.update_program(self._program_id, program)
 
+    @bhyve_command
     async def async_update_program_config(
         self,
         start_times: list[str] | None = None,
@@ -345,6 +347,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         )
         await self.coordinator.client.update_program(self._program_id, program)
 
+    @bhyve_command
     async def start_program(self) -> None:
         """Begins running a program."""
         program_payload = self.program_data.get("program")
@@ -407,6 +410,7 @@ class BHyveSmartWateringSwitch(BHyveCoordinatorEntity, SwitchEntity):
         """Return true if smart watering is enabled at the device level."""
         return self.device_data.get("water_sense_mode") == "auto"
 
+    @bhyve_command
     async def _set_smart_watering(self, *, enabled: bool) -> None:
         """Flip device water_sense_mode (smart watering is device-wide)."""
         await self.coordinator.client.update_device(
@@ -479,10 +483,12 @@ class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):
         """Turn the switch off."""
         await self.disable_rain_delay()
 
+    @bhyve_command
     async def enable_rain_delay(self, hours: int = 24) -> None:
         """Enable rain delay for the device."""
         await self.coordinator.client.set_rain_delay(self._device_id, hours)
 
+    @bhyve_command
     async def disable_rain_delay(self) -> None:
         """Disable rain delay for the device."""
         await self.coordinator.client.set_rain_delay(self._device_id, 0)

@@ -1,11 +1,19 @@
 """Test BHyve pybhyve client."""
 
 import asyncio
+from types import TracebackType
+from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from aiohttp import ClientResponseError
 
 from custom_components.bhyve.pybhyve.client import BHyveClient
+from custom_components.bhyve.pybhyve.errors import (
+    AuthenticationError,
+    RequestError,
+    WebsocketError,
+)
 
 
 @pytest.fixture
@@ -137,3 +145,146 @@ class TestGetLandscape:
         await asyncio.gather(*tasks)
 
         assert client._request.await_count == 1
+
+
+class FakeResponse:
+    """Fake aiohttp response, usable as the request() context manager."""
+
+    def __init__(self, body: Any = None, status: int = 200) -> None:
+        """Initialize the fake response."""
+        self.body = body
+        self.status = status
+
+    def raise_for_status(self) -> None:
+        """Raise like aiohttp for an error status."""
+        if self.status >= 400:
+            raise ClientResponseError(
+                request_info=MagicMock(), history=(), status=self.status
+            )
+
+    async def json(self, **_kwargs: Any) -> Any:
+        """Return the canned body."""
+        return self.body
+
+    async def __aenter__(self) -> Self:
+        """Enter the response context."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Exit the response context."""
+
+
+def client_with_responses(*responses: FakeResponse) -> BHyveClient:
+    """Create a client whose session answers requests with responses in order."""
+    session = MagicMock()
+    session.request = MagicMock(side_effect=list(responses))
+    return BHyveClient("user", "pass", session)
+
+
+class TestLogin:
+    """Test reading the session token from the login response."""
+
+    async def test_reads_orbit_session_token(self) -> None:
+        """Regression for #474: Orbit renamed orbit_api_key."""
+        client = client_with_responses(
+            FakeResponse({"orbit_session_token": "session", "user_id": "u1"})
+        )
+
+        assert await client.login() is True
+        assert client._token == "session"
+
+    async def test_falls_back_to_orbit_api_key(self) -> None:
+        """The old field still works if Orbit serves it."""
+        client = client_with_responses(FakeResponse({"orbit_api_key": "legacy"}))
+
+        assert await client.login() is True
+        assert client._token == "legacy"
+
+    async def test_missing_token_raises_request_error(self) -> None:
+        """A response without either field is reported, not a KeyError."""
+        client = client_with_responses(FakeResponse({"user_id": "u1"}))
+
+        with pytest.raises(RequestError):
+            await client.login()
+        assert client._token is None
+
+    async def test_rejected_credentials_raise_authentication_error(self) -> None:
+        """A 401 from the session endpoint means the credentials are wrong."""
+        client = client_with_responses(FakeResponse(status=401))
+
+        with pytest.raises(AuthenticationError):
+            await client.login()
+
+    async def test_hands_new_token_to_websocket(self) -> None:
+        """A running websocket reconnects with the new session token."""
+        client = client_with_responses(FakeResponse({"orbit_session_token": "new"}))
+        client._websocket = MagicMock()
+        client._websocket.token = "old"
+
+        await client.login()
+
+        assert client._websocket.token == "new"
+
+
+class TestRequestRelogin:
+    """Test that an expired session logs in again instead of failing."""
+
+    async def test_relogs_in_and_retries_once(self) -> None:
+        """A 401 triggers one login, then the request is retried."""
+        client = client_with_responses(
+            FakeResponse(status=401),
+            FakeResponse({"orbit_session_token": "new"}),
+            FakeResponse([{"id": "device-1"}]),
+        )
+        client._token = "expired"
+
+        result = await client._request("get", "/v1/devices")
+
+        assert result == [{"id": "device-1"}]
+        assert client._token == "new"
+        retry_headers = client._session.request.call_args.kwargs["headers"]
+        assert retry_headers["Orbit-Session-Token"] == "new"
+
+    async def test_rejected_credentials_still_raise(self) -> None:
+        """If the stored password no longer works, reauth is still needed."""
+        client = client_with_responses(
+            FakeResponse(status=401),
+            FakeResponse(status=401),
+        )
+        client._token = "expired"
+
+        with pytest.raises(AuthenticationError):
+            await client._request("get", "/v1/devices")
+
+    async def test_other_errors_do_not_relogin(self) -> None:
+        """Only authentication errors log in again."""
+        client = client_with_responses(FakeResponse(status=500))
+        client._token = "token"
+        client.login = AsyncMock()
+
+        with pytest.raises(RequestError):
+            await client._request("get", "/v1/devices")
+        client.login.assert_not_awaited()
+
+    async def test_skips_login_when_token_already_refreshed(self) -> None:
+        """Concurrent 401s share the login that the first one made."""
+        client = client_with_responses()
+        client._token = "new"
+        client.login = AsyncMock()
+
+        await client._relogin("expired")
+
+        client.login.assert_not_awaited()
+
+
+async def test_send_message_without_websocket_raises() -> None:
+    """Commands are not silently dropped before the websocket starts."""
+    client = client_with_responses()
+
+    with pytest.raises(WebsocketError):
+        await client.send_message({"event": "rain_delay"})
