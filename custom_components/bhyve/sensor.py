@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Self
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.components.sensor.const import SensorDeviceClass, SensorStateClass
@@ -14,8 +14,11 @@ from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
     UnitOfTemperature,
+    UnitOfVolume,
 )
+from homeassistant.core import callback
 from homeassistant.helpers.icon import icon_for_battery_level
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 
 from . import BHyveCoordinatorEntity
 from .const import (
@@ -183,6 +186,17 @@ SENSOR_TYPES_BATTERY: tuple[BHyveSensorEntityDescription, ...] = (
 )
 
 
+WATER_USAGE_DESCRIPTION = SensorEntityDescription(
+    key="water_usage",
+    translation_key="water_usage",
+    icon="mdi:water",
+    device_class=SensorDeviceClass.WATER,
+    state_class=SensorStateClass.TOTAL_INCREASING,
+    native_unit_of_measurement=UnitOfVolume.GALLONS,
+    suggested_display_precision=1,
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
@@ -236,6 +250,11 @@ async def async_setup_entry(
                             device_class=SensorDeviceClass.TIMESTAMP,
                             entity_category=EntityCategory.DIAGNOSTIC,
                         ),
+                    )
+                )
+                sensors.append(
+                    BHyveZoneWaterUsageSensor(
+                        coordinator, device, zone, zone_name, WATER_USAGE_DESCRIPTION
                     )
                 )
 
@@ -442,3 +461,141 @@ class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):
             .get(self._device_id, {})
             .get("history", [])
         )
+
+
+@dataclass
+class WaterUsageStoredData(ExtraStoredData):
+    """What a water usage sensor needs to keep counting across restarts."""
+
+    total: float = 0.0
+    # Latest run start_time counted. Older runs not in `counted` are ignored,
+    # so a run is never counted twice once it leaves Orbit's history window.
+    watermark: str | None = None
+    # Volume counted so far for each run still in the history window, so a
+    # run whose volume grows after it was first seen adds only the difference.
+    counted: dict[str, float] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a dict representation of the stored data."""
+        return {
+            "total": self.total,
+            "watermark": self.watermark,
+            "counted": dict(self.counted),
+        }
+
+    @classmethod
+    def from_dict(cls, restored: dict[str, Any]) -> Self | None:
+        """Initialize stored data from a dict, or None if it is unusable."""
+        try:
+            return cls(
+                total=float(restored["total"]),
+                watermark=restored.get("watermark"),
+                counted={
+                    str(k): float(v) for k, v in restored.get("counted", {}).items()
+                },
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+
+
+class BHyveZoneWaterUsageSensor(BHyveCoordinatorEntity, SensorEntity, RestoreEntity):
+    """
+    Cumulative water used by a zone, for the Energy dashboard.
+
+    Orbit only reports per-run volumes for a short window of recent watering
+    events, so the running total is kept here and restored across restarts.
+    Each run is counted once, keyed by its start_time.
+    """
+
+    entity_description: SensorEntityDescription
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: BHyveDataUpdateCoordinator,
+        device: BHyveDevice,
+        zone: dict,
+        zone_name: str,
+        description: SensorEntityDescription,
+    ) -> None:
+        """Initialize the sensor."""
+        self.entity_description = description
+        if zone_name == device.get("name"):
+            self._attr_name = "Water usage"
+        else:
+            self._attr_name = f"{zone_name} water usage"
+        self._attr_translation_placeholders = {"zone_name": zone_name}
+        super().__init__(coordinator, device)
+
+        self._zone_id = zone.get("station")
+        self._attr_unique_id = (
+            f"{self._mac_address}:{self._device_id}:{self._zone_id}:water_usage"
+        )
+        self._usage = WaterUsageStoredData()
+
+    @property
+    def native_value(self) -> float:
+        """Return the total water used, in gallons."""
+        return round(self._usage.total, 3)
+
+    @property
+    def extra_restore_state_data(self) -> WaterUsageStoredData:
+        """Return the counting state to persist."""
+        return self._usage
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the running total, then count runs since it was saved."""
+        await super().async_added_to_hass()
+        if (extra := await self.async_get_last_extra_data()) and (
+            restored := WaterUsageStoredData.from_dict(extra.as_dict())
+        ):
+            self._usage = restored
+        self._count_new_runs()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Count any new or grown runs before writing state."""
+        self._count_new_runs()
+        super()._handle_coordinator_update()
+
+    def _zone_runs(self) -> dict[str, float]:
+        """Return this zone's runs in the history window: start_time -> gallons."""
+        history = (
+            self.coordinator.data.get("devices", {})
+            .get(self._device_id, {})
+            .get("history", [])
+        )
+        runs: dict[str, float] = {}
+        for history_item in history:
+            for irrigation in history_item.get("irrigation", []):
+                if irrigation.get("station") != self._zone_id:
+                    continue
+                start_time = irrigation.get("start_time")
+                volume = irrigation.get("water_volume_gal")
+                if not start_time or not isinstance(volume, int | float):
+                    continue
+                runs[start_time] = float(volume)
+        return runs
+
+    def _count_new_runs(self) -> None:
+        """Add volume from runs not yet counted, and growth in counted runs."""
+        runs = self._zone_runs()
+        if not runs:
+            # A failed history fetch yields no runs; keep what was counted.
+            return
+
+        usage = self._usage
+        for start_time, volume in runs.items():
+            already = usage.counted.get(start_time)
+            if already is not None:
+                if volume > already:
+                    usage.total += volume - already
+                    usage.counted[start_time] = volume
+            elif usage.watermark is None or start_time > usage.watermark:
+                usage.total += volume
+                usage.counted[start_time] = volume
+
+        usage.watermark = max([*runs, *filter(None, [usage.watermark])])
+        # Forget runs that have left Orbit's window; the watermark covers them.
+        oldest = min(runs)
+        usage.counted = {k: v for k, v in usage.counted.items() if k >= oldest}
