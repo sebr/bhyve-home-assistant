@@ -14,6 +14,10 @@ DEVICE_BRIDGE = "bridge"
 DEVICE_SPRINKLER = "sprinkler_timer"
 DEVICE_FLOOD = "flood_sensor"
 
+MODE_AUTO = "auto"
+MODE_OFF = "off"
+MODE_MANUAL = "manual"
+
 EVENT_BATTERY_STATUS = "battery_status"
 EVENT_FAULT = "fault"
 EVENT_CHANGE_MODE = "change_mode"

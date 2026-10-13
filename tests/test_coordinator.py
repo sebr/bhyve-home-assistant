@@ -283,6 +283,9 @@ class TestDeviceEventHandling:
     ) -> None:
         """Device_idle must clear watering_status so the valve closes."""
         coordinator = create_mock_coordinator(hass)
+        coordinator.data["devices"][TEST_DEVICE_ID]["device"]["status"] = {
+            "run_mode": "auto"
+        }
 
         with patch.object(coordinator, "async_set_updated_data"):
             await coordinator.async_handle_device_event(
@@ -303,4 +306,5 @@ class TestDeviceEventHandling:
 
         status = coordinator.data["devices"][TEST_DEVICE_ID]["device"]["status"]
         assert "watering_status" not in status
-        assert status["run_mode"] == "off"
+        # The watering's "manual" reverts to the mode it interrupted, not "off".
+        assert status["run_mode"] == "auto"

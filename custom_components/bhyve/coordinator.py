@@ -22,6 +22,9 @@ from .const import (
     EVENT_SET_MANUAL_PRESET_TIME,
     EVENT_WATERING_COMPLETE,
     EVENT_WATERING_IN_PROGRESS,
+    MODE_AUTO,
+    MODE_MANUAL,
+    MODE_OFF,
 )
 from .pybhyve.errors import AuthenticationError, BHyveError
 
@@ -57,6 +60,9 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         self.gateway_to_bridge: dict[str, str] = {}
         # B-hyve id of a bridge -> its device registry id
         self.bridge_device_ids: dict[str, str] = {}
+        # Device id -> its mode (auto/off) before a watering switched it to
+        # manual, so the mode can be restored when the watering ends.
+        self._resume_modes: dict[str, str] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API (periodic polling)."""
@@ -203,6 +209,35 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
 
         return landscapes
 
+    def resume_mode(self, device_id: str) -> str | None:
+        """Return the mode (auto/off) a device returns to after watering."""
+        return self._resume_modes.get(device_id)
+
+    def _remember_mode(self, device_id: str, status: dict[str, Any]) -> None:
+        """Remember a device's auto/off mode before a watering overrides it."""
+        mode = status.get("run_mode")
+        if mode in (MODE_AUTO, MODE_OFF):
+            self._resume_modes[device_id] = mode
+
+    def _apply_watering_ended(
+        self, device_id: str, device_data: dict[str, Any]
+    ) -> None:
+        """
+        Apply device_idle or watering_complete to device state.
+
+        Only the watering state is cleared. Orbit sends device_idle about every
+        four hours whether or not anything watered, and the device's own mode
+        (auto/off) is unchanged by a watering ending, so run_mode is left
+        alone, except that a watering's "manual" reverts to the mode it
+        interrupted. Orbit follows up with a change_mode carrying the mode.
+        """
+        status = device_data.setdefault("status", {})
+        status.pop("watering_status", None)
+        if status.get("run_mode") == MODE_MANUAL and (
+            resume := self._resume_modes.get(device_id)
+        ):
+            status["run_mode"] = resume
+
     @staticmethod
     def _apply_watering_in_progress(
         device_data: dict[str, Any], event_data: dict[str, Any]
@@ -226,7 +261,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             ),
             "stations": stations,
         }
-        status["run_mode"] = event_data.get("mode", "manual")
+        status["run_mode"] = event_data.get("mode", MODE_MANUAL)
 
     async def async_handle_device_event(self, event_data: dict[str, Any]) -> None:  # noqa: PLR0912
         """Handle WebSocket device events."""
@@ -254,29 +289,19 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                 device_data["battery"] = event_data["battery"]
 
         elif event == EVENT_CHANGE_MODE:
-            # Update device status with mode change data
-            if "status" not in device_data:
-                device_data["status"] = {}
-            device_data["status"].update(event_data)
+            # Only the mode: merging the whole event used to copy event,
+            # device_id, timestamp and stations into the device status.
+            status = device_data.setdefault("status", {})
+            if isinstance(mode := event_data.get("mode"), str):
+                status["run_mode"] = mode
+                self._remember_mode(device_id, status)
 
-        elif event == EVENT_DEVICE_IDLE:
-            # Device went idle, update status
-            if "status" not in device_data:
-                device_data["status"] = {}
-            device_data["status"]["run_mode"] = "off"
-            if "watering_status" in device_data["status"]:
-                del device_data["status"]["watering_status"]
+        elif event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE):
+            self._apply_watering_ended(device_id, device_data)
 
         elif event == EVENT_WATERING_IN_PROGRESS:
+            self._remember_mode(device_id, device_data.setdefault("status", {}))
             self._apply_watering_in_progress(device_data, event_data)
-
-        elif event == EVENT_WATERING_COMPLETE:
-            # Clear watering status
-            if "status" not in device_data:
-                device_data["status"] = {}
-            if "watering_status" in device_data["status"]:
-                del device_data["status"]["watering_status"]
-            device_data["status"]["run_mode"] = "off"
 
         elif event == EVENT_RAIN_DELAY:
             # Update rain delay info

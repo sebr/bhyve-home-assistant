@@ -474,8 +474,7 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
     async def _send_station_message(self, station_payload: Any) -> None:
         """Send a station control message via WebSocket."""
         try:
-            now = datetime.datetime.now()  # noqa: DTZ005
-            iso_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+            iso_time = dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
             payload = {
                 "event": EVENT_CHANGE_MODE,
