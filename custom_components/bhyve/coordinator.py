@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DEVICE_SPRINKLER,
@@ -24,6 +25,7 @@ from .const import (
     EVENT_WATERING_IN_PROGRESS,
 )
 from .pybhyve.errors import AuthenticationError, BHyveError
+from .util import orbit_time_to_local_time
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -228,6 +230,25 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         }
         status["run_mode"] = event_data.get("mode", "manual")
 
+    @staticmethod
+    def _apply_rain_delay(
+        device_data: dict[str, Any], event_data: dict[str, Any]
+    ) -> None:
+        """Apply a rain_delay event to device state."""
+        status = device_data.setdefault("status", {})
+        delay = event_data.get("delay", 0)
+        status["rain_delay"] = delay
+        if delay:
+            # The delay runs from this event, not from an earlier delay's start;
+            # without this its end time would be computed from stale data.
+            started = event_data.get("timestamp")
+            if (
+                not isinstance(started, str)
+                or orbit_time_to_local_time(started) is None
+            ):
+                started = dt_util.utcnow().isoformat()
+            status["rain_delay_started_at"] = started
+
     async def async_handle_device_event(self, event_data: dict[str, Any]) -> None:  # noqa: PLR0912
         """Handle WebSocket device events."""
         if not self.data:
@@ -279,10 +300,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             device_data["status"]["run_mode"] = "off"
 
         elif event == EVENT_RAIN_DELAY:
-            # Update rain delay info
-            if "status" not in device_data:
-                device_data["status"] = {}
-            device_data["status"]["rain_delay"] = event_data.get("delay", 0)
+            self._apply_rain_delay(device_data, event_data)
 
         elif event == EVENT_FAULT:
             # Update station fault information

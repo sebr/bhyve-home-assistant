@@ -23,7 +23,12 @@ from .const import (
     DEVICE_SPRINKLER,
     DOMAIN,
 )
-from .util import next_watering_time, orbit_time_to_local_time
+from .util import (
+    next_watering_time,
+    orbit_time_to_local_time,
+    rain_delay_active,
+    rain_delay_end,
+)
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -117,6 +122,19 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
             if next_watering_time(status := data.get("status", {})) is not None
             and (programs := status.get("next_start_programs"))
             else {}
+        ),
+    ),
+    BHyveSensorEntityDescription(
+        key="rain_delay_end",
+        translation_key="rain_delay_end",
+        name="Rain delay ends",
+        unique_id_suffix="rain_delay_end",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        icon="mdi:weather-pouring",
+        value_fn=lambda data: (
+            rain_delay_end(status)
+            if rain_delay_active(status := data.get("status", {}))
+            else None
         ),
     ),
 )

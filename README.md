@@ -32,7 +32,7 @@ _Note_: The Wifi hub is required to provide the flood sensors with internet conn
 ## Supported Entities
 
 - `valve` for opening/closing individual zones on `sprinkler_timer` devices.
-- `sensor` for battery levels, zone watering history, device next watering time, device run-mode state, flood-sensor temperature and flood-sensor signal strength.
+- `sensor` for battery levels, zone watering history, device next watering time, rain delay end time, device run-mode state, flood-sensor temperature and flood-sensor signal strength.
 - `switch` for enabling/disabling rain delays, toggling pre-configured programs and enabling/disabling per-zone smart watering.
 - `select` for the device run-mode (auto/off) on `sprinkler_timer` devices.
 - `binary_sensor` for flood detection, temperature alerts, sprinkler station faults and Wi-Fi bridge connectivity.
@@ -106,6 +106,10 @@ The following attributes are set on next watering sensor entities:
 | ---------- | -------------- | -------------------------------------------------------------- |
 | `programs` | `list[string]` | The programs scheduled to run at this time, if any.            |
 
+### Rain Delay Ends sensor
+
+A **rain delay ends** `sensor` entity is created for each `sprinkler_timer` device. It reports when the current rain delay ends as a timestamp, and is empty when no rain delay is in place.
+
 ### Temperature sensor
 
 A **temperature** `sensor` entity is created for each `flood_sensor` device, reporting the ambient temperature in degrees Fahrenheit.
@@ -173,18 +177,22 @@ Please see [program switches](#program-switch) below for more details.
 
 ### Rain Delay Switch
 
-A **rain delay** `switch` entity is created for each discovered `sprinkler_timer` device. This entity will be **on** whenever B-hyve reports that a device's watering schedule will be delayed due to weather conditions.
+A **rain delay** `switch` entity is created for each discovered `sprinkler_timer` device. This entity will be **on** whenever B-hyve reports that a device's watering schedule will be delayed due to weather conditions. It turns off once the delay's end time (`started_at` + `delay` hours) has passed, even if B-hyve has not yet updated the device.
 
 Enabling the switch will set a 24 hour rain delay on the device &mdash; for a custom rain delay, please use the `enable_rain_delay` service.
 
 The following attributes are set on `switch.*_rain_delay` entities, if the sensor is on:
 
-| Attribute      | Type     | Notes                                                                                     |
-| -------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `cause`        | `string` | Why a delay was put in place. Values seen: `auto`. May be empty.                          |
-| `delay`        | `number` | The number of hours the delay is in place. NB: This is hours from `started_at` attribute. |
-| `weather_type` | `string` | The reported cause of the weather delay. Values seen: `wind`, `rain`. May be empty.       |
-| `started_at`   | `string` | The timestamp the delay was put in place.                                                 |
+| Attribute         | Type     | Notes                                                                                      |
+| ----------------- | -------- | ------------------------------------------------------------------------------------------ |
+| `cause`           | `string` | Why a delay was put in place. Values seen: `auto`. May be empty.                           |
+| `delay`           | `number` | The length of the delay in hours, counted from `started_at`. Not the hours remaining.      |
+| `weather_type`    | `string` | The reported cause of the weather delay. Values seen: `wind`, `rain`. May be empty.        |
+| `started_at`      | `string` | The timestamp the delay was put in place.                                                  |
+| `ends_at`         | `string` | When the delay ends: `started_at` plus `delay` hours.                                      |
+| `remaining_hours` | `number` | Whole hours left in the delay, rounded up. Use this rather than `delay` to extend a delay. |
+
+B-hyve may move `started_at` forward when it re-evaluates a weather delay, so `delay` is not the time remaining.
 
 ### Program Switch
 

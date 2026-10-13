@@ -195,6 +195,9 @@
       },
       "signal_strength": {
         "name": "Signal strength"
+      },
+      "rain_delay_end": {
+        "name": "Rain delay ends"
       }
     }
   }

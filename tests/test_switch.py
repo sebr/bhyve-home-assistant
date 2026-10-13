@@ -1,5 +1,6 @@
 """Test BHyve switch entities."""
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -8,6 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.util import dt as dt_util
 
 from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
 from custom_components.bhyve.pybhyve.typings import BHyveDevice, BHyveTimerProgram
@@ -118,7 +120,10 @@ def mock_sprinkler_device_with_rain_delay() -> BHyveDevice:
                 "run_mode": "auto",
                 "watering_status": None,
                 "rain_delay": TEST_RAIN_DELAY_HOURS,
-                "rain_delay_started_at": "2020-01-14T12:10:10.000Z",
+                # Started recently, so the 24h delay is still running.
+                "rain_delay_started_at": (
+                    dt_util.utcnow() - timedelta(hours=2)
+                ).isoformat(),
                 "rain_delay_cause": "Weather",
                 "rain_delay_weather_type": "Rain",
             },
