@@ -26,6 +26,12 @@ STATE_STOPPED = "stopped"
 RECONNECT_DELAY = 5
 MAX_RECONNECT_DELAY = 300
 
+# Protocol-level ping interval, in seconds. aiohttp closes the connection when
+# no pong arrives within half of it, so a connection that silently died is
+# noticed and reconnected. The app-level {"event": "ping"} keeps the session
+# alive but nothing checks for a reply, so it cannot detect a dead connection.
+WS_HEARTBEAT = 30
+
 HTTP_SERVER_ERROR_MIN = 500
 HTTP_SERVER_ERROR_MAX = 600
 
@@ -125,6 +131,7 @@ class OrbitWebsocket:
                     self._url,
                     origin=WEB_HOST,
                     headers={"User-Agent": _USER_AGENT},
+                    heartbeat=WS_HEARTBEAT,
                 ) as self._ws:
                     _LOGGER.info("Authenticating websocket")
                     await self._ws.send_str(
@@ -150,7 +157,11 @@ class OrbitWebsocket:
                             break
 
                         msg = await self._ws.receive()
-                        self._reset_heartbeat()
+
+                        if msg.type in (WSMsgType.TEXT, WSMsgType.PING):
+                            # Only traffic postpones the keepalive. Re-arming it on
+                            # a close or error left a timer behind after stop().
+                            self._reset_heartbeat()
 
                         if msg.type == WSMsgType.TEXT:
                             data = json.loads(msg.data)
