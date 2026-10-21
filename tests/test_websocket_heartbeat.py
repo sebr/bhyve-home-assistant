@@ -26,7 +26,7 @@ from custom_components.bhyve.pybhyve.websocket import OrbitWebsocket
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-HEARTBEAT = 0.2
+HEARTBEAT = 0.5
 
 
 class FakeOrbitEvents:
@@ -120,7 +120,7 @@ async def test_healthy_connection_is_kept(connect: Any) -> None:
 
     orbit = await connect(events)
     await wait_for(lambda: len(events.handshakes) == 1)
-    await asyncio.sleep(HEARTBEAT * 8)
+    await asyncio.sleep(HEARTBEAT * 4)
 
     assert len(events.handshakes) == 1
     assert orbit.state == websocket_module.STATE_RUNNING

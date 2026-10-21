@@ -96,11 +96,13 @@ class OrbitWebsocket:
         if self._ws is not None and not self._ws.closed:
             try:
                 await self._ws.send_str(json.dumps({"event": "ping"}))
-                self._reset_heartbeat()
             except ConnectionResetError:
                 _LOGGER.debug("Connection reset while sending ping")
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Error sending ping: %s", err)
+            # Keep pinging while the connection is open, even after a failed send.
+            if not self._ws.closed:
+                self._reset_heartbeat()
 
     @property
     def state(self) -> str:
@@ -158,12 +160,12 @@ class OrbitWebsocket:
 
                         msg = await self._ws.receive()
 
-                        if msg.type in (WSMsgType.TEXT, WSMsgType.PING):
+                        # aiohttp answers protocol pings itself (autoping), so
+                        # receive() never returns them.
+                        if msg.type == WSMsgType.TEXT:
                             # Only traffic postpones the keepalive. Re-arming it on
                             # a close or error left a timer behind after stop().
                             self._reset_heartbeat()
-
-                        if msg.type == WSMsgType.TEXT:
                             data = json.loads(msg.data)
                             log_data = data
                             if (
@@ -185,9 +187,6 @@ class OrbitWebsocket:
                             # discard when finished so it can be garbage collected
                             background_tasks.add(task)
                             task.add_done_callback(background_tasks.discard)
-
-                        elif msg.type == WSMsgType.PING:
-                            await self._ws.pong()
 
                         elif msg.type == WSMsgType.CLOSE:
                             _LOGGER.debug("Websocket received CLOSE message, ignoring")
