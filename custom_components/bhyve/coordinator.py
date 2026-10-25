@@ -93,7 +93,9 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                     continue
                 if result is None:
                     continue
-                data["devices"][result["device"]["id"]] = result
+                device_id = result["device"]["id"]
+                self._reconcile_polled_mode(device_id, result["device"])
+                data["devices"][device_id] = result
 
             for program in programs:
                 program_id = program.get("id")
@@ -212,6 +214,24 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
     def resume_mode(self, device_id: str) -> str | None:
         """Return the mode (auto/off) a device returns to after watering."""
         return self._resume_modes.get(device_id)
+
+    def _reconcile_polled_mode(self, device_id: str, device: dict[str, Any]) -> None:
+        """
+        Correct a stale "manual" from a poll, and remember a polled auto/off.
+
+        Orbit's REST data can keep run_mode "manual" for minutes after a
+        watering ends (ten minutes after a 23-minute run, live), undoing the
+        mode the websocket events had already restored. "manual" with no
+        watering in progress is that stale value.
+        """
+        status = device.get("status")
+        if not isinstance(status, dict):
+            return
+        if status.get("run_mode") == MODE_MANUAL and not status.get("watering_status"):
+            if resume := self._resume_modes.get(device_id):
+                status["run_mode"] = resume
+        else:
+            self._remember_mode(device_id, status)
 
     def _remember_mode(self, device_id: str, status: dict[str, Any]) -> None:
         """Remember a device's auto/off mode before a watering overrides it."""

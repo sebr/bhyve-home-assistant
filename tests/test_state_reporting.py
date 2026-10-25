@@ -367,3 +367,87 @@ class TestDeletedPrograms:
             await hass.async_block_till_done()
 
         assert program_switch(hass, "p1") is not None
+
+
+class PollingClient:
+    """A client whose next poll returns the given sprinkler status."""
+
+    def __init__(self) -> None:
+        """Start with the device in auto, not watering."""
+        self.status: dict[str, Any] = {"run_mode": "auto"}
+        self.get_device_history = AsyncMock(return_value=[])
+        self.get_landscape = AsyncMock(return_value=None)
+
+    @property
+    async def devices(self) -> list[dict[str, Any]]:
+        """Return the sprinkler with the current status."""
+        return [{**device(), "status": dict(self.status)}]
+
+    @property
+    async def timer_programs(self) -> list[dict[str, Any]]:
+        """Return no programs."""
+        return []
+
+
+class TestPolledMode:
+    """A poll's stale "manual" does not undo the mode restored by events."""
+
+    async def test_stale_manual_after_watering_is_corrected(
+        self, hass: HomeAssistant
+    ) -> None:
+        """
+        Live sequence: the watering ends, then a poll still says "manual".
+
+        Without a watering in progress, "manual" is stale and the mode the
+        device was in before the watering is kept.
+        """
+        client = PollingClient()
+        coordinator = BHyveDataUpdateCoordinator(hass, client, MagicMock())
+        await coordinator.async_refresh()
+        assert status_of(coordinator)["run_mode"] == "auto"
+
+        await send(coordinator, WATERING, {"event": "watering_complete"})
+        assert status_of(coordinator)["run_mode"] == "auto"
+
+        client.status = {"run_mode": "manual", "watering_status": None}
+        await coordinator.async_refresh()
+
+        assert status_of(coordinator)["run_mode"] == "auto"
+
+    async def test_polled_watering_keeps_manual(self, hass: HomeAssistant) -> None:
+        """A poll during a watering shows "manual"."""
+        client = PollingClient()
+        coordinator = BHyveDataUpdateCoordinator(hass, client, MagicMock())
+        await coordinator.async_refresh()
+
+        client.status = {
+            "run_mode": "manual",
+            "watering_status": {"current_station": 1, "run_time": 5},
+        }
+        await coordinator.async_refresh()
+
+        assert status_of(coordinator)["run_mode"] == "manual"
+
+    async def test_polled_off_is_remembered(self, hass: HomeAssistant) -> None:
+        """A mode seen only in a poll is the one restored after a watering."""
+        client = PollingClient()
+        client.status = {"run_mode": "off"}
+        coordinator = BHyveDataUpdateCoordinator(hass, client, MagicMock())
+        await coordinator.async_refresh()
+
+        client.status = {"run_mode": "manual"}
+        await coordinator.async_refresh()
+
+        assert status_of(coordinator)["run_mode"] == "off"
+
+    async def test_unknown_previous_mode_keeps_manual(
+        self, hass: HomeAssistant
+    ) -> None:
+        """With nothing to restore, Orbit's value is shown as reported."""
+        client = PollingClient()
+        client.status = {"run_mode": "manual"}
+        coordinator = BHyveDataUpdateCoordinator(hass, client, MagicMock())
+
+        await coordinator.async_refresh()
+
+        assert status_of(coordinator)["run_mode"] == "manual"
