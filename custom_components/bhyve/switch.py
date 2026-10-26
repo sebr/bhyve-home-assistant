@@ -18,7 +18,6 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
-from homeassistant.util import dt as dt_util
 
 from . import BHyveCoordinatorEntity
 from .const import (
@@ -28,7 +27,7 @@ from .const import (
 )
 from .pybhyve.errors import BHyveError
 from .pybhyve.typings import BHyveTimerProgram
-from .util import orbit_time_to_local_time, rain_delay_active
+from .util import orbit_time_to_local_time, orbit_timestamp_now, rain_delay_active
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -439,7 +438,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
 
     async def _send_program_message(self, station_payload: Any) -> None:
         try:
-            iso_time = dt_util.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+            iso_time = orbit_timestamp_now()
 
             payload = {
                 "event": EVENT_CHANGE_MODE,
