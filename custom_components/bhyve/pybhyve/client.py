@@ -128,7 +128,8 @@ class BHyveClient:
                         _LOGGER.warning(
                             "Authentication error from %s: %s", url, err.status
                         )
-                        raise AuthenticationError from err
+                        msg = f"Orbit rejected the session (HTTP {err.status})"
+                        raise AuthenticationError(msg) from err
                     msg = f"Error requesting data from {url}: {err}"
                     raise RequestError(msg) from err
                 except Exception as err:
@@ -241,8 +242,10 @@ class BHyveClient:
 
                 except ClientResponseError as response_err:
                     if response_err.status in (401, 403):
-                        raise AuthenticationError from response_err
-                    raise RequestError from response_err
+                        msg = f"Orbit rejected the login (HTTP {response_err.status})"
+                        raise AuthenticationError(msg) from response_err
+                    msg = f"Error logging in at {url}: {response_err}"
+                    raise RequestError(msg) from response_err
                 except Exception as err:
                     msg = f"Error requesting data from {url}: {err}"
                     raise RequestError(msg) from err

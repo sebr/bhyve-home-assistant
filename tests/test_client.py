@@ -186,7 +186,15 @@ class TestLogin:
         """A 401 from the session endpoint means the credentials are wrong."""
         client = client_with_responses(FakeResponse(401))
 
-        with pytest.raises(AuthenticationError):
+        # The message reaches the user through bhyve_command, so it can't be empty.
+        with pytest.raises(AuthenticationError, match="rejected the login"):
+            await client.login()
+
+    async def test_server_error_has_a_message(self) -> None:
+        """A 5xx from the session endpoint says what failed."""
+        client = client_with_responses(FakeResponse(500))
+
+        with pytest.raises(RequestError, match="Error logging in"):
             await client.login()
 
     async def test_hands_new_token_to_websocket(self) -> None:
@@ -229,8 +237,15 @@ class TestRequestRelogin:
         )
         client._token = "expired"
 
-        with pytest.raises(AuthenticationError):
+        with pytest.raises(AuthenticationError, match="rejected the login"):
             await client._request("get", "/v1/devices")
+
+    async def test_rejected_session_has_a_message(self) -> None:
+        """An authentication error from a request says what failed."""
+        client = client_with_responses(FakeResponse(403))
+
+        with pytest.raises(AuthenticationError, match="rejected the session"):
+            await client._send_request("get", "/v1/devices")
 
     async def test_other_errors_do_not_relogin(self) -> None:
         """Only authentication errors log in again."""
