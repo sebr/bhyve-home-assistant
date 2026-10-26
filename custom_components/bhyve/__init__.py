@@ -62,10 +62,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     try:
-        if await client.login() is False:
-            _LOGGER.warning("Invalid credentials for %s", entry.data[CONF_USERNAME])
-            msg = "Invalid credentials"
-            raise ConfigEntryAuthFailed(msg)
+        await client.login()
     except AuthenticationError as err:
         _LOGGER.warning("Authentication failed for %s", entry.data[CONF_USERNAME])
         raise ConfigEntryAuthFailed(err) from err

@@ -217,7 +217,7 @@ class BHyveClient:
         """Process incoming websocket message."""
         ensure_future(async_callback(data))  # noqa: RUF006
 
-    async def login(self) -> bool:
+    async def login(self) -> None:
         """Log in with username & password and save the token."""
         url: str = f"{API_HOST}{LOGIN_PATH}"
         json = {"session": {"email": self._username, "password": self._password}}
@@ -262,7 +262,6 @@ class BHyveClient:
         if self._websocket is not None:
             # Used the next time the websocket (re)connects.
             self._websocket.token = token
-        return True
 
     def listen(self, loop: AbstractEventLoop, async_callback: Callable) -> None:
         """Start listening to the Orbit event stream."""

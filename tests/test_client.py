@@ -195,14 +195,16 @@ class TestLogin:
             FakeResponse({"orbit_session_token": "session", "user_id": "u1"})
         )
 
-        assert await client.login() is True
+        await client.login()
+
         assert client._token == "session"
 
     async def test_falls_back_to_orbit_api_key(self) -> None:
         """The old field still works if Orbit serves it."""
         client = client_with_responses(FakeResponse({"orbit_api_key": "legacy"}))
 
-        assert await client.login() is True
+        await client.login()
+
         assert client._token == "legacy"
 
     async def test_missing_token_raises_request_error(self) -> None:

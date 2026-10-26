@@ -51,10 +51,7 @@ class BHyveConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         try:
-            result = await self.client.login()
-            if result is False:
-                return {"base": "invalid_auth"}
-            return None  # noqa: TRY300
+            await self.client.login()
         except AuthenticationError:
             return {"base": "invalid_auth"}
         except Exception:  # pylint: disable=broad-except
@@ -175,10 +172,7 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
         data = self.hass.data[DOMAIN][self.config_entry.entry_id]
         try:
             client = data["client"]
-            result = await client.login()
-            if result is False:
-                return self.async_abort(reason="invalid_auth")
-
+            await client.login()
             devices = await client.devices
         except AuthenticationError:
             return self.async_abort(reason="invalid_auth")

@@ -44,9 +44,8 @@ class FakeClient:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Accept and ignore the real client's arguments."""
 
-    async def login(self) -> bool:
-        """Report a successful login."""
-        return True
+    async def login(self) -> None:
+        """Pretend to log in."""
 
     def listen(self, loop: AbstractEventLoop, async_callback: Callable) -> None:
         """Do not open a websocket."""

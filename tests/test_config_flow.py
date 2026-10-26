@@ -157,29 +157,6 @@ class TestConfigFlow:
             assert result["step_id"] == "user"
             assert result["errors"] == {"base": "cannot_connect"}
 
-    async def test_user_flow_login_false(self, hass: HomeAssistant) -> None:
-        """Test user flow when login returns False."""
-        mock_client = MagicMock()
-        mock_client.login = AsyncMock(return_value=False)
-
-        with patch(
-            "custom_components.bhyve.config_flow.BHyveClient",
-            return_value=mock_client,
-        ):
-            flow = ConfigFlow()
-            flow.hass = hass
-
-            result = await flow.async_step_user(
-                {
-                    CONF_USERNAME: TEST_USERNAME,
-                    CONF_PASSWORD: TEST_PASSWORD,
-                }
-            )
-
-            assert result["type"] == data_entry_flow.FlowResultType.FORM
-            assert result["step_id"] == "user"
-            assert result["errors"] == {"base": "invalid_auth"}
-
     async def test_user_flow_show_form(self, hass: HomeAssistant) -> None:
         """Test user flow shows initial form."""
         flow = ConfigFlow()
