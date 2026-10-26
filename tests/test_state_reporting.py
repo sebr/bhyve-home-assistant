@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
 DEVICE_ID = "sprinkler-1"
 MAC = "aabbccddeeff"
+OTHER_DEVICE_ID = "sprinkler-2"
 
 
 def device(run_mode: str | None = "auto") -> dict[str, Any]:
@@ -251,7 +252,7 @@ class TestCommandTimestamps:
 
 
 class FakeClient:
-    """Stand-in for BHyveClient serving one sprinkler and its programs."""
+    """Stand-in for BHyveClient serving two sprinklers and their programs."""
 
     programs: list[dict[str, Any]] = []  # noqa: RUF012
 
@@ -270,8 +271,16 @@ class FakeClient:
 
     @property
     async def devices(self) -> list[dict[str, Any]]:
-        """Return the sprinkler."""
-        return [device()]
+        """Return the sprinklers."""
+        return [
+            device(),
+            {
+                **device(),
+                "id": OTHER_DEVICE_ID,
+                "name": "Front Timer",
+                "mac_address": "112233445566",
+            },
+        ]
 
     @property
     async def timer_programs(self) -> list[dict[str, Any]]:
@@ -286,11 +295,11 @@ class FakeClient:
         """Return no landscape."""
 
 
-def program(program_id: str, name: str) -> dict[str, Any]:
-    """Build a manual program for the sprinkler."""
+def program(program_id: str, name: str, device_id: str = DEVICE_ID) -> dict[str, Any]:
+    """Build a manual program for a sprinkler."""
     return {
         "id": program_id,
-        "device_id": DEVICE_ID,
+        "device_id": device_id,
         "name": name,
         "program": "a",
         "enabled": True,
@@ -304,7 +313,7 @@ async def setup_integration(hass: HomeAssistant) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_USERNAME: "user", CONF_PASSWORD: "password"},
-        options={CONF_DEVICES: [DEVICE_ID]},
+        options={CONF_DEVICES: [DEVICE_ID, OTHER_DEVICE_ID]},
     )
     entry.add_to_hass(hass)
     with patch("custom_components.bhyve.BHyveClient", FakeClient):
@@ -367,6 +376,26 @@ class TestDeletedPrograms:
             await hass.async_block_till_done()
 
         assert program_switch(hass, "p1") is not None
+
+    async def test_device_missing_from_program_list_keeps_switches(
+        self, hass: HomeAssistant
+    ) -> None:
+        """A device whose programs are all missing may be a glitch."""
+        FakeClient.programs = [
+            program("p1", "Morning"),
+            program("p2", "Evening"),
+            program("p3", "Front", OTHER_DEVICE_ID),
+        ]
+        entry = await setup_integration(hass)
+
+        FakeClient.programs = [program("p2", "Evening")]
+        with patch("custom_components.bhyve.BHyveClient", FakeClient):
+            await hass.config_entries.async_reload(entry.entry_id)
+            await hass.async_block_till_done()
+
+        assert program_switch(hass, "p1") is None
+        assert program_switch(hass, "p2") is not None
+        assert program_switch(hass, "p3") is not None
 
 
 class PollingClient:

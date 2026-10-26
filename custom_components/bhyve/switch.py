@@ -16,6 +16,7 @@ from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID, EntityCategory
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
@@ -259,20 +260,47 @@ def _remove_deleted_program_switches(
     entry: ConfigEntry,
     coordinator: BHyveDataUpdateCoordinator,
 ) -> None:
-    """Drop switches of programs deleted while Home Assistant was not running."""
-    known_programs = set(coordinator.data.get("programs", {}))
-    if not known_programs:
-        # An empty list may be a glitch; removing every switch would lose
-        # the user's entity customisations, so keep them.
-        return
+    """
+    Drop switches of programs deleted while Home Assistant was not running.
+
+    Only devices with at least one program in the list are checked. A device
+    whose programs are all missing may be a glitch; removing its switches
+    would lose the user's entity customisations, so they are kept.
+    """
+    programs = coordinator.data.get("programs", {})
+    reported_devices = {
+        device_id
+        for program in programs.values()
+        if (device_id := program.get("device_id")) is not None
+    }
     entity_registry = er.async_get(hass)
+    device_registry = dr.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(
         entity_registry, entry.entry_id
     ):
         program_id = _program_id_from_unique_id(registry_entry.unique_id)
-        if program_id is not None and program_id not in known_programs:
+        if program_id is None or program_id in programs:
+            continue
+        if _orbit_device_id(device_registry, registry_entry.device_id) in (
+            reported_devices
+        ):
             _LOGGER.info("Removing switch for deleted program %s", program_id)
             entity_registry.async_remove(registry_entry.entity_id)
+
+
+def _orbit_device_id(
+    device_registry: dr.DeviceRegistry, registry_device_id: str | None
+) -> str | None:
+    """Return the B-hyve id of a device registry entry, else None."""
+    if registry_device_id is None:
+        return None
+    device = device_registry.async_get(registry_device_id)
+    if device is None:
+        return None
+    return next(
+        (orbit_id for domain, orbit_id in device.identifiers if domain == DOMAIN),
+        None,
+    )
 
 
 def _listen_for_deleted_programs(hass: HomeAssistant, entry: ConfigEntry) -> None:
