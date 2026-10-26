@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
 import logging
 import re
 from dataclasses import dataclass
@@ -17,6 +16,8 @@ from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import ATTR_ENTITY_ID, EntityCategory
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from . import BHyveCoordinatorEntity
 from .const import (
@@ -28,6 +29,7 @@ from .pybhyve.errors import BHyveError
 from .pybhyve.typings import BHyveTimerProgram
 from .util import (
     orbit_time_to_local_time,
+    orbit_timestamp_now,
     rain_delay_active,
     rain_delay_end,
     rain_delay_remaining_hours,
@@ -64,6 +66,8 @@ PROGRAM_UPDATE_KEYS = {
     "run_times",
     "start_times",
 }
+
+PROGRAM_UNIQUE_ID_PREFIX = "bhyve:program:"
 
 # Service constants
 SERVICE_UPDATE_PROGRAM = "update_program"
@@ -203,6 +207,8 @@ async def async_setup_entry(
 
     async_add_entities(switches)
 
+    _remove_deleted_program_switches(hass, entry, coordinator)
+
     async def async_update_program_service(call: ServiceCall) -> None:
         """Handle the update_program service call."""
         entity_ids = call.data.get(ATTR_ENTITY_ID) or []
@@ -253,6 +259,81 @@ async def async_setup_entry(
         hass.bus.async_listen("bhyve_program_created", async_handle_program_created)
     )
 
+    _listen_for_deleted_programs(hass, entry)
+
+
+def _remove_deleted_program_switches(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: BHyveDataUpdateCoordinator,
+) -> None:
+    """
+    Drop switches of programs deleted while Home Assistant was not running.
+
+    Only devices with at least one program in the list are checked. A device
+    whose programs are all missing may be a glitch; removing its switches
+    would lose the user's entity customisations, so they are kept.
+    """
+    programs = coordinator.data.get("programs", {})
+    reported_devices = {
+        device_id
+        for program in programs.values()
+        if (device_id := program.get("device_id")) is not None
+    }
+    entity_registry = er.async_get(hass)
+    for registry_entry in er.async_entries_for_config_entry(
+        entity_registry, entry.entry_id
+    ):
+        program_id = _program_id_from_unique_id(registry_entry.unique_id)
+        if program_id is None or program_id in programs:
+            continue
+        if _orbit_device_id(hass, registry_entry.device_id) in reported_devices:
+            _LOGGER.info("Removing switch for deleted program %s", program_id)
+            entity_registry.async_remove(registry_entry.entity_id)
+
+
+def _orbit_device_id(hass: HomeAssistant, registry_device_id: str | None) -> str | None:
+    """Return the B-hyve id of a device registry entry, else None."""
+    if registry_device_id is None:
+        return None
+    device = dr.async_get(hass).async_get(registry_device_id)
+    if device is None:
+        return None
+    return next(
+        (orbit_id for domain, orbit_id in device.identifiers if domain == DOMAIN),
+        None,
+    )
+
+
+def _listen_for_deleted_programs(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove a program's switch when the program is deleted in the B-hyve app."""
+
+    async def async_handle_program_deleted(event: Any) -> None:
+        entity_registry = er.async_get(hass)
+        entity_id = entity_registry.async_get_entity_id(
+            SWITCH_DOMAIN,
+            DOMAIN,
+            f"{PROGRAM_UNIQUE_ID_PREFIX}{event.data.get('program_id')}",
+        )
+        if entity_id is None:
+            return
+        registry_entry = entity_registry.async_get(entity_id)
+        if registry_entry is None or registry_entry.config_entry_id != entry.entry_id:
+            return
+        _LOGGER.info("Removing switch for deleted program: %s", entity_id)
+        entity_registry.async_remove(entity_id)
+
+    entry.async_on_unload(
+        hass.bus.async_listen("bhyve_program_deleted", async_handle_program_deleted)
+    )
+
+
+def _program_id_from_unique_id(unique_id: str) -> str | None:
+    """Return the program id of a program switch's unique id, else None."""
+    if unique_id.startswith(PROGRAM_UNIQUE_ID_PREFIX):
+        return unique_id.removeprefix(PROGRAM_UNIQUE_ID_PREFIX)
+    return None
+
 
 class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
     """Define a BHyve program switch."""
@@ -276,7 +357,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         super().__init__(coordinator, device)
 
         self._program_id = program.get("id", "0")
-        self._attr_unique_id = f"bhyve:program:{self._program_id}"
+        self._attr_unique_id = f"{PROGRAM_UNIQUE_ID_PREFIX}{self._program_id}"
 
     @property
     def program_data(self) -> dict[str, Any]:
@@ -360,8 +441,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
 
     async def _send_program_message(self, station_payload: Any) -> None:
         try:
-            now = datetime.datetime.now()  # noqa: DTZ005
-            iso_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+            iso_time = orbit_timestamp_now()
 
             payload = {
                 "event": EVENT_CHANGE_MODE,

@@ -107,7 +107,7 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
         icon="mdi:information",
         unique_id_suffix="state",
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda data: data.get("status", {}).get("run_mode", "unavailable"),
+        value_fn=lambda data: data.get("status", {}).get("run_mode"),
     ),
     BHyveSensorEntityDescription(
         key="next_watering",

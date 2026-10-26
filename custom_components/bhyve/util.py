@@ -81,6 +81,11 @@ def orbit_time_to_local_time(timestamp: str | None) -> datetime | None:
     return None
 
 
+def orbit_timestamp_now() -> str:
+    """Return the current UTC time in the format Orbit expects in commands."""
+    return dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def filter_configured_devices(entry: ConfigEntry, all_devices: list) -> list:
     """
     Filter the device list to those that are enabled in options.

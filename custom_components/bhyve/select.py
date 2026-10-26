@@ -83,8 +83,12 @@ class BHyveSelectEntity(BHyveCoordinatorEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return the current selected option."""
-        status = self.device_data.get("status", {})
-        return status.get("mode", status.get("run_mode"))
+        mode = self.device_data.get("status", {}).get("run_mode")
+        if mode in self.options:
+            return mode
+        # During a watering run_mode is "manual"; show the mode it will return to.
+        resume = self.coordinator.resume_mode(self._device_id)
+        return resume if resume in self.options else None
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
