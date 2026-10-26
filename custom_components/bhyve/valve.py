@@ -28,7 +28,11 @@ from custom_components.bhyve.pybhyve.typings import BHyveZoneLandscape
 from . import BHyveCoordinatorEntity, bhyve_command
 from .const import DEVICE_SPRINKLER, DOMAIN, EVENT_CHANGE_MODE
 from .pybhyve.errors import BHyveError
-from .util import next_watering_time, orbit_time_to_local_time
+from .util import (
+    next_watering_time,
+    orbit_time_to_local_time,
+    orbit_timestamp_now,
+)
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -474,8 +478,7 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
     async def _send_station_message(self, station_payload: Any) -> None:
         """Send a station control message via WebSocket."""
         try:
-            now = datetime.datetime.now()  # noqa: DTZ005
-            iso_time = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+            iso_time = orbit_timestamp_now()
 
             payload = {
                 "event": EVENT_CHANGE_MODE,

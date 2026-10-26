@@ -128,9 +128,10 @@ async def test_select_option_auto(
 async def test_select_current_option_from_websocket_event(
     mock_sprinkler_device: BHyveDevice,
 ) -> None:
-    """Test current_option reads 'mode' field set by websocket events."""
+    """current_option reads run_mode, which change_mode events now update."""
     device_data = dict(mock_sprinkler_device)
-    device_data["status"] = {"run_mode": "auto", "mode": "off"}
+    # A stray 'mode' left in status by the old change_mode merge is ignored.
+    device_data["status"] = {"run_mode": "off", "mode": "auto"}
     device = BHyveDevice(device_data)
 
     coordinator = create_mock_coordinator(
@@ -145,7 +146,6 @@ async def test_select_current_option_from_websocket_event(
 
     entity = BHyveSelectEntity(coordinator, device, SELECT_TYPES[0])
 
-    # 'mode' (from websocket event) takes precedence over 'run_mode'
     assert entity.current_option == "off"
 
 
