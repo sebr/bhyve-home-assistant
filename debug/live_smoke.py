@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import contextlib
 import getpass
 import logging
 import os
@@ -70,11 +69,6 @@ class Report:
     def info(self, text: str) -> None:
         """Print an informational line."""
         print(f"       {text}")
-
-    @property
-    def passed(self) -> bool:
-        """Return whether every check passed."""
-        return all(ok for _, ok, _ in self.results)
 
 
 class _StatusCapture(logging.Handler):
@@ -263,20 +257,13 @@ async def check_websocket(
     )
 
 
-async def run(
-    email: str,
-    password: str,
-    listen: int,
-    session: aiohttp.ClientSession | None = None,
-) -> bool:
+async def run(email: str, password: str, listen: int) -> bool:
     """Run every check and return whether all passed."""
     capture = _StatusCapture()
     logging.getLogger("pybhyve").addHandler(capture)
     report = Report()
 
-    async with contextlib.AsyncExitStack() as stack:
-        if session is None:
-            session = await stack.enter_async_context(aiohttp.ClientSession())
+    async with aiohttp.ClientSession() as session:
         print("== Login response (#474)")
         await check_login_response(session, email, password, report)
 
@@ -294,7 +281,7 @@ async def run(
     print(f"\n{len(report.results) - len(failed)}/{len(report.results)} checks passed")
     if failed:
         print("Failed: " + "; ".join(failed))
-    return report.passed
+    return not failed
 
 
 def main() -> int:
