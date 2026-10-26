@@ -273,27 +273,22 @@ def _remove_deleted_program_switches(
         if (device_id := program.get("device_id")) is not None
     }
     entity_registry = er.async_get(hass)
-    device_registry = dr.async_get(hass)
     for registry_entry in er.async_entries_for_config_entry(
         entity_registry, entry.entry_id
     ):
         program_id = _program_id_from_unique_id(registry_entry.unique_id)
         if program_id is None or program_id in programs:
             continue
-        if _orbit_device_id(device_registry, registry_entry.device_id) in (
-            reported_devices
-        ):
+        if _orbit_device_id(hass, registry_entry.device_id) in reported_devices:
             _LOGGER.info("Removing switch for deleted program %s", program_id)
             entity_registry.async_remove(registry_entry.entity_id)
 
 
-def _orbit_device_id(
-    device_registry: dr.DeviceRegistry, registry_device_id: str | None
-) -> str | None:
+def _orbit_device_id(hass: HomeAssistant, registry_device_id: str | None) -> str | None:
     """Return the B-hyve id of a device registry entry, else None."""
     if registry_device_id is None:
         return None
-    device = device_registry.async_get(registry_device_id)
+    device = dr.async_get(hass).async_get(registry_device_id)
     if device is None:
         return None
     return next(
