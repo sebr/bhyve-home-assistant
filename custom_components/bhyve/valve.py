@@ -493,19 +493,13 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         await self.coordinator.client.send_message(payload)
         # Coordinator updates via WebSocket event
 
+    @bhyve_command
     async def set_smart_watering_soil_moisture(self, percentage: float) -> None:
         """Set the soil moisture percentage for the zone."""
         if self._smart_watering_enabled:
-            landscape = None
-            try:
-                landscape = await self.coordinator.client.get_landscape(
-                    self._device_id, self._zone_id
-                )
-
-            except BHyveError as err:
-                _LOGGER.warning(
-                    "Unable to retreive current soil data for %s: %s", self.name, err
-                )
+            landscape = await self.coordinator.client.get_landscape(
+                self._device_id, self._zone_id
+            )
 
             if landscape is not None:
                 _LOGGER.debug("Landscape data %s", landscape)
@@ -539,14 +533,8 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
                 landscape_update["id"] = landscape["id"]
                 landscape_update["station"] = self._zone_id
 
-                try:
-                    _LOGGER.debug("Landscape update %s", landscape_update)
-                    await self.coordinator.client.update_landscape(landscape_update)
-
-                except BHyveError as err:
-                    _LOGGER.warning(
-                        "Unable to set soil moisture level for %s: %s", self.name, err
-                    )
+                _LOGGER.debug("Landscape update %s", landscape_update)
+                await self.coordinator.client.update_landscape(landscape_update)
         else:
             _LOGGER.info(
                 "Zone %s isn't smart watering enabled, cannot set soil moisture.",

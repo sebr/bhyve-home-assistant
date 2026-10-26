@@ -807,3 +807,39 @@ async def test_valve_optimistic_state_cleared_on_send_failure(
     assert valve.is_closed is True
     assert valve._cancel_optimistic_timeout is None
     assert hass.states.get(valve.entity_id).state == "closed"
+
+
+async def test_valve_soil_moisture_failure_is_reported(
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """A rejected soil moisture update fails the service instead of passing."""
+    coordinator = create_mock_coordinator(
+        {
+            "test-device-123": {
+                "device": mock_sprinkler_device,
+                "history": [],
+                "landscapes": {},
+            }
+        }
+    )
+    coordinator.client.get_landscape.return_value = {
+        "id": "landscape-123",
+        "replenishment_point": 1.0,
+        "field_capacity_depth": 3.0,
+    }
+    coordinator.client.update_landscape.side_effect = BHyveError("rejected")
+    valve = BHyveZoneValve(
+        coordinator=coordinator,
+        device=mock_sprinkler_device,
+        zone=mock_zone_data,
+        zone_name="Front Yard",
+        device_programs=[],
+    )
+
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await valve.set_smart_watering_soil_moisture(50)
+
+    assert exc_info.value.translation_placeholders["error"] == "rejected"
+    sent = coordinator.client.update_landscape.call_args[0][0]
+    assert sent["current_water_level"] == 2.0
