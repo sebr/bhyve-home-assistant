@@ -19,7 +19,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from . import BHyveCoordinatorEntity, bhyve_command
+from . import BHyveCoordinatorEntity, async_run_each, bhyve_command
 from .const import (
     DEVICE_SPRINKLER,
     DOMAIN,
@@ -210,12 +210,17 @@ async def async_setup_entry(
             _LOGGER.warning("Switch component not available, cannot update program")
             return
 
+        entities = []
         for entity_id in entity_ids:
             entity = component.get_entity(entity_id)
             if not isinstance(entity, BHyveProgramSwitch):
                 msg = f"Entity {entity_id} is not a BHyve program switch"
                 raise ServiceValidationError(msg)
-            await entity.async_update_program_config(**params)
+            entities.append(entity)
+
+        await async_run_each(
+            entity.async_update_program_config(**params) for entity in entities
+        )
 
     if not hass.services.has_service(DOMAIN, SERVICE_UPDATE_PROGRAM):
         hass.services.async_register(

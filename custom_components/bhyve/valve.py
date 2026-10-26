@@ -25,7 +25,7 @@ from homeassistant.util import dt
 
 from custom_components.bhyve.pybhyve.typings import BHyveZoneLandscape
 
-from . import BHyveCoordinatorEntity, bhyve_command
+from . import BHyveCoordinatorEntity, async_run_each, bhyve_command
 from .const import DEVICE_SPRINKLER, DOMAIN, EVENT_CHANGE_MODE
 from .pybhyve.errors import BHyveError
 from .util import (
@@ -222,6 +222,7 @@ async def async_setup_entry(
         valve_component = hass.data.get(VALVE_DOMAIN)
         switch_component = hass.data.get(SWITCH_DOMAIN)
 
+        entities = []
         for entity_id in entity_ids:
             entity = None
             if valve_component is not None:
@@ -238,7 +239,11 @@ async def async_setup_entry(
                     entity_id,
                 )
                 continue
-            await getattr(entity, method_name)(**params)
+            entities.append(entity)
+
+        await async_run_each(
+            getattr(entity, method_name)(**params) for entity in entities
+        )
 
     for service, details in SERVICE_TO_METHOD.items():
         schema = details["schema"]

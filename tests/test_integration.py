@@ -355,6 +355,35 @@ async def test_command_while_disconnected_shows_reason(
     ]
 
 
+async def test_service_failure_does_not_skip_other_entities(
+    hass: HomeAssistant, cloud: FakeOrbitCloud
+) -> None:
+    """One entity failing a bhyve service still sends it to the rest."""
+    await setup_entry(hass)
+    valve = entity_id(hass, "valve", FRONT_YARD_VALVE)
+    rain_delay = entity_id(hass, "switch", RAIN_DELAY_SWITCH)
+    valve_entity = hass.data["valve"].get_entity(valve)
+
+    with (
+        patch.object(
+            valve_entity,
+            "enable_rain_delay",
+            side_effect=HomeAssistantError("valve failed"),
+        ),
+        pytest.raises(HomeAssistantError, match="valve failed"),
+    ):
+        await hass.services.async_call(
+            DOMAIN,
+            "enable_rain_delay",
+            {"entity_id": [valve, rain_delay], "hours": 24},
+            blocking=True,
+        )
+
+    assert cloud.socket.commands() == [
+        {"event": "rain_delay", "device_id": SPRINKLER_ID, "delay": 24}
+    ]
+
+
 # Lifecycle
 
 

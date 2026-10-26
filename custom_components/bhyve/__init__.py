@@ -1,7 +1,7 @@
 """Support for Orbit BHyve irrigation devices."""
 
 import logging
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from functools import wraps
 from typing import Any, Concatenate
 
@@ -276,3 +276,19 @@ def bhyve_command[EntityT: BHyveCoordinatorEntity, **P](
             ) from err
 
     return wrapper
+
+
+async def async_run_each(commands: Iterable[Awaitable[None]]) -> None:
+    """
+    Await every command, then raise the first HomeAssistantError.
+
+    A service called on several entities still reaches the rest when one fails.
+    """
+    errors: list[HomeAssistantError] = []
+    for command in commands:
+        try:
+            await command
+        except HomeAssistantError as err:
+            errors.append(err)
+    if errors:
+        raise errors[0]
