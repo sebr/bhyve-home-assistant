@@ -477,23 +477,16 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
 
     async def _send_station_message(self, station_payload: Any) -> None:
         """Send a station control message via WebSocket."""
-        try:
-            iso_time = orbit_timestamp_now()
-
-            payload = {
-                "event": EVENT_CHANGE_MODE,
-                "mode": "manual",
-                "device_id": self._device_id,
-                "timestamp": iso_time,
-                "stations": station_payload,
-            }
-            _LOGGER.debug("Sending message %s", payload)
-            await self.coordinator.client.send_message(payload)
-            # Coordinator updates via WebSocket event
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise
+        payload = {
+            "event": EVENT_CHANGE_MODE,
+            "mode": "manual",
+            "device_id": self._device_id,
+            "timestamp": orbit_timestamp_now(),
+            "stations": station_payload,
+        }
+        _LOGGER.debug("Sending message %s", payload)
+        await self.coordinator.client.send_message(payload)
+        # Coordinator updates via WebSocket event
 
     async def set_smart_watering_soil_moisture(self, percentage: float) -> None:
         """Set the soil moisture percentage for the zone."""

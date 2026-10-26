@@ -25,7 +25,6 @@ from .const import (
     DOMAIN,
     EVENT_CHANGE_MODE,
 )
-from .pybhyve.errors import BHyveError
 from .pybhyve.typings import BHyveTimerProgram
 from .util import orbit_time_to_local_time, orbit_timestamp_now, rain_delay_active
 
@@ -435,22 +434,15 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
             await self._send_program_message(program_payload)
 
     async def _send_program_message(self, station_payload: Any) -> None:
-        try:
-            iso_time = orbit_timestamp_now()
-
-            payload = {
-                "event": EVENT_CHANGE_MODE,
-                "mode": "manual",
-                "device_id": self._device_id,
-                "timestamp": iso_time,
-                "program": station_payload,
-            }
-            _LOGGER.debug(payload)
-            await self.coordinator.client.send_message(payload)
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise
+        payload = {
+            "event": EVENT_CHANGE_MODE,
+            "mode": "manual",
+            "device_id": self._device_id,
+            "timestamp": orbit_timestamp_now(),
+            "program": station_payload,
+        }
+        _LOGGER.debug(payload)
+        await self.coordinator.client.send_message(payload)
 
 
 class BHyveSmartWateringSwitch(BHyveCoordinatorEntity, SwitchEntity):
