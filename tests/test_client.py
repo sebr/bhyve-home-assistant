@@ -9,6 +9,7 @@ from custom_components.bhyve.pybhyve.client import BHyveClient
 from custom_components.bhyve.pybhyve.errors import (
     AuthenticationError,
     RequestError,
+    SessionExpiredError,
     WebsocketError,
 )
 
@@ -242,10 +243,29 @@ class TestRequestRelogin:
 
     async def test_rejected_session_has_a_message(self) -> None:
         """An authentication error from a request says what failed."""
-        client = client_with_responses(FakeResponse(403))
+        client = client_with_responses(FakeResponse(401))
 
-        with pytest.raises(AuthenticationError, match="rejected the session"):
+        with pytest.raises(SessionExpiredError, match="rejected the session"):
             await client._send_request("get", "/v1/devices")
+
+    async def test_forbidden_does_not_relogin(self) -> None:
+        """
+        A 403 is raised without logging in again.
+
+        Orbit answers an expired token with 401. A 403 means the account may
+        not read that resource, so logging in again would only repeat the
+        403, once per request on every poll.
+        """
+        client = client_with_responses(FakeResponse(403))
+        client._token = "token"
+        client.login = AsyncMock()
+
+        with pytest.raises(AuthenticationError, match="HTTP 403") as exc_info:
+            await client._request("get", "/v1/watering_events/device-1")
+
+        assert not isinstance(exc_info.value, SessionExpiredError)
+        client.login.assert_not_awaited()
+        assert client._session.request.call_count == 1
 
     async def test_other_errors_do_not_relogin(self) -> None:
         """Only authentication errors log in again."""

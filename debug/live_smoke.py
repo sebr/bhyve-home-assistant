@@ -8,7 +8,7 @@ only mock:
 
   1. which session token field Orbit's login response carries (#474)
   2. that login, devices, programs, history and landscapes work with it
-  3. that Orbit rejects a bad token with 401/403, and the client recovers by
+  3. that Orbit rejects a bad token with 401, and the client recovers by
      logging in again
   4. that the event websocket accepts the session and stays connected
 
@@ -206,8 +206,10 @@ async def check_relogin(
 
     status = capture.auth_statuses[0] if capture.auth_statuses else "not rejected"
     report.check(
-        "Orbit rejects a bad token with 401/403",
-        ok=status in ("401", "403"),
+        # The client only logs in again on 401; a 403 here would mean it can't
+        # recover from an expired session.
+        "Orbit rejects a bad token with 401",
+        ok=status == "401",
         detail=f"HTTP {status}",
     )
     report.check(

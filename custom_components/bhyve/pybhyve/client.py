@@ -6,6 +6,7 @@ import re
 import time
 from asyncio import AbstractEventLoop, ensure_future
 from collections.abc import Callable
+from http import HTTPStatus
 from typing import Any
 
 from aiohttp import ClientResponseError, ClientSession
@@ -21,7 +22,13 @@ from .const import (
     WEB_HOST,
     WS_HOST,
 )
-from .errors import AuthenticationError, BHyveError, RequestError, WebsocketError
+from .errors import (
+    AuthenticationError,
+    BHyveError,
+    RequestError,
+    SessionExpiredError,
+    WebsocketError,
+)
 from .typings import BHyveDevice, BHyveTimerProgram, BHyveZoneLandscape
 from .websocket import OrbitWebsocket
 
@@ -71,15 +78,18 @@ class BHyveClient:
         """
         Make a request against the API.
 
-        Orbit sessions expire. On an authentication error, log in again with
-        the stored credentials and retry once, so an expired session does not
-        force the user through reauth. Rejected credentials still raise
+        Orbit sessions expire. On a 401, log in again with the stored
+        credentials and retry once, so an expired session does not force the
+        user through reauth. Rejected credentials still raise
         AuthenticationError from login().
+
+        A 403 is not retried. Orbit answers an expired token with 401, so a
+        403 is about the resource, and logging in again would only repeat it.
         """
         token = self._token
         try:
             return await self._send_request(method, endpoint, params, json)
-        except AuthenticationError:
+        except SessionExpiredError:
             _LOGGER.info("Orbit rejected the session, logging in again")
             await self._relogin(token)
             return await self._send_request(method, endpoint, params, json)
@@ -124,11 +134,16 @@ class BHyveClient:
                     resp.raise_for_status()
                     return await resp.json(content_type=None)
                 except ClientResponseError as err:
-                    if err.status in (401, 403):
+                    if err.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
+                        # debug/live_smoke.py reads the status from this line.
                         _LOGGER.warning(
                             "Authentication error from %s: %s", url, err.status
                         )
-                        msg = f"Orbit rejected the session (HTTP {err.status})"
+                    if err.status == HTTPStatus.UNAUTHORIZED:
+                        msg = "Orbit rejected the session (HTTP 401)"
+                        raise SessionExpiredError(msg) from err
+                    if err.status == HTTPStatus.FORBIDDEN:
+                        msg = f"Orbit refused access to {url} (HTTP 403)"
                         raise AuthenticationError(msg) from err
                     msg = f"Error requesting data from {url}: {err}"
                     raise RequestError(msg) from err
