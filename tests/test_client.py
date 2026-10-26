@@ -1,12 +1,9 @@
 """Test BHyve pybhyve client."""
 
 import asyncio
-from types import TracebackType
-from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from aiohttp import ClientResponseError
 
 from custom_components.bhyve.pybhyve.client import BHyveClient
 from custom_components.bhyve.pybhyve.errors import (
@@ -14,6 +11,8 @@ from custom_components.bhyve.pybhyve.errors import (
     RequestError,
     WebsocketError,
 )
+
+from .fake_orbit import FakeResponse
 
 
 @pytest.fixture
@@ -147,38 +146,6 @@ class TestGetLandscape:
         assert client._request.await_count == 1
 
 
-class FakeResponse:
-    """Fake aiohttp response, usable as the request() context manager."""
-
-    def __init__(self, body: Any = None, status: int = 200) -> None:
-        """Initialize the fake response."""
-        self.body = body
-        self.status = status
-
-    def raise_for_status(self) -> None:
-        """Raise like aiohttp for an error status."""
-        if self.status >= 400:
-            raise ClientResponseError(
-                request_info=MagicMock(), history=(), status=self.status
-            )
-
-    async def json(self, **_kwargs: Any) -> Any:
-        """Return the canned body."""
-        return self.body
-
-    async def __aenter__(self) -> Self:
-        """Enter the response context."""
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Exit the response context."""
-
-
 def client_with_responses(*responses: FakeResponse) -> BHyveClient:
     """Create a client whose session answers requests with responses in order."""
     session = MagicMock()
@@ -192,7 +159,7 @@ class TestLogin:
     async def test_reads_orbit_session_token(self) -> None:
         """Regression for #474: Orbit renamed orbit_api_key."""
         client = client_with_responses(
-            FakeResponse({"orbit_session_token": "session", "user_id": "u1"})
+            FakeResponse(200, {"orbit_session_token": "session", "user_id": "u1"})
         )
 
         await client.login()
@@ -201,7 +168,7 @@ class TestLogin:
 
     async def test_falls_back_to_orbit_api_key(self) -> None:
         """The old field still works if Orbit serves it."""
-        client = client_with_responses(FakeResponse({"orbit_api_key": "legacy"}))
+        client = client_with_responses(FakeResponse(200, {"orbit_api_key": "legacy"}))
 
         await client.login()
 
@@ -209,7 +176,7 @@ class TestLogin:
 
     async def test_missing_token_raises_request_error(self) -> None:
         """A response without either field is reported, not a KeyError."""
-        client = client_with_responses(FakeResponse({"user_id": "u1"}))
+        client = client_with_responses(FakeResponse(200, {"user_id": "u1"}))
 
         with pytest.raises(RequestError):
             await client.login()
@@ -217,14 +184,16 @@ class TestLogin:
 
     async def test_rejected_credentials_raise_authentication_error(self) -> None:
         """A 401 from the session endpoint means the credentials are wrong."""
-        client = client_with_responses(FakeResponse(status=401))
+        client = client_with_responses(FakeResponse(401))
 
         with pytest.raises(AuthenticationError):
             await client.login()
 
     async def test_hands_new_token_to_websocket(self) -> None:
         """A running websocket reconnects with the new session token."""
-        client = client_with_responses(FakeResponse({"orbit_session_token": "new"}))
+        client = client_with_responses(
+            FakeResponse(200, {"orbit_session_token": "new"})
+        )
         client._websocket = MagicMock()
         client._websocket.token = "old"
 
@@ -239,9 +208,9 @@ class TestRequestRelogin:
     async def test_relogs_in_and_retries_once(self) -> None:
         """A 401 triggers one login, then the request is retried."""
         client = client_with_responses(
-            FakeResponse(status=401),
-            FakeResponse({"orbit_session_token": "new"}),
-            FakeResponse([{"id": "device-1"}]),
+            FakeResponse(401),
+            FakeResponse(200, {"orbit_session_token": "new"}),
+            FakeResponse(200, [{"id": "device-1"}]),
         )
         client._token = "expired"
 
@@ -255,8 +224,8 @@ class TestRequestRelogin:
     async def test_rejected_credentials_still_raise(self) -> None:
         """If the stored password no longer works, reauth is still needed."""
         client = client_with_responses(
-            FakeResponse(status=401),
-            FakeResponse(status=401),
+            FakeResponse(401),
+            FakeResponse(401),
         )
         client._token = "expired"
 
@@ -265,7 +234,7 @@ class TestRequestRelogin:
 
     async def test_other_errors_do_not_relogin(self) -> None:
         """Only authentication errors log in again."""
-        client = client_with_responses(FakeResponse(status=500))
+        client = client_with_responses(FakeResponse(500))
         client._token = "token"
         client.login = AsyncMock()
 

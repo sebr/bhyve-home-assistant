@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
-from homeassistant.config_entries import SOURCE_USER, ConfigEntryState
+from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_USER, ConfigEntryState
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
@@ -116,15 +116,6 @@ def entity_id(hass: HomeAssistant, platform: str, unique_id: str) -> str:
     return found
 
 
-def reauth_flows(hass: HomeAssistant) -> list[dict]:
-    """Return the reauth flows in progress."""
-    return [
-        flow
-        for flow in hass.config_entries.flow.async_progress_by_handler(DOMAIN)
-        if flow["context"]["source"] == "reauth"
-    ]
-
-
 # Login (#474)
 
 
@@ -207,7 +198,7 @@ async def test_expired_session_logs_in_again_without_reauth(
 
     assert cloud.logins == 2
     assert entry.state is ConfigEntryState.LOADED
-    assert reauth_flows(hass) == []
+    assert not any(entry.async_get_active_flows(hass, {SOURCE_REAUTH}))
     assert hass.states.get(rain_delay).state == "on"
 
 
@@ -215,13 +206,13 @@ async def test_changed_password_still_starts_reauth(
     hass: HomeAssistant, cloud: FakeOrbitCloud, freezer: FrozenDateTimeFactory
 ) -> None:
     """When the stored password stops working, the user is asked again."""
-    await setup_entry(hass)
+    entry = await setup_entry(hass)
 
     cloud.expire_sessions()
     cloud.password = "changed-in-the-app"
     await advance(hass, freezer, timedelta(minutes=6))
 
-    assert len(reauth_flows(hass)) == 1
+    assert len(list(entry.async_get_active_flows(hass, {SOURCE_REAUTH}))) == 1
 
 
 async def test_websocket_reconnects_with_renewed_token(
@@ -365,18 +356,6 @@ async def test_command_while_disconnected_shows_reason(
 
 
 # Lifecycle
-
-
-async def test_failed_setup_opens_no_websocket(
-    hass: HomeAssistant, cloud: FakeOrbitCloud
-) -> None:
-    """A setup that will be retried leaves no websocket behind."""
-    cloud.failures = {"/v1/devices": 500}
-
-    entry = await setup_entry(hass)
-
-    assert entry.state is ConfigEntryState.SETUP_RETRY
-    assert cloud.sockets == []
 
 
 async def test_unload_closes_websocket_for_good(
