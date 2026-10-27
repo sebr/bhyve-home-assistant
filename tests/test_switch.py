@@ -606,6 +606,33 @@ class TestBHyveProgramSwitch:
         assert payload["id"] == TEST_PROGRAM_ID
         assert payload["device_id"] == TEST_DEVICE_ID
 
+    async def test_update_program_config_run_times(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_timer_program: BHyveTimerProgram,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """Test updating run_times (per-zone minutes) overrides that field."""
+        description = create_program_switch_description()
+        switch = BHyveProgramSwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            program=mock_timer_program,
+            description=description,
+        )
+
+        run_times = [{"station": 1, "run_time": 5}, {"station": 5, "run_time": 7}]
+        await switch.async_update_program_config(run_times=run_times)
+
+        mock_coordinator.client.update_program.assert_called_once()
+        program_id, payload = mock_coordinator.client.update_program.call_args[0]
+        assert program_id == TEST_PROGRAM_ID
+        assert payload["run_times"] == run_times
+        # Unchanged fields are preserved
+        assert payload["start_times"] == mock_timer_program["start_times"]
+        assert payload["frequency"] == mock_timer_program["frequency"]
+        assert payload["enabled"] is True
+
     async def test_update_program_config_budget_only(
         self,
         mock_sprinkler_device: BHyveDevice,
