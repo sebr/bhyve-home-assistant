@@ -42,6 +42,17 @@ MOCK_DEVICES = [
 ]
 
 
+def client_whose_devices_raise(err: Exception) -> MagicMock:
+    """Mock a BHyve client whose device list raises err."""
+    client = MagicMock()
+
+    async def devices_property() -> list[dict[str, str]]:
+        raise err
+
+    type(client).devices = property(lambda _: devices_property())
+    return client
+
+
 @pytest.fixture
 def mock_bhyve_client() -> MagicMock:
     """Mock BHyve client."""
@@ -303,6 +314,9 @@ class TestOptionsFlow:
 
         assert result["type"] == data_entry_flow.FlowResultType.FORM
         assert result["step_id"] == "init"
+        # The running client renews its own session; a login here would only
+        # replace the live token.
+        mock_bhyve_client.login.assert_not_awaited()
 
         # Test completing the options flow
         result = await options_flow.async_step_init({CONF_DEVICES: [TEST_DEVICE_ID]})
@@ -312,8 +326,7 @@ class TestOptionsFlow:
 
     async def test_options_flow_auth_error(self, hass: HomeAssistant) -> None:
         """Test options flow with authentication error."""
-        mock_client = MagicMock()
-        mock_client.login = AsyncMock(side_effect=AuthenticationError("Invalid"))
+        mock_client = client_whose_devices_raise(AuthenticationError("Invalid"))
 
         mock_config_entry = MagicMock()
         mock_config_entry.state = "loaded"
@@ -340,8 +353,7 @@ class TestOptionsFlow:
 
     async def test_options_flow_connection_error(self, hass: HomeAssistant) -> None:
         """Test options flow with connection error."""
-        mock_client = MagicMock()
-        mock_client.login = AsyncMock(side_effect=BHyveError("Connection failed"))
+        mock_client = client_whose_devices_raise(BHyveError("Connection failed"))
 
         mock_config_entry = MagicMock()
         mock_config_entry.state = "loaded"

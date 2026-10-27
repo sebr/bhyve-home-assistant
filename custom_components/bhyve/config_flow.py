@@ -171,9 +171,8 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
 
         data = self.hass.data[DOMAIN][self.config_entry.entry_id]
         try:
-            client = data["client"]
-            await client.login()
-            devices = await client.devices
+            # The client logs in again by itself if its session has expired.
+            devices = await data["client"].devices
         except AuthenticationError:
             return self.async_abort(reason="invalid_auth")
         except (BHyveError, TimeoutError):

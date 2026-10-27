@@ -184,6 +184,19 @@ async def test_config_flow_rejects_wrong_password(
 # Session expiry
 
 
+async def test_options_flow_keeps_the_live_session(
+    hass: HomeAssistant, cloud: FakeOrbitCloud
+) -> None:
+    """Opening the options lists devices without logging in again."""
+    entry = await setup_entry(hass)
+    assert cloud.logins == 1
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    assert cloud.logins == 1
+
+
 async def test_expired_session_logs_in_again_without_reauth(
     hass: HomeAssistant, cloud: FakeOrbitCloud, freezer: FrozenDateTimeFactory
 ) -> None:
