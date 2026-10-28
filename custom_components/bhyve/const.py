@@ -9,6 +9,18 @@ MANUFACTURER = "Orbit BHyve"
 
 CONF_CLIENT = "client"
 CONF_DEVICES = "devices"
+# Add devices that are new to the B-hyve account without asking again.
+CONF_AUTO_ADD = "auto_add_devices"
+# Every device id the device picker has offered (selected or not), so a
+# device the user turned off is never auto-added back.
+CONF_KNOWN_DEVICES = "known_devices"
+
+# Marks a status next_start_time this integration computed from the timer's
+# programs because Orbit didn't report one (Gen 2 / Bluetooth hose timers).
+NEXT_START_COMPUTED = "next_start_time_computed"
+# Why a computed next start is missing: timer_off, not_computable (a smart
+# program or a frequency the code doesn't know), no_upcoming_run.
+NEXT_START_MISSING = "next_start_time_missing"
 
 DEVICE_BRIDGE = "bridge"
 DEVICE_SPRINKLER = "sprinkler_timer"

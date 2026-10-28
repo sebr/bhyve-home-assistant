@@ -1,0 +1,580 @@
+[
+ {
+  "last_connected_at": "2026-10-28T11:25:29.412Z",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "0095",
+  "name": "Hub 1",
+  "type": "bridge",
+  "network_interface": "wifi",
+  "updated_at": "2026-10-28T11:25:29.412Z",
+  "mesh_id": "net-12",
+  "status": {
+   "status_updated_at": "2026-10-28T11:25:29.412Z",
+   "rain_delay": 0,
+   "run_mode": "auto",
+   "watering_status": null
+  },
+  "wifi_version": 83953152,
+  "id": "hub-01",
+  "num_stations": 0,
+  "device_gateway_topic": "devices-10",
+  "hardware_version": "BH1-0001",
+  "is_connected": true,
+  "created_at": "2025-03-15T16:12:40.693Z",
+  "mac_address": "aabbcc000001"
+ },
+ {
+  "last_connected_at": "2026-10-28T11:26:13.932Z",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "0095",
+  "name": "Hub 2",
+  "type": "bridge",
+  "network_interface": "wifi",
+  "updated_at": "2026-10-28T11:26:13.933Z",
+  "mesh_id": "net-13",
+  "status": {
+   "status_updated_at": "2026-10-28T11:26:13.932Z",
+   "rain_delay": 0,
+   "run_mode": "auto",
+   "watering_status": null
+  },
+  "wifi_version": 83953152,
+  "id": "hub-02",
+  "num_stations": 0,
+  "device_gateway_topic": "devices-12",
+  "hardware_version": "BH1-0001",
+  "is_connected": true,
+  "created_at": "2025-04-06T21:39:49.915Z",
+  "mac_address": "aabbcc000002"
+ },
+ {
+  "last_connected_at": "2026-10-28T11:25:39.277Z",
+  "water_sense_mode": "off",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "0085",
+  "name": "Patio",
+  "type": "sprinkler_timer",
+  "battery": {
+   "percent": 80,
+   "charging": false,
+   "mv": 2884
+  },
+  "restricted_frequency": null,
+  "updated_at": "2026-10-28T14:35:08.494Z",
+  "mesh_id": "net-12",
+  "status": {
+   "run_mode": "auto",
+   "next_start_programs": [
+    "a"
+   ],
+   "rain_delay_overridden_at": "2025-04-21T18:47:17.519Z",
+   "watering_statuses": [],
+   "watering_status": {
+    "clear_on_idle": true
+   },
+   "rain_delay_suggested_at": "2026-10-28T13:24:32.270Z",
+   "rain_delay": 0,
+   "last_battery_alarm_at": "2026-09-13T15:34:54.500Z",
+   "status_updated_at": "2026-10-28T14:35:08.484Z",
+   "next_start_time": "2026-10-29T03:00:00-07:00",
+   "rain_delay_started_at": "2026-10-28T14:31:57.000Z"
+  },
+  "id": "timer-patio-03",
+  "num_stations": 1,
+  "zones": [
+   {
+    "station": 1,
+    "catch_cup_volumes": [],
+    "catch_cup_run_time": 0,
+    "smart_watering_enabled": false,
+    "num_sprinklers": 0
+   }
+  ],
+  "is_husqvarna_water": false,
+  "google_home_status": null,
+  "device_gateway_topic": "devices-10",
+  "smart_watering_enabled": true,
+  "hardware_version": "HT25-0000",
+  "is_connected": true,
+  "created_at": "2025-04-06T21:54:03.548Z",
+  "suggested_start_time": null,
+  "mac_address": "aabbcc000003"
+ },
+ {
+  "last_connected_at": "2026-10-28T11:25:27.356Z",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "0095",
+  "name": "Hub 3",
+  "type": "bridge",
+  "network_interface": "wifi",
+  "updated_at": "2026-10-28T11:25:27.356Z",
+  "mesh_id": "net-14",
+  "status": {
+   "status_updated_at": "2026-10-28T11:25:27.356Z",
+   "rain_delay": 0,
+   "run_mode": "auto",
+   "watering_status": null
+  },
+  "wifi_version": 83953152,
+  "id": "hub-04",
+  "num_stations": 0,
+  "device_gateway_topic": "devices-9",
+  "hardware_version": "BH1-0001",
+  "is_connected": true,
+  "created_at": "2025-04-17T00:05:30.896Z",
+  "mac_address": "aabbcc000004"
+ },
+ {
+  "last_connected_at": "2026-10-28T11:26:19.175Z",
+  "water_sense_mode": "auto",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "0085",
+  "name": "Side Yard",
+  "type": "sprinkler_timer",
+  "battery": {
+   "percent": 75,
+   "charging": false,
+   "mv": 2853
+  },
+  "restricted_frequency": null,
+  "weather_delay_thresholds": {
+   "precip_prob": 30,
+   "precip_in": 0.125,
+   "wind_speed_mph": 20,
+   "freeze_temp_f": 37
+  },
+  "updated_at": "2026-10-28T16:00:41.656Z",
+  "mesh_id": "net-13",
+  "status": {
+   "run_mode": "auto",
+   "next_start_programs": [
+    "a"
+   ],
+   "rain_delay_overridden_at": "2026-05-12T22:53:54.226Z",
+   "watering_statuses": [],
+   "watering_status": null,
+   "rain_delay": 22,
+   "last_battery_alarm_at": "2026-09-11T18:58:24.341Z",
+   "status_updated_at": "2026-10-28T16:00:41.644Z",
+   "rain_delay_cause": "auto",
+   "next_start_time": "2026-10-28T21:00:00-07:00",
+   "rain_delay_weather_type": "rain",
+   "rain_delay_started_at": "2026-10-28T16:00:00.000Z"
+  },
+  "id": "timer-side-yard-05",
+  "num_stations": 1,
+  "zones": [
+   {
+    "station": 1,
+    "catch_cup_volumes": [],
+    "flow_data": {
+     "cycle_run_time_sec": 25,
+     "flow_rate_gpm": 5.961302857142856,
+     "cycle_volume_gal": 2.2347300000000003,
+     "high_flow_threshold_gpm": 6.855498285714285,
+     "low_flow_threshold_gpm": 5.067107428571427
+    },
+    "catch_cup_run_time": 0,
+    "smart_watering_enabled": false,
+    "num_sprinklers": 0
+   }
+  ],
+  "is_husqvarna_water": false,
+  "google_home_status": null,
+  "device_gateway_topic": "devices-12",
+  "smart_watering_enabled": true,
+  "hardware_version": "HT25-0000",
+  "is_connected": true,
+  "created_at": "2025-04-17T00:15:23.467Z",
+  "suggested_start_time": null,
+  "mac_address": "aabbcc000005"
+ },
+ {
+  "last_connected_at": "2026-10-28T11:25:34.115Z",
+  "water_sense_mode": "off",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "0085",
+  "name": "Back Yard",
+  "type": "sprinkler_timer",
+  "battery": {
+   "percent": 77,
+   "charging": false,
+   "mv": 2862
+  },
+  "restricted_frequency": null,
+  "updated_at": "2026-10-28T14:10:02.348Z",
+  "mesh_id": "net-14",
+  "status": {
+   "run_mode": "auto",
+   "next_start_programs": [
+    "a"
+   ],
+   "watering_statuses": [],
+   "watering_status": {
+    "clear_on_idle": true
+   },
+   "rain_delay_suggested_at": "2026-10-27T16:15:46.994Z",
+   "rain_delay": 0,
+   "status_updated_at": "2026-10-28T14:10:02.333Z",
+   "next_start_time": "2026-10-30T00:00:00-07:00",
+   "rain_delay_started_at": "2026-10-28T14:09:12.000Z"
+  },
+  "id": "timer-back-yard-06",
+  "num_stations": 1,
+  "zones": [
+   {
+    "station": 1,
+    "end-date": "2025-04-16T17:30:13.659-07:00",
+    "num_sprinklers": 0,
+    "status": "success",
+    "catch_cup_volumes": [],
+    "added-at": 1744849806134,
+    "catch_cup_run_time": 0,
+    "smart_watering_enabled": false,
+    "start-date": "2025-04-17T00:30:13.659Z",
+    "run_time": 0,
+    "flow_data": {
+     "cycle_run_time_sec": 25,
+     "flow_rate_gpm": 2.0543974999999994,
+     "cycle_volume_gal": 0.9185700000000001,
+     "high_flow_threshold_gpm": 2.3625571249999995,
+     "low_flow_threshold_gpm": 1.7462378749999996
+    }
+   }
+  ],
+  "is_husqvarna_water": false,
+  "google_home_status": null,
+  "device_gateway_topic": "devices-9",
+  "smart_watering_enabled": true,
+  "hardware_version": "HT25-0000",
+  "is_connected": true,
+  "created_at": "2025-04-17T00:29:19.107Z",
+  "suggested_start_time": null,
+  "mac_address": "aabbcc000006"
+ },
+ {
+  "last_connected_at": "2026-10-28T11:25:28.090Z",
+  "water_sense_mode": "auto",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "0085",
+  "name": "Front Yard",
+  "type": "sprinkler_timer",
+  "battery": {
+   "percent": 81,
+   "charging": false,
+   "mv": 2887
+  },
+  "restricted_frequency": null,
+  "weather_delay_thresholds": {
+   "precip_prob": 30,
+   "precip_in": 0.125,
+   "wind_speed_mph": 20,
+   "freeze_temp_f": 32
+  },
+  "updated_at": "2026-10-28T14:09:59.991Z",
+  "mesh_id": "net-14",
+  "status": {
+   "run_mode": "auto",
+   "next_start_programs": [
+    "a"
+   ],
+   "rain_delay_overridden_at": "2026-05-12T22:54:20.295Z",
+   "watering_statuses": [],
+   "watering_status": null,
+   "rain_delay": 24,
+   "last_battery_alarm_at": "2026-05-12T23:48:10.409Z",
+   "status_updated_at": "2026-10-28T14:09:59.981Z",
+   "rain_delay_cause": "auto",
+   "next_start_time": "2026-10-28T01:00:00-07:00",
+   "rain_delay_weather_type": "rain",
+   "rain_delay_started_at": "2026-10-28T14:09:10.000Z"
+  },
+  "id": "timer-front-yard-07",
+  "num_stations": 1,
+  "zones": [
+   {
+    "station": 1,
+    "end-date": "2025-04-26T08:28:22.882-07:00",
+    "num_sprinklers": 0,
+    "status": "success",
+    "catch_cup_volumes": [],
+    "added-at": 1745681290188,
+    "catch_cup_run_time": 0,
+    "smart_watering_enabled": false,
+    "device_id": "timer-front-yard-07",
+    "start-date": "2025-04-26T15:28:22.882Z",
+    "run_time": 0,
+    "flow_data": {
+     "cycle_run_time_sec": 25,
+     "flow_rate_gpm": 2.9714675,
+     "cycle_volume_gal": 1.11965,
+     "high_flow_threshold_gpm": 3.4171876250000004,
+     "low_flow_threshold_gpm": 2.525747375
+    }
+   }
+  ],
+  "is_husqvarna_water": false,
+  "google_home_status": null,
+  "device_gateway_topic": "devices-9",
+  "smart_watering_enabled": true,
+  "hardware_version": "HT25-0000",
+  "is_connected": true,
+  "created_at": "2025-04-26T15:26:45.782Z",
+  "suggested_start_time": null,
+  "mac_address": "aabbcc000007"
+ },
+ {
+  "last_connected_at": "2026-10-28T11:25:33.961Z",
+  "water_sense_mode": "off",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "0085",
+  "name": "Vegetable Garden",
+  "type": "sprinkler_timer",
+  "battery": {
+   "percent": 100,
+   "charging": false,
+   "mv": 3149
+  },
+  "restricted_frequency": null,
+  "weather_delay_thresholds": {
+   "precip_prob": 30,
+   "precip_in": 0.125,
+   "wind_speed_mph": 20,
+   "freeze_temp_f": 32
+  },
+  "updated_at": "2026-10-28T14:55:34.804Z",
+  "mesh_id": "net-12",
+  "status": {
+   "run_mode": "auto",
+   "next_start_programs": [
+    "a"
+   ],
+   "watering_statuses": [],
+   "watering_status": null,
+   "rain_delay_suggested_at": "2026-10-28T13:23:53.032Z",
+   "rain_delay": 0,
+   "last_battery_alarm_at": "2026-10-11T20:55:41.926Z",
+   "status_updated_at": "2026-10-28T14:55:34.804Z",
+   "next_start_time": "2026-10-30T04:00:00-07:00",
+   "rain_delay_started_at": "2026-10-28T14:32:01.000Z"
+  },
+  "id": "timer-vegetable-garden-08",
+  "num_stations": 1,
+  "zones": [
+   {
+    "station": 1,
+    "end-date": "2025-05-07T13:48:55.946-07:00",
+    "num_sprinklers": 0,
+    "status": "success",
+    "catch_cup_volumes": [],
+    "added-at": 1746650905754,
+    "catch_cup_run_time": 0,
+    "smart_watering_enabled": false,
+    "device_id": "timer-vegetable-garden-08",
+    "start-date": "2025-05-07T20:48:25.946Z",
+    "run_time": 0.5,
+    "flow_data": {
+     "cycle_run_time_sec": 25,
+     "flow_rate_gpm": 4.096076581769904,
+     "cycle_volume_gal": 1.4303974799999999,
+     "high_flow_threshold_gpm": 4.71048806903539,
+     "low_flow_threshold_gpm": 3.4816650945044185
+    }
+   }
+  ],
+  "is_husqvarna_water": false,
+  "google_home_status": null,
+  "device_gateway_topic": "devices-10",
+  "smart_watering_enabled": true,
+  "hardware_version": "HT25-0000",
+  "is_connected": true,
+  "created_at": "2025-05-07T20:42:28.723Z",
+  "suggested_start_time": null,
+  "mac_address": "aabbcc000008"
+ },
+ {
+  "last_connected_at": "2026-10-28T16:31:48.948Z",
+  "water_sense_mode": "auto",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "98",
+  "name": "Hedge",
+  "type": "sprinkler_timer",
+  "battery": {
+   "percent": 43,
+   "charging": false,
+   "mv": 2658
+  },
+  "restricted_frequency": null,
+  "updated_at": "2026-10-28T16:31:49.503Z",
+  "status": {
+   "run_mode": "auto",
+   "rssi": -90,
+   "provisioned": true,
+   "watering_statuses": [],
+   "phy": "le_coded_s8_125",
+   "watering_status": {
+    "clear_on_idle": true
+   },
+   "rain_delay": 0,
+   "status_updated_at": "2026-10-28T16:31:49.491Z",
+   "rain_delay_started_at": "2026-10-28T16:31:48.000Z"
+  },
+  "id": "timer-hedge-09",
+  "num_stations": 1,
+  "zones": [
+   {
+    "station": 1,
+    "catch_cup_volumes": [],
+    "catch_cup_run_time": 0,
+    "smart_watering_enabled": false,
+    "num_sprinklers": 0
+   }
+  ],
+  "is_husqvarna_water": false,
+  "google_home_status": null,
+  "device_gateway_topic": "devices-8",
+  "smart_watering_enabled": true,
+  "hardware_version": "HT25A-0001",
+  "is_connected": true,
+  "created_at": "2026-05-11T23:33:13.528Z",
+  "suggested_start_time": null,
+  "network_topology_id": "net-15",
+  "mac_address": "aabbcc000009"
+ },
+ {
+  "last_connected_at": "2026-10-28T11:25:32.140Z",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "0096",
+  "name": "Gen 2 Hub",
+  "type": "bridge",
+  "network_interface": "wifi",
+  "updated_at": "2026-10-28T11:25:32.140Z",
+  "status": {
+   "status_updated_at": "2026-10-28T11:25:32.140Z",
+   "run_mode": "auto",
+   "watering_status": null,
+   "rain_delay": 0
+  },
+  "wifi_version": 83953152,
+  "id": "hub-gen2-10",
+  "num_stations": 0,
+  "device_gateway_topic": "devices-8",
+  "hardware_version": "BH1G2-0002",
+  "is_connected": true,
+  "created_at": "2026-05-24T03:37:24.251Z",
+  "network_topology_id": "net-15",
+  "mac_address": "aabbcc00000a"
+ },
+ {
+  "last_connected_at": "2026-10-28T16:15:58.212Z",
+  "water_sense_mode": "auto",
+  "timezone": {
+   "dst_offset": 3600,
+   "raw_offset": -28800,
+   "timezone_id": "America/Los_Angeles",
+   "timezone_name": "Pacific Daylight Time"
+  },
+  "firmware_version": "98",
+  "name": "Flower Bed",
+  "type": "sprinkler_timer",
+  "battery": {
+   "percent": 76,
+   "mv": 2860
+  },
+  "restricted_frequency": null,
+  "weather_delay_thresholds": {
+   "precip_prob": 30,
+   "precip_in": 0.125,
+   "wind_speed_mph": 20,
+   "freeze_temp_f": 37
+  },
+  "updated_at": "2026-10-28T16:28:50.588Z",
+  "status": {
+   "run_mode": "auto",
+   "rssi": -94,
+   "provisioned": true,
+   "watering_statuses": [],
+   "phy": "le_coded_s8_125",
+   "watering_status": {
+    "clear_on_idle": true
+   },
+   "rain_delay": 0,
+   "status_updated_at": "2026-10-28T16:28:50.588Z",
+   "flow_sensor": {
+    "flow_rate_gpm": 0.0
+   },
+   "rain_delay_started_at": "2026-10-28T16:15:57.000Z"
+  },
+  "id": "timer-flower-bed-11",
+  "num_stations": 1,
+  "zones": [
+   {
+    "station": 1,
+    "catch_cup_volumes": [],
+    "catch_cup_run_time": 0,
+    "smart_watering_enabled": false,
+    "num_sprinklers": 0
+   }
+  ],
+  "is_husqvarna_water": false,
+  "google_home_status": null,
+  "device_gateway_topic": "devices-8",
+  "smart_watering_enabled": true,
+  "hardware_version": "HT25A-0001",
+  "is_connected": true,
+  "created_at": "2026-10-11T19:02:53.401Z",
+  "suggested_start_time": null,
+  "network_topology_id": "net-15",
+  "mac_address": "aabbcc00000b"
+ }
+]

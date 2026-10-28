@@ -13,9 +13,13 @@
     "step": {
       "device": {
         "data": {
-          "devices": "Devices"
+          "devices": "Devices",
+          "auto_add_devices": "Add new B-hyve devices automatically"
         },
-        "title": "Select Devices"
+        "title": "Select Devices",
+        "data_description": {
+          "auto_add_devices": "Timers added to your B-hyve account later appear in Home Assistant on their own. Devices you untick here stay off."
+        }
       },
       "reauth": {
         "data": {
@@ -41,9 +45,13 @@
     "step": {
       "init": {
         "data": {
-          "devices": "Devices"
+          "devices": "Devices",
+          "auto_add_devices": "Add new B-hyve devices automatically"
         },
-        "title": "Select Devices"
+        "title": "Select Devices",
+        "data_description": {
+          "auto_add_devices": "Timers added to your B-hyve account later appear in Home Assistant on their own. Devices you untick here stay off."
+        }
       }
     }
   },

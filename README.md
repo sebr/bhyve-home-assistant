@@ -20,6 +20,7 @@ The following controllers have been verified as compatible with this integration
 - [Orbit 57925 B-hyve Smart 8-Zone Indoor-Mount Sprinkler Controller](https://www.amazon.com/dp/B07DJ628XH).
 - [Orbit 57995 B-hyve XR](https://www.amazon.com/Orbit-57995-16-Zone-Sprinkler-Controller/dp/B08J2C3FL5).
 - [Orbit B-hyve XD](https://www.amazon.com/Orbit-24516-B-hyve-Smart-Watering/dp/B09KKFLN1D/) (with the Gen 2 Wifi hub).
+- Orbit B-hyve Gen 2 hose timer (hardware `HT25A-0001`, e.g. 90205Z) with the Gen 2 Wi-Fi hub (`BH1G2`). These timers don't report a next watering time; see [Device Next Watering sensor](#device-next-watering-sensor).
 
 _Note_: The Wifi hub is required to provide the faucet controllers with internet connectivity.
 
@@ -57,6 +58,8 @@ If you do not wish to use HACS, then please download the latest version from the
 2. Click `+ Add Integration`
 3. Search for `Orbit B-hyve`
 4. Complete the guided configuration
+
+Devices added to your B-hyve account later (for example a new Gen 2 hose timer paired with an existing hub) are added automatically while **Add new B-hyve devices automatically** is on (the default). Devices you untick in the integration's options stay off. Entries set up before this option existed keep their device selection until their options are saved once (Settings > Devices & Services > Orbit B-hyve > Configure).
 
 <img width="450" alt="Configure B-hyve from Home Assistant" src="https://user-images.githubusercontent.com/81972/177079633-672ef7be-3b20-4350-bc46-9dc6cd9c8e19.png">
 
@@ -105,6 +108,8 @@ The following attributes are set on next watering sensor entities:
 | Attribute  | Type           | Notes                                                          |
 | ---------- | -------------- | -------------------------------------------------------------- |
 | `programs` | `list[string]` | The programs scheduled to run at this time, if any.            |
+| `computed_from_program` | `bool` | Set for timers that don't report a next watering (Gen 2 hose timers): the time is computed from the timer's enabled, non-smart programs on the timer's own clock. |
+| `next_watering_unavailable` | `string` | With `computed_from_program`, why there is no time: `timer_off`, `rain_delay`, `no_upcoming_run`, `not_computable` (a smart program or an unknown frequency), or `past` (a run just started; the next poll computes the one after). |
 
 ### Temperature sensor
 

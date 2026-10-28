@@ -32,6 +32,7 @@ from .util import (
     next_watering_time,
     orbit_time_to_local_time,
     orbit_timestamp_now,
+    watering_in_progress,
 )
 
 if TYPE_CHECKING:
@@ -324,7 +325,8 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         status = self.device_data.get("status", {})
         watering_status = status.get("watering_status")
 
-        if watering_status:
+        # Gen 2 timers report {"clear_on_idle": true} while idle.
+        if watering_in_progress(status):
             current_station = watering_status.get("current_station")
             # Valve is open (watering) if current_station matches this zone
             return str(current_station) != str(self._zone_id)

@@ -22,8 +22,10 @@ from .const import (
     DEVICE_FLOOD,
     DEVICE_SPRINKLER,
     DOMAIN,
+    NEXT_START_COMPUTED,
+    NEXT_START_MISSING,
 )
-from .util import next_watering_time, orbit_time_to_local_time
+from .util import next_watering_time, orbit_time_to_local_time, rain_delay_active
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -47,6 +49,32 @@ ATTR_RUN_TIME = "run_time"
 ATTR_NEXT_START_PROGRAMS = "programs"
 ATTR_START_TIME = "start_time"
 ATTR_STATUS = "status"
+ATTR_COMPUTED_FROM_PROGRAM = "computed_from_program"
+ATTR_NEXT_WATERING_UNAVAILABLE = "next_watering_unavailable"
+
+
+def _next_watering_attributes(data: dict) -> dict[str, Any]:
+    """
+    Programs starting next; whether the time is computed from the programs.
+
+    computed_from_program stays set while no time could be computed, so an
+    unknown state isn't read as the timer reporting nothing due, and
+    next_watering_unavailable says why: timer_off, not_computable,
+    no_upcoming_run, rain_delay, or past (a run just started; the next poll
+    computes the one after).
+    """
+    status = data.get("status", {})
+    attrs: dict[str, Any] = {}
+    upcoming = next_watering_time(status)
+    if upcoming is not None and (programs := status.get("next_start_programs")):
+        attrs[ATTR_NEXT_START_PROGRAMS] = programs
+    if status.get(NEXT_START_COMPUTED):
+        attrs[ATTR_COMPUTED_FROM_PROGRAM] = True
+        if upcoming is None:
+            attrs[ATTR_NEXT_WATERING_UNAVAILABLE] = status.get(NEXT_START_MISSING) or (
+                "rain_delay" if rain_delay_active(status) else "past"
+            )
+    return attrs
 
 
 def _parse_battery_level(battery_data: dict) -> int:
@@ -112,12 +140,7 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:sprinkler-variant",
         value_fn=lambda data: next_watering_time(data.get("status", {})),
-        attributes_fn=lambda data: (
-            {ATTR_NEXT_START_PROGRAMS: programs}
-            if next_watering_time(status := data.get("status", {})) is not None
-            and (programs := status.get("next_start_programs"))
-            else {}
-        ),
+        attributes_fn=_next_watering_attributes,
     ),
 )
 

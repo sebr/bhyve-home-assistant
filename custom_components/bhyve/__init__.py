@@ -20,7 +20,11 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
+from homeassistant.helpers.device_registry import (
+    CONNECTION_NETWORK_MAC,
+    DeviceEntry,
+    DeviceInfo,
+)
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
@@ -36,7 +40,11 @@ from .const import (
 from .coordinator import BHyveDataUpdateCoordinator
 from .pybhyve import BHyveClient
 from .pybhyve.errors import AuthenticationError, BHyveError
-from .util import filter_configured_devices
+from .util import (
+    filter_configured_devices,
+    new_leaf_device_ids,
+    options_with_new_devices,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,6 +89,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         programs = await client.timer_programs
     except (BHyveError, TimeoutError) as err:
         raise ConfigEntryNotReady(err) from err
+
+    _select_new_devices(hass, entry, all_devices)
     devices = filter_configured_devices(entry, all_devices)
 
     # Remove any leaf devices that are no longer selected in options from the
@@ -144,6 +154,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+def _select_new_devices(
+    hass: HomeAssistant, entry: ConfigEntry, all_devices: list[BHyveDevice]
+) -> None:
+    """
+    Select devices added to the B-hyve account since the options were saved.
+
+    Gen 2 timers paired after setup were never offered, so never showed up.
+    """
+    if new_ids := new_leaf_device_ids(entry.options, all_devices):
+        _LOGGER.info("Adding devices new to the B-hyve account: %s", new_ids)
+        hass.config_entries.async_update_entry(
+            entry, options=options_with_new_devices(entry.options, new_ids)
+        )
+
+
 async def remove_devices_from_registry(
     hass: HomeAssistant, entry_id: str, device_ids: set[str]
 ) -> None:
@@ -159,6 +184,20 @@ async def remove_devices_from_registry(
             device_registry.async_remove_device(device.id)
         except HomeAssistantError:
             _LOGGER.exception("Failed to remove device %s from registry", device.id)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: DeviceEntry
+) -> bool:
+    """Allow deleting a device the B-hyve account no longer has."""
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("coordinator")
+    if coordinator is None or not coordinator.data:
+        return False
+    in_account = set(coordinator.data.get("devices", {}))
+    return not any(
+        domain == DOMAIN and device_id in in_account
+        for domain, device_id in device_entry.identifiers
+    )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
