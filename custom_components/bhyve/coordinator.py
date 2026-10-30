@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DEVICE_SPRINKLER,
@@ -27,6 +29,7 @@ from .const import (
     MODE_OFF,
 )
 from .pybhyve.errors import AuthenticationError, BHyveError
+from .util import orbit_time_to_local_time
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -36,6 +39,22 @@ if TYPE_CHECKING:
     from .pybhyve.typings import BHyveDevice
 
 _LOGGER = logging.getLogger(__name__)
+
+# Orbit's start for a delay can be a second or two before the event's own
+# timestamp; within this, a polled start counts as the same delay.
+RAIN_DELAY_START_TOLERANCE = timedelta(minutes=1)
+# Longest a rain_delay event overrides polled data, in case Orbit's start
+# never moves past the event's (for example after a cancellation).
+RAIN_DELAY_EVENT_MAX_AGE = timedelta(minutes=30)
+
+
+@dataclass(frozen=True)
+class _RainDelayEvent:
+    """The latest rain_delay event seen for a device."""
+
+    delay: float
+    started: str
+    received: datetime
 
 
 class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
@@ -63,6 +82,8 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         # Device id -> its mode (auto/off) before a watering switched it to
         # manual, so the mode can be restored when the watering ends.
         self._resume_modes: dict[str, str] = {}
+        # Device id -> the latest rain_delay event, kept until a poll catches up.
+        self._rain_delay_events: dict[str, _RainDelayEvent] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API (periodic polling)."""
@@ -95,6 +116,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                     continue
                 device_id = result["device"]["id"]
                 self._reconcile_polled_mode(device_id, result["device"])
+                self._reconcile_polled_rain_delay(device_id, result["device"])
                 data["devices"][device_id] = result
 
             for program in programs:
@@ -283,6 +305,63 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         }
         status["run_mode"] = event_data.get("mode", MODE_MANUAL)
 
+    def _apply_rain_delay(
+        self, device_id: str, device_data: dict[str, Any], event_data: dict[str, Any]
+    ) -> None:
+        """
+        Apply a rain_delay event to device state.
+
+        Orbit re-sends a delay with the hours left, so the delay runs from this
+        event, not from an earlier delay's start; without recording that, the
+        start would be stale. The event is also kept, so a poll that lands
+        before Orbit's REST data catches up cannot undo it.
+        """
+        status = device_data.setdefault("status", {})
+        delay = event_data.get("delay", 0)
+        started = event_data.get("timestamp")
+        if not isinstance(started, str) or orbit_time_to_local_time(started) is None:
+            started = dt_util.utcnow().isoformat()
+        status["rain_delay"] = delay
+        if delay:
+            status["rain_delay_started_at"] = started
+        self._rain_delay_events[device_id] = _RainDelayEvent(
+            delay=delay, started=started, received=dt_util.utcnow()
+        )
+
+    def _reconcile_polled_rain_delay(
+        self, device_id: str, device: dict[str, Any]
+    ) -> None:
+        """
+        Keep the latest rain_delay event over a poll that is older than it.
+
+        Orbit's REST data runs minutes behind its events. A poll whose
+        rain_delay_started_at is older than the event's start is stale, so the
+        event's delay (and start) is kept. Once a poll reports a start as
+        recent as the event's, or the event is old, the poll is trusted again.
+        """
+        event = self._rain_delay_events.get(device_id)
+        if event is None:
+            return
+        if dt_util.utcnow() - event.received > RAIN_DELAY_EVENT_MAX_AGE:
+            del self._rain_delay_events[device_id]
+            return
+        status = device.get("status")
+        if not isinstance(status, dict):
+            return
+        polled_start = orbit_time_to_local_time(status.get("rain_delay_started_at"))
+        event_start = orbit_time_to_local_time(event.started)
+        if (
+            polled_start is not None
+            and event_start is not None
+            and polled_start >= event_start - RAIN_DELAY_START_TOLERANCE
+        ):
+            # The poll has caught up with the event.
+            del self._rain_delay_events[device_id]
+            return
+        status["rain_delay"] = event.delay
+        if event.delay:
+            status["rain_delay_started_at"] = event.started
+
     async def async_handle_device_event(self, event_data: dict[str, Any]) -> None:  # noqa: PLR0912
         """Handle WebSocket device events."""
         if not self.data:
@@ -324,10 +403,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             self._apply_watering_in_progress(device_data, event_data)
 
         elif event == EVENT_RAIN_DELAY:
-            # Update rain delay info
-            if "status" not in device_data:
-                device_data["status"] = {}
-            device_data["status"]["rain_delay"] = event_data.get("delay", 0)
+            self._apply_rain_delay(device_id, device_data, event_data)
 
         elif event == EVENT_FAULT:
             # Update station fault information
