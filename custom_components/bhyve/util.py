@@ -1,7 +1,6 @@
 """Utility functions for the BHyve integration."""
 
-import math
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.util import dt
@@ -13,42 +12,9 @@ from .const import CONF_DEVICES, DEVICE_BRIDGE
 _NEXT_WATERING_SENTINEL_YEAR = 2100
 
 
-def rain_delay_end(status: dict) -> datetime | None:
-    """
-    Return when the device's rain delay ends, or None if none is set or unknown.
-
-    Orbit reports the delay as a length in hours (rain_delay) counted from
-    rain_delay_started_at, not as the hours remaining, and moves the start
-    forward when it re-evaluates a weather delay (#447).
-    """
-    hours = status.get("rain_delay") or 0
-    if not isinstance(hours, int | float) or hours <= 0:
-        return None
-    started = orbit_time_to_local_time(status.get("rain_delay_started_at"))
-    if started is None:
-        return None
-    return started + timedelta(hours=hours)
-
-
 def rain_delay_active(status: dict) -> bool:
-    """
-    Return True when the device status has a rain delay in force.
-
-    A delay whose end time has passed is over even if Orbit still reports
-    it; its cloud data is not always refreshed when a delay runs out (#447).
-    """
-    if not (status.get("rain_delay") or 0) > 0:
-        return False
-    end = rain_delay_end(status)
-    return end is None or end > dt.now()
-
-
-def rain_delay_remaining_hours(status: dict) -> int | None:
-    """Return the whole hours left in an active rain delay, rounded up."""
-    end = rain_delay_end(status)
-    if end is None or not rain_delay_active(status):
-        return None
-    return math.ceil((end - dt.now()).total_seconds() / 3600)
+    """Return True when the device status has a rain delay in force."""
+    return (status.get("rain_delay") or 0) > 0
 
 
 def next_watering_time(status: dict) -> datetime | None:

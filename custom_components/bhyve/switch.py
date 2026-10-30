@@ -27,13 +27,7 @@ from .const import (
 )
 from .pybhyve.errors import BHyveError
 from .pybhyve.typings import BHyveTimerProgram
-from .util import (
-    orbit_time_to_local_time,
-    orbit_timestamp_now,
-    rain_delay_active,
-    rain_delay_end,
-    rain_delay_remaining_hours,
-)
+from .util import orbit_time_to_local_time, orbit_timestamp_now, rain_delay_active
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -50,8 +44,6 @@ ATTR_CAUSE = "cause"
 ATTR_DELAY = "delay"
 ATTR_WEATHER_TYPE = "weather_type"
 ATTR_STARTED_AT = "started_at"
-ATTR_ENDS_AT = "ends_at"
-ATTR_REMAINING_HOURS = "remaining_hours"
 
 # Keys accepted by the B-hyve API for program updates
 PROGRAM_UPDATE_KEYS = {
@@ -553,10 +545,6 @@ class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):
                     ATTR_STARTED_AT: orbit_time_to_local_time(
                         status.get("rain_delay_started_at", "")
                     ),
-                    # `delay` is the delay's length from started_at, not the
-                    # time left; these say when it actually ends (#447).
-                    ATTR_ENDS_AT: rain_delay_end(status),
-                    ATTR_REMAINING_HOURS: rain_delay_remaining_hours(status),
                 }
             )
             return attrs
