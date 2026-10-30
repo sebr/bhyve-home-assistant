@@ -26,6 +26,12 @@ STATE_STOPPED = "stopped"
 RECONNECT_DELAY = 5
 MAX_RECONNECT_DELAY = 300
 
+# Protocol-level ping interval, in seconds. aiohttp closes the connection when
+# no pong arrives within half of it, so a connection that silently died is
+# noticed and reconnected. The app-level {"event": "ping"} keeps the session
+# alive but nothing checks for a reply, so it cannot detect a dead connection.
+WS_HEARTBEAT = 30
+
 HTTP_SERVER_ERROR_MIN = 500
 HTTP_SERVER_ERROR_MAX = 600
 
@@ -90,11 +96,13 @@ class OrbitWebsocket:
         if self._ws is not None and not self._ws.closed:
             try:
                 await self._ws.send_str(json.dumps({"event": "ping"}))
-                self._reset_heartbeat()
             except ConnectionResetError:
                 _LOGGER.debug("Connection reset while sending ping")
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Error sending ping: %s", err)
+            # Keep pinging while the connection is open, even after a failed send.
+            if not self._ws.closed:
+                self._reset_heartbeat()
 
     @property
     def state(self) -> str:
@@ -125,6 +133,7 @@ class OrbitWebsocket:
                     self._url,
                     origin=WEB_HOST,
                     headers={"User-Agent": _USER_AGENT},
+                    heartbeat=WS_HEARTBEAT,
                 ) as self._ws:
                     _LOGGER.info("Authenticating websocket")
                     await self._ws.send_str(
@@ -150,9 +159,13 @@ class OrbitWebsocket:
                             break
 
                         msg = await self._ws.receive()
-                        self._reset_heartbeat()
 
+                        # aiohttp answers protocol pings itself (autoping), so
+                        # receive() never returns them.
                         if msg.type == WSMsgType.TEXT:
+                            # Only traffic postpones the keepalive. Re-arming it on
+                            # a close or error left a timer behind after stop().
+                            self._reset_heartbeat()
                             data = json.loads(msg.data)
                             log_data = data
                             if (
@@ -174,9 +187,6 @@ class OrbitWebsocket:
                             # discard when finished so it can be garbage collected
                             background_tasks.add(task)
                             task.add_done_callback(background_tasks.discard)
-
-                        elif msg.type == WSMsgType.PING:
-                            await self._ws.pong()
 
                         elif msg.type == WSMsgType.CLOSE:
                             _LOGGER.debug("Websocket received CLOSE message, ignoring")

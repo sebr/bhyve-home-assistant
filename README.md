@@ -187,12 +187,29 @@ Enabling the switch will set a 24 hour rain delay on the device &mdash; for a cu
 
 The following attributes are set on `switch.*_rain_delay` entities, if the sensor is on:
 
-| Attribute      | Type     | Notes                                                                                     |
-| -------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `cause`        | `string` | Why a delay was put in place. Values seen: `auto`. May be empty.                          |
-| `delay`        | `number` | The number of hours the delay is in place. NB: This is hours from `started_at` attribute. |
-| `weather_type` | `string` | The reported cause of the weather delay. Values seen: `wind`, `rain`. May be empty.       |
-| `started_at`   | `string` | The timestamp the delay was put in place.                                                 |
+| Attribute      | Type     | Notes                                                                               |
+| -------------- | -------- | ----------------------------------------------------------------------------------- |
+| `cause`        | `string` | Why a delay was put in place. Values seen: `auto`. May be empty.                    |
+| `delay`        | `number` | The length of the delay in hours, counted from `started_at`. Not the hours left.    |
+| `weather_type` | `string` | The reported cause of the weather delay. Values seen: `wind`, `rain`. May be empty. |
+| `started_at`   | `string` | When the delay started. B-hyve moves this forward when it re-sends a delay.         |
+
+B-hyve re-sends a weather delay with the hours left, each time with a new `started_at`, so the delay ends at `started_at` plus `delay` hours. To show that end time, add a template sensor (replace `switch.lawn_rain_delay` with your switch):
+
+```yaml
+template:
+  - sensor:
+      - name: Lawn rain delay ends
+        device_class: timestamp
+        state: >
+          {% set s = 'switch.lawn_rain_delay' %}
+          {% if is_state(s, 'on') %}
+            {{ (as_datetime(state_attr(s, 'started_at'))
+                + timedelta(hours=state_attr(s, 'delay'))).isoformat() }}
+          {% else %}
+            {{ none }}
+          {% endif %}
+```
 
 ### Program Switch
 

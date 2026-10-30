@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DEVICE_SPRINKLER,
@@ -22,8 +24,12 @@ from .const import (
     EVENT_SET_MANUAL_PRESET_TIME,
     EVENT_WATERING_COMPLETE,
     EVENT_WATERING_IN_PROGRESS,
+    MODE_AUTO,
+    MODE_MANUAL,
+    MODE_OFF,
 )
 from .pybhyve.errors import AuthenticationError, BHyveError
+from .util import orbit_time_to_local_time
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -33,6 +39,22 @@ if TYPE_CHECKING:
     from .pybhyve.typings import BHyveDevice
 
 _LOGGER = logging.getLogger(__name__)
+
+# Orbit's start for a delay can be a second or two before the event's own
+# timestamp; within this, a polled start counts as the same delay.
+RAIN_DELAY_START_TOLERANCE = timedelta(minutes=1)
+# Longest a rain_delay event overrides polled data, in case Orbit's start
+# never moves past the event's (for example after a cancellation).
+RAIN_DELAY_EVENT_MAX_AGE = timedelta(minutes=30)
+
+
+@dataclass(frozen=True)
+class _RainDelayEvent:
+    """The latest rain_delay event seen for a device."""
+
+    delay: float
+    started: str
+    received: datetime
 
 
 class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
@@ -57,6 +79,11 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         self.gateway_to_bridge: dict[str, str] = {}
         # B-hyve id of a bridge -> its device registry id
         self.bridge_device_ids: dict[str, str] = {}
+        # Device id -> its mode (auto/off) before a watering switched it to
+        # manual, so the mode can be restored when the watering ends.
+        self._resume_modes: dict[str, str] = {}
+        # Device id -> the latest rain_delay event, kept until a poll catches up.
+        self._rain_delay_events: dict[str, _RainDelayEvent] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API (periodic polling)."""
@@ -87,7 +114,10 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                     continue
                 if result is None:
                     continue
-                data["devices"][result["device"]["id"]] = result
+                device_id = result["device"]["id"]
+                self._reconcile_polled_mode(device_id, result["device"])
+                self._reconcile_polled_rain_delay(device_id, result["device"])
+                data["devices"][device_id] = result
 
             for program in programs:
                 program_id = program.get("id")
@@ -203,6 +233,53 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
 
         return landscapes
 
+    def resume_mode(self, device_id: str) -> str | None:
+        """Return the mode (auto/off) a device returns to after watering."""
+        return self._resume_modes.get(device_id)
+
+    def _reconcile_polled_mode(self, device_id: str, device: dict[str, Any]) -> None:
+        """
+        Correct a stale "manual" from a poll, and remember a polled auto/off.
+
+        Orbit's REST data can keep run_mode "manual" for minutes after a
+        watering ends (ten minutes after a 23-minute run, live), undoing the
+        mode the websocket events had already restored. "manual" with no
+        watering in progress is that stale value.
+        """
+        status = device.get("status")
+        if not isinstance(status, dict):
+            return
+        if status.get("run_mode") == MODE_MANUAL and not status.get("watering_status"):
+            if resume := self._resume_modes.get(device_id):
+                status["run_mode"] = resume
+        else:
+            self._remember_mode(device_id, status)
+
+    def _remember_mode(self, device_id: str, status: dict[str, Any]) -> None:
+        """Remember a device's auto/off mode before a watering overrides it."""
+        mode = status.get("run_mode")
+        if mode in (MODE_AUTO, MODE_OFF):
+            self._resume_modes[device_id] = mode
+
+    def _apply_watering_ended(
+        self, device_id: str, device_data: dict[str, Any]
+    ) -> None:
+        """
+        Apply device_idle or watering_complete to device state.
+
+        Only the watering state is cleared. Orbit sends device_idle about every
+        four hours whether or not anything watered, and the device's own mode
+        (auto/off) is unchanged by a watering ending, so run_mode is left
+        alone, except that a watering's "manual" reverts to the mode it
+        interrupted. Orbit follows up with a change_mode carrying the mode.
+        """
+        status = device_data.setdefault("status", {})
+        status.pop("watering_status", None)
+        if status.get("run_mode") == MODE_MANUAL and (
+            resume := self._resume_modes.get(device_id)
+        ):
+            status["run_mode"] = resume
+
     @staticmethod
     def _apply_watering_in_progress(
         device_data: dict[str, Any], event_data: dict[str, Any]
@@ -226,7 +303,64 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             ),
             "stations": stations,
         }
-        status["run_mode"] = event_data.get("mode", "manual")
+        status["run_mode"] = event_data.get("mode", MODE_MANUAL)
+
+    def _apply_rain_delay(
+        self, device_id: str, device_data: dict[str, Any], event_data: dict[str, Any]
+    ) -> None:
+        """
+        Apply a rain_delay event to device state.
+
+        Orbit re-sends a delay with the hours left, so the delay runs from this
+        event, not from an earlier delay's start; without recording that, the
+        start would be stale. The event is also kept, so a poll that lands
+        before Orbit's REST data catches up cannot undo it.
+        """
+        status = device_data.setdefault("status", {})
+        delay = event_data.get("delay", 0)
+        started = event_data.get("timestamp")
+        if not isinstance(started, str) or orbit_time_to_local_time(started) is None:
+            started = dt_util.utcnow().isoformat()
+        status["rain_delay"] = delay
+        if delay:
+            status["rain_delay_started_at"] = started
+        self._rain_delay_events[device_id] = _RainDelayEvent(
+            delay=delay, started=started, received=dt_util.utcnow()
+        )
+
+    def _reconcile_polled_rain_delay(
+        self, device_id: str, device: dict[str, Any]
+    ) -> None:
+        """
+        Keep the latest rain_delay event over a poll that is older than it.
+
+        Orbit's REST data runs minutes behind its events. A poll whose
+        rain_delay_started_at is older than the event's start is stale, so the
+        event's delay (and start) is kept. Once a poll reports a start as
+        recent as the event's, or the event is old, the poll is trusted again.
+        """
+        event = self._rain_delay_events.get(device_id)
+        if event is None:
+            return
+        if dt_util.utcnow() - event.received > RAIN_DELAY_EVENT_MAX_AGE:
+            del self._rain_delay_events[device_id]
+            return
+        status = device.get("status")
+        if not isinstance(status, dict):
+            return
+        polled_start = orbit_time_to_local_time(status.get("rain_delay_started_at"))
+        event_start = orbit_time_to_local_time(event.started)
+        if (
+            polled_start is not None
+            and event_start is not None
+            and polled_start >= event_start - RAIN_DELAY_START_TOLERANCE
+        ):
+            # The poll has caught up with the event.
+            del self._rain_delay_events[device_id]
+            return
+        status["rain_delay"] = event.delay
+        if event.delay:
+            status["rain_delay_started_at"] = event.started
 
     async def async_handle_device_event(self, event_data: dict[str, Any]) -> None:  # noqa: PLR0912
         """Handle WebSocket device events."""
@@ -254,35 +388,22 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                 device_data["battery"] = event_data["battery"]
 
         elif event == EVENT_CHANGE_MODE:
-            # Update device status with mode change data
-            if "status" not in device_data:
-                device_data["status"] = {}
-            device_data["status"].update(event_data)
+            # Only the mode: merging the whole event used to copy event,
+            # device_id, timestamp and stations into the device status.
+            status = device_data.setdefault("status", {})
+            if isinstance(mode := event_data.get("mode"), str):
+                status["run_mode"] = mode
+                self._remember_mode(device_id, status)
 
-        elif event == EVENT_DEVICE_IDLE:
-            # Device went idle, update status
-            if "status" not in device_data:
-                device_data["status"] = {}
-            device_data["status"]["run_mode"] = "off"
-            if "watering_status" in device_data["status"]:
-                del device_data["status"]["watering_status"]
+        elif event in (EVENT_DEVICE_IDLE, EVENT_WATERING_COMPLETE):
+            self._apply_watering_ended(device_id, device_data)
 
         elif event == EVENT_WATERING_IN_PROGRESS:
+            self._remember_mode(device_id, device_data.setdefault("status", {}))
             self._apply_watering_in_progress(device_data, event_data)
 
-        elif event == EVENT_WATERING_COMPLETE:
-            # Clear watering status
-            if "status" not in device_data:
-                device_data["status"] = {}
-            if "watering_status" in device_data["status"]:
-                del device_data["status"]["watering_status"]
-            device_data["status"]["run_mode"] = "off"
-
         elif event == EVENT_RAIN_DELAY:
-            # Update rain delay info
-            if "status" not in device_data:
-                device_data["status"] = {}
-            device_data["status"]["rain_delay"] = event_data.get("delay", 0)
+            self._apply_rain_delay(device_id, device_data, event_data)
 
         elif event == EVENT_FAULT:
             # Update station fault information
