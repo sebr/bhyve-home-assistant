@@ -67,7 +67,7 @@ class TestProgramEventHandling:
             },
         }
 
-        with patch.object(coordinator, "async_set_updated_data"):
+        with patch.object(coordinator, "async_update_listeners"):
             await coordinator.async_handle_program_event(event_data)
 
         # Verify program was added to coordinator data
@@ -104,7 +104,7 @@ class TestProgramEventHandling:
             "program": {"id": TEST_PROGRAM_ID},
         }
 
-        with patch.object(coordinator, "async_set_updated_data"):
+        with patch.object(coordinator, "async_update_listeners"):
             await coordinator.async_handle_program_event(event_data)
 
         # Verify program was removed
@@ -132,7 +132,7 @@ class TestProgramEventHandling:
             },
         }
 
-        with patch.object(coordinator, "async_set_updated_data"):
+        with patch.object(coordinator, "async_update_listeners"):
             await coordinator.async_handle_program_event(event_data)
 
         # Verify program was updated
@@ -155,7 +155,7 @@ class TestProgramEventHandling:
             # Missing program_id and program.id
         }
 
-        with patch.object(coordinator, "async_set_updated_data") as mock_update:
+        with patch.object(coordinator, "async_update_listeners") as mock_update:
             await coordinator.async_handle_program_event(event_data)
 
         # Verify nothing changed
@@ -191,7 +191,7 @@ class TestProgramEventHandling:
             },
         }
 
-        with patch.object(coordinator, "async_set_updated_data") as mock_update:
+        with patch.object(coordinator, "async_update_listeners") as mock_update:
             await coordinator.async_handle_program_event(event_data)
 
         # Verify no changes and no update triggered
@@ -224,7 +224,7 @@ class TestDeviceEventHandling:
             "started_watering_station_at": "2020-01-09T20:29:59.000Z",
         }
 
-        with patch.object(coordinator, "async_set_updated_data"):
+        with patch.object(coordinator, "async_update_listeners"):
             await coordinator.async_handle_device_event(event_data)
 
         watering_status = coordinator.data["devices"][TEST_DEVICE_ID]["device"][
@@ -269,7 +269,7 @@ class TestDeviceEventHandling:
             "timestamp": "2025-05-27T10:00:04.000Z",
         }
 
-        with patch.object(coordinator, "async_set_updated_data"):
+        with patch.object(coordinator, "async_update_listeners"):
             await coordinator.async_handle_device_event(watering_event)
             await coordinator.async_handle_device_event(change_mode_event)
 
@@ -287,7 +287,7 @@ class TestDeviceEventHandling:
             "run_mode": "auto"
         }
 
-        with patch.object(coordinator, "async_set_updated_data"):
+        with patch.object(coordinator, "async_update_listeners"):
             await coordinator.async_handle_device_event(
                 {
                     "event": "watering_in_progress_notification",
@@ -308,3 +308,28 @@ class TestDeviceEventHandling:
         assert "watering_status" not in status
         # The watering's "manual" reverts to the mode it interrupted, not "off".
         assert status["run_mode"] == "auto"
+
+
+async def test_websocket_events_do_not_reschedule_poll(hass: HomeAssistant) -> None:
+    """
+    Websocket events notify entities without restarting the poll timer.
+
+    async_set_updated_data reschedules the next refresh, so a device sending
+    events more often than the poll interval would stop the poll from ever
+    running, leaving next_watering and history stale.
+    """
+    coordinator = create_mock_coordinator(hass)
+    listener = MagicMock()
+    unsub = coordinator.async_add_listener(listener)
+
+    with patch.object(coordinator, "_schedule_refresh") as schedule_refresh:
+        await coordinator.async_handle_device_event(
+            {"event": "rain_delay", "device_id": TEST_DEVICE_ID, "delay": 24}
+        )
+        await coordinator.async_handle_program_event(
+            {"program_id": TEST_PROGRAM_ID, "enabled": False}
+        )
+
+    assert listener.call_count == 2
+    schedule_refresh.assert_not_called()
+    unsub()

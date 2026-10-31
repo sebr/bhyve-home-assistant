@@ -25,7 +25,7 @@ from homeassistant.util import dt
 
 from custom_components.bhyve.pybhyve.typings import BHyveZoneLandscape
 
-from . import BHyveCoordinatorEntity
+from . import BHyveCoordinatorEntity, async_run_each, bhyve_command
 from .const import DEVICE_SPRINKLER, DOMAIN, EVENT_CHANGE_MODE
 from .pybhyve.errors import BHyveError
 from .util import (
@@ -222,6 +222,7 @@ async def async_setup_entry(
         valve_component = hass.data.get(VALVE_DOMAIN)
         switch_component = hass.data.get(SWITCH_DOMAIN)
 
+        entities = []
         for entity_id in entity_ids:
             entity = None
             if valve_component is not None:
@@ -238,7 +239,11 @@ async def async_setup_entry(
                     entity_id,
                 )
                 continue
-            await getattr(entity, method_name)(**params)
+            entities.append(entity)
+
+        await async_run_each(
+            getattr(entity, method_name)(**params) for entity in entities
+        )
 
     for service, details in SERVICE_TO_METHOD.items():
         schema = details["schema"]
@@ -477,37 +482,24 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
 
     async def _send_station_message(self, station_payload: Any) -> None:
         """Send a station control message via WebSocket."""
-        try:
-            iso_time = orbit_timestamp_now()
+        payload = {
+            "event": EVENT_CHANGE_MODE,
+            "mode": "manual",
+            "device_id": self._device_id,
+            "timestamp": orbit_timestamp_now(),
+            "stations": station_payload,
+        }
+        _LOGGER.debug("Sending message %s", payload)
+        await self.coordinator.client.send_message(payload)
+        # Coordinator updates via WebSocket event
 
-            payload = {
-                "event": EVENT_CHANGE_MODE,
-                "mode": "manual",
-                "device_id": self._device_id,
-                "timestamp": iso_time,
-                "stations": station_payload,
-            }
-            _LOGGER.debug("Sending message %s", payload)
-            await self.coordinator.client.send_message(payload)
-            # Coordinator updates via WebSocket event
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise
-
+    @bhyve_command
     async def set_smart_watering_soil_moisture(self, percentage: float) -> None:
         """Set the soil moisture percentage for the zone."""
         if self._smart_watering_enabled:
-            landscape = None
-            try:
-                landscape = await self.coordinator.client.get_landscape(
-                    self._device_id, self._zone_id
-                )
-
-            except BHyveError as err:
-                _LOGGER.warning(
-                    "Unable to retreive current soil data for %s: %s", self.name, err
-                )
+            landscape = await self.coordinator.client.get_landscape(
+                self._device_id, self._zone_id
+            )
 
             if landscape is not None:
                 _LOGGER.debug("Landscape data %s", landscape)
@@ -541,25 +533,21 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
                 landscape_update["id"] = landscape["id"]
                 landscape_update["station"] = self._zone_id
 
-                try:
-                    _LOGGER.debug("Landscape update %s", landscape_update)
-                    await self.coordinator.client.update_landscape(landscape_update)
-
-                except BHyveError as err:
-                    _LOGGER.warning(
-                        "Unable to set soil moisture level for %s: %s", self.name, err
-                    )
+                _LOGGER.debug("Landscape update %s", landscape_update)
+                await self.coordinator.client.update_landscape(landscape_update)
         else:
             _LOGGER.info(
                 "Zone %s isn't smart watering enabled, cannot set soil moisture.",
                 self._zone_name,
             )
 
+    @bhyve_command
     async def start_watering(self, minutes: float) -> None:
         """Open the valve and starts watering."""
         station_payload = [{"station": self._zone_id, "run_time": minutes}]
         await self._send_optimistic_station_message(station_payload, is_closed=False)
 
+    @bhyve_command
     async def stop_watering(self) -> None:
         """Close the valve and stops watering."""
         station_payload = []
@@ -617,14 +605,17 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
         self._clear_optimistic_is_closed()
         await super().async_will_remove_from_hass()
 
+    @bhyve_command
     async def enable_rain_delay(self, hours: int = 24) -> None:
         """Enable rain delay for the device."""
         await self.coordinator.client.set_rain_delay(self._device_id, hours)
 
+    @bhyve_command
     async def disable_rain_delay(self) -> None:
         """Disable rain delay for the device."""
         await self.coordinator.client.set_rain_delay(self._device_id, 0)
 
+    @bhyve_command
     async def set_manual_preset_runtime(self, minutes: int) -> None:
         """Set the default watering runtime for the device."""
         await self.coordinator.client.set_manual_preset_runtime(

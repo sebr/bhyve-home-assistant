@@ -7,9 +7,10 @@ from homeassistant.components.switch import SwitchDeviceClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
+from custom_components.bhyve.pybhyve.errors import RequestError, WebsocketError
 from custom_components.bhyve.pybhyve.typings import BHyveDevice, BHyveTimerProgram
 from custom_components.bhyve.switch import (
     BHyveProgramSwitch,
@@ -1497,3 +1498,51 @@ class TestBHyveSmartWateringSwitch:
         names = [s._attr_name for s in smart_switches]
         assert "Front Garden smart watering" in names
         assert "Back Garden West smart watering" in names
+
+
+class TestCommandErrors:
+    """Failed commands surface as errors Home Assistant can show the user."""
+
+    async def test_rain_delay_send_failure(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """A dropped websocket message is reported, not silently ignored."""
+        mock_coordinator.client.set_rain_delay.side_effect = WebsocketError(
+            "Websocket is not connected"
+        )
+        switch = BHyveRainDelaySwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            description=create_rain_delay_switch_description(mock_sprinkler_device),
+        )
+
+        with pytest.raises(HomeAssistantError) as exc_info:
+            await switch.async_turn_on()
+
+        assert exc_info.value.translation_key == "command_failed"
+        assert exc_info.value.translation_placeholders == {
+            "device": mock_sprinkler_device["name"],
+            "error": "Websocket is not connected",
+        }
+
+    async def test_program_update_failure(
+        self,
+        mock_sprinkler_device: BHyveDevice,
+        mock_timer_program: BHyveTimerProgram,
+        mock_coordinator: MagicMock,
+    ) -> None:
+        """A failed REST update is reported as a HomeAssistantError."""
+        mock_coordinator.client.update_program = AsyncMock(
+            side_effect=RequestError("HTTP 500")
+        )
+        switch = BHyveProgramSwitch(
+            coordinator=mock_coordinator,
+            device=mock_sprinkler_device,
+            program=mock_timer_program,
+            description=create_program_switch_description(),
+        )
+
+        with pytest.raises(HomeAssistantError):
+            await switch.async_turn_off()
