@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
@@ -543,7 +544,7 @@ async def test_valve_does_not_toggle_on_change_mode_during_watering(
 
     assert valve.is_closed is True
 
-    with patch.object(coordinator, "async_set_updated_data"):
+    with patch.object(coordinator, "async_update_listeners"):
         await coordinator.async_handle_device_event(
             {
                 "event": "watering_in_progress_notification",
@@ -618,7 +619,7 @@ async def test_valve_manual_preset_runtime_reflects_coordinator_update(
     # Device has no preset configured, so the entity falls back to the default.
     assert valve.extra_state_attributes["manual_preset_runtime"] == 300
 
-    with patch.object(coordinator, "async_set_updated_data"):
+    with patch.object(coordinator, "async_update_listeners"):
         await coordinator.async_handle_device_event(
             {
                 "event": "set_manual_preset_runtime",
@@ -705,8 +706,8 @@ async def test_valve_start_watering_is_optimistic(
 
     with patch.object(
         coordinator,
-        "async_set_updated_data",
-        lambda _: valve._handle_coordinator_update(),
+        "async_update_listeners",
+        valve._handle_coordinator_update,
     ):
         await valve.start_watering(5)
         assert valve.is_closed is False
@@ -749,8 +750,8 @@ async def test_valve_stop_watering_is_optimistic(
 
     with patch.object(
         coordinator,
-        "async_set_updated_data",
-        lambda _: valve._handle_coordinator_update(),
+        "async_update_listeners",
+        valve._handle_coordinator_update,
     ):
         await coordinator.async_handle_device_event(
             watering_in_progress_event(device_id)
@@ -797,9 +798,48 @@ async def test_valve_optimistic_state_cleared_on_send_failure(
     )
     coordinator.client.send_message.side_effect = BHyveError("offline")
 
-    with pytest.raises(BHyveError):
+    with pytest.raises(HomeAssistantError) as exc_info:
         await valve.start_watering(5)
+
+    assert exc_info.value.translation_key == "command_failed"
+    assert exc_info.value.translation_placeholders["error"] == "offline"
 
     assert valve.is_closed is True
     assert valve._cancel_optimistic_timeout is None
     assert hass.states.get(valve.entity_id).state == "closed"
+
+
+async def test_valve_soil_moisture_failure_is_reported(
+    mock_sprinkler_device: BHyveDevice,
+    mock_zone_data: BHyveZone,
+) -> None:
+    """A rejected soil moisture update fails the service instead of passing."""
+    coordinator = create_mock_coordinator(
+        {
+            "test-device-123": {
+                "device": mock_sprinkler_device,
+                "history": [],
+                "landscapes": {},
+            }
+        }
+    )
+    coordinator.client.get_landscape.return_value = {
+        "id": "landscape-123",
+        "replenishment_point": 1.0,
+        "field_capacity_depth": 3.0,
+    }
+    coordinator.client.update_landscape.side_effect = BHyveError("rejected")
+    valve = BHyveZoneValve(
+        coordinator=coordinator,
+        device=mock_sprinkler_device,
+        zone=mock_zone_data,
+        zone_name="Front Yard",
+        device_programs=[],
+    )
+
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await valve.set_smart_watering_soil_moisture(50)
+
+    assert exc_info.value.translation_placeholders["error"] == "rejected"
+    sent = coordinator.client.update_landscape.call_args[0][0]
+    assert sent["current_water_level"] == 2.0

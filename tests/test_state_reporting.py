@@ -72,7 +72,7 @@ def status_of(coordinator: Any) -> dict[str, Any]:
 
 async def send(coordinator: Any, *events: dict[str, Any]) -> None:
     """Feed websocket events to the coordinator."""
-    with patch.object(coordinator, "async_set_updated_data"):
+    with patch.object(coordinator, "async_update_listeners"):
         for event in events:
             await coordinator.async_handle_device_event(
                 {"device_id": DEVICE_ID, **event}
@@ -340,7 +340,7 @@ class TestDeletedPrograms:
         coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
         assert program_switch(hass, "p1") is not None
 
-        with patch.object(coordinator, "async_set_updated_data"):
+        with patch.object(coordinator, "async_update_listeners"):
             await coordinator.async_handle_program_event(
                 {"program_id": "p1", "lifecycle_phase": "destroy"}
             )

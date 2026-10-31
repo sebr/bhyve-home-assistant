@@ -6,6 +6,14 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from custom_components.bhyve.pybhyve.client import BHyveClient
+from custom_components.bhyve.pybhyve.errors import (
+    AuthenticationError,
+    RequestError,
+    SessionExpiredError,
+    WebsocketError,
+)
+
+from .fake_orbit import FakeResponse
 
 
 @pytest.fixture
@@ -137,3 +145,152 @@ class TestGetLandscape:
         await asyncio.gather(*tasks)
 
         assert client._request.await_count == 1
+
+
+def client_with_responses(*responses: FakeResponse) -> BHyveClient:
+    """Create a client whose session answers requests with responses in order."""
+    session = MagicMock()
+    session.request = MagicMock(side_effect=list(responses))
+    return BHyveClient("user", "pass", session)
+
+
+class TestLogin:
+    """Test reading the session token from the login response."""
+
+    async def test_reads_orbit_session_token(self) -> None:
+        """Regression for #474: Orbit renamed orbit_api_key."""
+        client = client_with_responses(
+            FakeResponse(200, {"orbit_session_token": "session", "user_id": "u1"})
+        )
+
+        await client.login()
+
+        assert client._token == "session"
+
+    async def test_falls_back_to_orbit_api_key(self) -> None:
+        """The old field still works if Orbit serves it."""
+        client = client_with_responses(FakeResponse(200, {"orbit_api_key": "legacy"}))
+
+        await client.login()
+
+        assert client._token == "legacy"
+
+    async def test_missing_token_raises_request_error(self) -> None:
+        """A response without either field is reported, not a KeyError."""
+        client = client_with_responses(FakeResponse(200, {"user_id": "u1"}))
+
+        with pytest.raises(RequestError):
+            await client.login()
+        assert client._token is None
+
+    async def test_rejected_credentials_raise_authentication_error(self) -> None:
+        """A 401 from the session endpoint means the credentials are wrong."""
+        client = client_with_responses(FakeResponse(401))
+
+        # The message reaches the user through bhyve_command, so it can't be empty.
+        with pytest.raises(AuthenticationError, match="rejected the login"):
+            await client.login()
+
+    async def test_server_error_has_a_message(self) -> None:
+        """A 5xx from the session endpoint says what failed."""
+        client = client_with_responses(FakeResponse(500))
+
+        with pytest.raises(RequestError, match="Error logging in"):
+            await client.login()
+
+    async def test_hands_new_token_to_websocket(self) -> None:
+        """A running websocket reconnects with the new session token."""
+        client = client_with_responses(
+            FakeResponse(200, {"orbit_session_token": "new"})
+        )
+        client._websocket = MagicMock()
+        client._websocket.token = "old"
+
+        await client.login()
+
+        assert client._websocket.token == "new"
+
+
+class TestRequestRelogin:
+    """Test that an expired session logs in again instead of failing."""
+
+    async def test_relogs_in_and_retries_once(self) -> None:
+        """A 401 triggers one login, then the request is retried."""
+        client = client_with_responses(
+            FakeResponse(401),
+            FakeResponse(200, {"orbit_session_token": "new"}),
+            FakeResponse(200, [{"id": "device-1"}]),
+        )
+        client._token = "expired"
+
+        result = await client._request("get", "/v1/devices")
+
+        assert result == [{"id": "device-1"}]
+        assert client._token == "new"
+        retry_headers = client._session.request.call_args.kwargs["headers"]
+        assert retry_headers["Orbit-Session-Token"] == "new"
+
+    async def test_rejected_credentials_still_raise(self) -> None:
+        """If the stored password no longer works, reauth is still needed."""
+        client = client_with_responses(
+            FakeResponse(401),
+            FakeResponse(401),
+        )
+        client._token = "expired"
+
+        with pytest.raises(AuthenticationError, match="rejected the login"):
+            await client._request("get", "/v1/devices")
+
+    async def test_rejected_session_has_a_message(self) -> None:
+        """An authentication error from a request says what failed."""
+        client = client_with_responses(FakeResponse(401))
+
+        with pytest.raises(SessionExpiredError, match="rejected the session"):
+            await client._send_request("get", "/v1/devices")
+
+    async def test_forbidden_does_not_relogin(self) -> None:
+        """
+        A 403 is raised without logging in again.
+
+        Orbit answers an expired token with 401. A 403 means the account may
+        not read that resource, so logging in again would only repeat the
+        403, once per request on every poll.
+        """
+        client = client_with_responses(FakeResponse(403))
+        client._token = "token"
+        client.login = AsyncMock()
+
+        with pytest.raises(AuthenticationError, match="HTTP 403") as exc_info:
+            await client._request("get", "/v1/watering_events/device-1")
+
+        assert not isinstance(exc_info.value, SessionExpiredError)
+        client.login.assert_not_awaited()
+        assert client._session.request.call_count == 1
+
+    async def test_other_errors_do_not_relogin(self) -> None:
+        """Only authentication errors log in again."""
+        client = client_with_responses(FakeResponse(500))
+        client._token = "token"
+        client.login = AsyncMock()
+
+        with pytest.raises(RequestError):
+            await client._request("get", "/v1/devices")
+        client.login.assert_not_awaited()
+
+    async def test_skips_login_when_token_already_refreshed(self) -> None:
+        """Concurrent 401s share the login that the first one made."""
+        client = client_with_responses()
+        client._token = "new"
+        client.login = AsyncMock()
+
+        await client._relogin("expired")
+
+        client.login.assert_not_awaited()
+
+
+async def test_send_message_without_websocket_raises() -> None:
+    """Commands are not silently dropped before the websocket starts."""
+    client = client_with_responses()
+
+    with pytest.raises(WebsocketError):
+        await client.send_message({"event": "rain_delay"})

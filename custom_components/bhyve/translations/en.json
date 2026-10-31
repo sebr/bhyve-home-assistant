@@ -200,5 +200,10 @@
         "name": "{zone_name} water usage"
       }
     }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "Could not send the command to {device}: {error}"
+    }
   }
 }
