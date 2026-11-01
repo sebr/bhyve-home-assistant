@@ -6,6 +6,7 @@ import re
 import time
 from asyncio import AbstractEventLoop, ensure_future
 from collections.abc import Callable
+from http import HTTPStatus
 from typing import Any
 
 from aiohttp import ClientResponseError, ClientSession
@@ -21,7 +22,13 @@ from .const import (
     WEB_HOST,
     WS_HOST,
 )
-from .errors import AuthenticationError, BHyveError, RequestError
+from .errors import (
+    AuthenticationError,
+    BHyveError,
+    RequestError,
+    SessionExpiredError,
+    WebsocketError,
+)
 from .typings import BHyveDevice, BHyveTimerProgram, BHyveZoneLandscape
 from .websocket import OrbitWebsocket
 
@@ -42,6 +49,8 @@ class BHyveClient:
         self._password: str = password
         self._ws_url: str = WS_HOST
         self._token: str | None = None
+        # Serialises re-logins so concurrent 401s share one new session.
+        self._login_lock = asyncio.Lock()
 
         self._websocket: OrbitWebsocket | None = None
         self._session = session
@@ -66,7 +75,40 @@ class BHyveClient:
         params: dict | None = None,
         json: dict | None = None,
     ) -> list:
-        """Make a request against the API."""
+        """
+        Make a request against the API.
+
+        Orbit sessions expire. On a 401, log in again with the stored
+        credentials and retry once, so an expired session does not force the
+        user through reauth. Rejected credentials still raise
+        AuthenticationError from login().
+
+        A 403 is not retried. Orbit answers an expired token with 401, so a
+        403 is about the resource, and logging in again would only repeat it.
+        """
+        token = self._token
+        try:
+            return await self._send_request(method, endpoint, params, json)
+        except SessionExpiredError:
+            _LOGGER.info("Orbit rejected the session, logging in again")
+            await self._relogin(token)
+            return await self._send_request(method, endpoint, params, json)
+
+    async def _relogin(self, stale_token: str | None) -> None:
+        """Log in again unless another request already replaced stale_token."""
+        async with self._login_lock:
+            if self._token != stale_token:
+                return
+            await self.login()
+
+    async def _send_request(
+        self,
+        method: str,
+        endpoint: str,
+        params: dict | None = None,
+        json: dict | None = None,
+    ) -> list:
+        """Send one request against the API."""
         url: str = f"{API_HOST}{endpoint}"
 
         if not params:
@@ -92,11 +134,17 @@ class BHyveClient:
                     resp.raise_for_status()
                     return await resp.json(content_type=None)
                 except ClientResponseError as err:
-                    if err.status in (401, 403):
+                    if err.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
+                        # debug/live_smoke.py reads the status from this line.
                         _LOGGER.warning(
                             "Authentication error from %s: %s", url, err.status
                         )
-                        raise AuthenticationError from err
+                    if err.status == HTTPStatus.UNAUTHORIZED:
+                        msg = "Orbit rejected the session (HTTP 401)"
+                        raise SessionExpiredError(msg) from err
+                    if err.status == HTTPStatus.FORBIDDEN:
+                        msg = f"Orbit refused access to {url} (HTTP 403)"
+                        raise AuthenticationError(msg) from err
                     msg = f"Error requesting data from {url}: {err}"
                     raise RequestError(msg) from err
                 except Exception as err:
@@ -185,7 +233,7 @@ class BHyveClient:
         """Process incoming websocket message."""
         ensure_future(async_callback(data))  # noqa: RUF006
 
-    async def login(self) -> bool:
+    async def login(self) -> None:
         """Log in with username & password and save the token."""
         url: str = f"{API_HOST}{LOGIN_PATH}"
         json = {"session": {"email": self._username, "password": self._password}}
@@ -206,12 +254,13 @@ class BHyveClient:
                 try:
                     resp.raise_for_status()
                     response = await resp.json(content_type=None)
-                    self._token = response["orbit_api_key"]
 
                 except ClientResponseError as response_err:
                     if response_err.status in (401, 403):
-                        raise AuthenticationError from response_err
-                    raise RequestError from response_err
+                        msg = f"Orbit rejected the login (HTTP {response_err.status})"
+                        raise AuthenticationError(msg) from response_err
+                    msg = f"Error logging in at {url}: {response_err}"
+                    raise RequestError(msg) from response_err
                 except Exception as err:
                     msg = f"Error requesting data from {url}: {err}"
                     raise RequestError(msg) from err
@@ -219,7 +268,18 @@ class BHyveClient:
             msg = f"Timeout requesting data from {url}"
             raise RequestError(msg) from err
 
-        return self._token is not None
+        # Orbit renamed the session field from orbit_api_key (#474); accept both.
+        token = None
+        if isinstance(response, dict):
+            token = response.get("orbit_session_token") or response.get("orbit_api_key")
+        if not token:
+            msg = f"No session token in login response from {url}"
+            raise RequestError(msg)
+
+        self._token = token
+        if self._websocket is not None:
+            # Used the next time the websocket (re)connects.
+            self._websocket.token = token
 
     def listen(self, loop: AbstractEventLoop, async_callback: Callable) -> None:
         """Start listening to the Orbit event stream."""
@@ -301,9 +361,11 @@ class BHyveClient:
         await self._request("put", path, json=json)
 
     async def send_message(self, payload: Any) -> None:
-        """Send a message via the websocket."""
-        if self._websocket is not None:
-            await self._websocket.send(payload)
+        """Send a message via the websocket. Raises WebsocketError if not sent."""
+        if self._websocket is None:
+            msg = "Websocket not started, cannot send message"
+            raise WebsocketError(msg)
+        await self._websocket.send(payload)
 
     async def set_rain_delay(self, device_id: str, hours: int) -> None:
         """Set rain delay hours for a device. Use hours=0 to disable."""

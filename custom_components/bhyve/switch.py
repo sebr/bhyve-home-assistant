@@ -19,13 +19,12 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from . import BHyveCoordinatorEntity
+from . import BHyveCoordinatorEntity, async_run_each, bhyve_command
 from .const import (
     DEVICE_SPRINKLER,
     DOMAIN,
     EVENT_CHANGE_MODE,
 )
-from .pybhyve.errors import BHyveError
 from .pybhyve.typings import BHyveTimerProgram
 from .util import orbit_time_to_local_time, orbit_timestamp_now, rain_delay_active
 
@@ -211,12 +210,17 @@ async def async_setup_entry(
             _LOGGER.warning("Switch component not available, cannot update program")
             return
 
+        entities = []
         for entity_id in entity_ids:
             entity = component.get_entity(entity_id)
             if not isinstance(entity, BHyveProgramSwitch):
                 msg = f"Entity {entity_id} is not a BHyve program switch"
                 raise ServiceValidationError(msg)
-            await entity.async_update_program_config(**params)
+            entities.append(entity)
+
+        await async_run_each(
+            entity.async_update_program_config(**params) for entity in entities
+        )
 
     if not hass.services.has_service(DOMAIN, SERVICE_UPDATE_PROGRAM):
         hass.services.async_register(
@@ -383,6 +387,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         """Turn the switch off."""
         await self._update_program(enabled=False)
 
+    @bhyve_command
     async def _update_program(self, *, enabled: bool) -> None:
         """Update a non-smart program via the API."""
         program = BHyveTimerProgram(
@@ -391,6 +396,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         program["enabled"] = enabled
         await self.coordinator.client.update_program(self._program_id, program)
 
+    @bhyve_command
     async def async_update_program_config(
         self,
         start_times: list[str] | None = None,
@@ -425,6 +431,7 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
         )
         await self.coordinator.client.update_program(self._program_id, program)
 
+    @bhyve_command
     async def start_program(self) -> None:
         """Begins running a program."""
         program_payload = self.program_data.get("program")
@@ -432,22 +439,15 @@ class BHyveProgramSwitch(BHyveCoordinatorEntity, SwitchEntity):
             await self._send_program_message(program_payload)
 
     async def _send_program_message(self, station_payload: Any) -> None:
-        try:
-            iso_time = orbit_timestamp_now()
-
-            payload = {
-                "event": EVENT_CHANGE_MODE,
-                "mode": "manual",
-                "device_id": self._device_id,
-                "timestamp": iso_time,
-                "program": station_payload,
-            }
-            _LOGGER.debug(payload)
-            await self.coordinator.client.send_message(payload)
-
-        except BHyveError as err:
-            _LOGGER.warning("Failed to send to BHyve websocket message %s", err)
-            raise
+        payload = {
+            "event": EVENT_CHANGE_MODE,
+            "mode": "manual",
+            "device_id": self._device_id,
+            "timestamp": orbit_timestamp_now(),
+            "program": station_payload,
+        }
+        _LOGGER.debug(payload)
+        await self.coordinator.client.send_message(payload)
 
 
 class BHyveSmartWateringSwitch(BHyveCoordinatorEntity, SwitchEntity):
@@ -486,6 +486,7 @@ class BHyveSmartWateringSwitch(BHyveCoordinatorEntity, SwitchEntity):
         """Return true if smart watering is enabled at the device level."""
         return self.device_data.get("water_sense_mode") == "auto"
 
+    @bhyve_command
     async def _set_smart_watering(self, *, enabled: bool) -> None:
         """Flip device water_sense_mode (smart watering is device-wide)."""
         await self.coordinator.client.update_device(
@@ -558,10 +559,12 @@ class BHyveRainDelaySwitch(BHyveCoordinatorEntity, SwitchEntity):
         """Turn the switch off."""
         await self.disable_rain_delay()
 
+    @bhyve_command
     async def enable_rain_delay(self, hours: int = 24) -> None:
         """Enable rain delay for the device."""
         await self.coordinator.client.set_rain_delay(self._device_id, hours)
 
+    @bhyve_command
     async def disable_rain_delay(self) -> None:
         """Disable rain delay for the device."""
         await self.coordinator.client.set_rain_delay(self._device_id, 0)

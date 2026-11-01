@@ -2,9 +2,12 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
 
 from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
+from custom_components.bhyve.pybhyve.errors import WebsocketError
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
 from custom_components.bhyve.select import SELECT_TYPES, BHyveSelectEntity
 
@@ -167,3 +170,23 @@ async def test_select_current_option_missing_status(
     entity = BHyveSelectEntity(coordinator, device_no_status, SELECT_TYPES[0])
 
     assert entity.current_option is None
+
+
+async def test_select_option_send_failure(
+    mock_sprinkler_device: BHyveDevice,
+) -> None:
+    """A mode change that could not be sent is reported to the user."""
+    coordinator = create_mock_coordinator(
+        {
+            "test-device-123": {
+                "device": mock_sprinkler_device,
+                "history": [],
+                "landscapes": {},
+            }
+        }
+    )
+    coordinator.client.send_message.side_effect = WebsocketError("closed")
+    entity = BHyveSelectEntity(coordinator, mock_sprinkler_device, SELECT_TYPES[0])
+
+    with pytest.raises(HomeAssistantError):
+        await entity.async_select_option("off")

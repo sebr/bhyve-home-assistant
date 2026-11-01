@@ -229,5 +229,10 @@
         "name": "{zone_name} zone"
       }
     }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "Could not send the command to {device}: {error}"
+    }
   }
 }

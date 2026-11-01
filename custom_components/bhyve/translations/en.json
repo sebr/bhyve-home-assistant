@@ -197,5 +197,10 @@
         "name": "Signal strength"
       }
     }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "Could not send the command to {device}: {error}"
+    }
   }
 }

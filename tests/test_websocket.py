@@ -11,6 +11,7 @@ import aiohttp
 import pytest
 from aiohttp import WSMsgType
 
+from custom_components.bhyve.pybhyve.errors import WebsocketError
 from custom_components.bhyve.pybhyve.websocket import (
     MAX_RECONNECT_DELAY,
     RECONNECT_DELAY,
@@ -285,3 +286,57 @@ async def test_non_5xx_handshake_errors_and_schedules_retry(
         for r in records
     )
     assert loop.call_later_handles[-1].delay == RECONNECT_DELAY
+
+
+async def test_send_raises_when_never_connected() -> None:
+    """A message is not silently dropped before the websocket connects."""
+    websocket = create_websocket()
+
+    with pytest.raises(WebsocketError):
+        await websocket.send({"event": "rain_delay"})
+
+
+async def test_send_raises_when_closed() -> None:
+    """A message is not silently dropped once the websocket has closed."""
+    websocket = create_websocket()
+    websocket._ws = FakeWebSocket()
+    websocket._ws.closed = True
+
+    with pytest.raises(WebsocketError):
+        await websocket.send({"event": "rain_delay"})
+
+    assert websocket._ws.sent == []
+
+
+async def test_send_wraps_connection_errors() -> None:
+    """A transport failure while sending surfaces as WebsocketError."""
+    websocket = create_websocket()
+    websocket._ws = FakeWebSocket()
+    websocket._ws.send_str = AsyncMock(side_effect=ConnectionResetError("reset"))
+
+    with pytest.raises(WebsocketError):
+        await websocket.send({"event": "rain_delay"})
+
+
+async def test_send_writes_json_when_connected() -> None:
+    """A connected websocket sends the payload as JSON."""
+    websocket = create_websocket()
+    websocket._ws = FakeWebSocket()
+
+    await websocket.send({"event": "rain_delay", "delay": 24})
+
+    assert json.loads(websocket._ws.sent[0]) == {"event": "rain_delay", "delay": 24}
+
+
+async def test_reconnect_authenticates_with_updated_token() -> None:
+    """A token handed over after a re-login is used on the next connection."""
+    session = FakeSession()
+    websocket = create_websocket(session=session)
+    websocket.token = "refreshed"
+
+    await websocket.running()
+
+    assert json.loads(session.websocket.sent[0]) == {
+        "event": "app_connection",
+        "orbit_session_token": "refreshed",
+    }
