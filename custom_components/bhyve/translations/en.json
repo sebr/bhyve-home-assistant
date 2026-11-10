@@ -195,6 +195,9 @@
       },
       "signal_strength": {
         "name": "Signal strength"
+      },
+      "water_usage": {
+        "name": "{zone_name} water usage"
       }
     }
   },

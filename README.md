@@ -32,7 +32,7 @@ _Note_: The Wifi hub is required to provide the flood sensors with internet conn
 ## Supported Entities
 
 - `valve` for opening/closing individual zones on `sprinkler_timer` devices.
-- `sensor` for battery levels, zone watering history, device next watering time, device run-mode state, flood-sensor temperature and flood-sensor signal strength.
+- `sensor` for battery levels, zone watering history, zone water usage, device next watering time, device run-mode state, flood-sensor temperature and flood-sensor signal strength.
 - `switch` for enabling/disabling rain delays, toggling pre-configured programs and enabling/disabling per-zone smart watering.
 - `select` for the device run-mode (auto/off) on `sprinkler_timer` devices.
 - `binary_sensor` for flood detection, temperature alerts, sprinkler station faults and Wi-Fi bridge connectivity.
@@ -93,6 +93,14 @@ The following attributes are set on zone history sensor entities:
 | `consumption_gallons` | `number` | The amount of water consumed, in gallons.                   |
 | `consumption_litres`  | `number` | The amount of water consumed, in litres.                    |
 | `start_time`          | `string` | The start time of the watering.                             |
+
+### Zone Water Usage sensor
+
+A **water usage** `sensor` entity is created for each zone on a `sprinkler_timer` device. It reports the total water the zone has used, as measured by the timer's flow meter, so it can be added to the Energy dashboard as an individual water device (Settings > Dashboards > Energy > Water consumption).
+
+- The total only grows: each watering run's volume is added once, when it appears in the B-hyve watering history. Home Assistant shows it in your unit system (gallons or litres).
+- B-hyve only reports the last few watering events, so the integration keeps the running total itself and restores it after a restart. Runs that happen while Home Assistant is stopped are counted on startup if they are still in that history.
+- Runs that B-hyve reports without a volume add nothing.
 
 ### Device Next Watering sensor
 
