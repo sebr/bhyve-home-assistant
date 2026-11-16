@@ -5,7 +5,7 @@ ruff==0.16.5
 pre-commit
 
 # Keep the test harness matched to the Home Assistant version above.
-pytest-homeassistant==2026.11.0
+pytest-homeassistant==2026.11.1
 pytest-asyncio
 
 # Pin pycares to avoid incompatibility with aiodns
