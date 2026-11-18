@@ -17,13 +17,13 @@ from homeassistant.const import (
 )
 from homeassistant.helpers.icon import icon_for_battery_level
 
-from . import BHyveCoordinatorEntity
+from . import BHyveCoordinatorEntity, async_listen_for_new_devices
 from .const import (
     DEVICE_FLOOD,
     DEVICE_SPRINKLER,
     DOMAIN,
 )
-from .util import next_watering_time, orbit_time_to_local_time
+from .util import NextWatering, next_watering, orbit_time_to_local_time
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -47,6 +47,27 @@ ATTR_RUN_TIME = "run_time"
 ATTR_NEXT_START_PROGRAMS = "programs"
 ATTR_START_TIME = "start_time"
 ATTR_STATUS = "status"
+ATTR_COMPUTED_FROM_PROGRAM = "computed_from_program"
+ATTR_NEXT_WATERING_UNAVAILABLE = "next_watering_unavailable"
+
+
+def _next_watering_attributes(upcoming: NextWatering) -> dict[str, Any]:
+    """
+    Programs starting next; whether the time is computed from the programs.
+
+    computed_from_program stays set while no time could be computed, so an
+    unknown state isn't read as the timer reporting nothing due, and
+    next_watering_unavailable says why: timer_off, rain_delay,
+    not_computable or no_upcoming_run.
+    """
+    attrs: dict[str, Any] = {}
+    if upcoming.start is not None and upcoming.programs:
+        attrs[ATTR_NEXT_START_PROGRAMS] = upcoming.programs
+    if upcoming.computed:
+        attrs[ATTR_COMPUTED_FROM_PROGRAM] = True
+        if upcoming.unavailable:
+            attrs[ATTR_NEXT_WATERING_UNAVAILABLE] = upcoming.unavailable
+    return attrs
 
 
 def _parse_battery_level(battery_data: dict) -> int:
@@ -111,13 +132,7 @@ SENSOR_TYPES_SPRINKLER: tuple[BHyveSensorEntityDescription, ...] = (
         unique_id_suffix="next_watering",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:sprinkler-variant",
-        value_fn=lambda data: next_watering_time(data.get("status", {})),
-        attributes_fn=lambda data: (
-            {ATTR_NEXT_START_PROGRAMS: programs}
-            if next_watering_time(status := data.get("status", {})) is not None
-            and (programs := status.get("next_start_programs"))
-            else {}
-        ),
+        # Worked out by BHyveNextWateringSensor, which also needs the programs.
     ),
 )
 
@@ -191,8 +206,17 @@ async def async_setup_entry(
         "coordinator"
     ]
     devices: list[BHyveDevice] = hass.data[DOMAIN][entry.entry_id]["devices"]
+    async_add_entities(_sensors_for(coordinator, devices))
+    async_listen_for_new_devices(
+        hass, entry, lambda new: async_add_entities(_sensors_for(coordinator, new))
+    )
 
-    sensors = []
+
+def _sensors_for(
+    coordinator: BHyveDataUpdateCoordinator, devices: list[BHyveDevice]
+) -> list[SensorEntity]:
+    """Return the sensor entities for these devices."""
+    sensors: list[SensorEntity] = []
 
     for device in devices:
         if device.get("type") == DEVICE_SPRINKLER:
@@ -211,7 +235,12 @@ async def async_setup_entry(
                     icon_fn=base_description.icon_fn,
                     available_fn=base_description.available_fn,
                 )
-                sensors.append(BHyveSensor(coordinator, device, description))
+                sensor_class = (
+                    BHyveNextWateringSensor
+                    if description.key == "next_watering"
+                    else BHyveSensor
+                )
+                sensors.append(sensor_class(coordinator, device, description))
 
             # Add zone history sensors
             all_zones = device.get("zones", [])
@@ -298,7 +327,7 @@ async def async_setup_entry(
                 )
                 sensors.append(BHyveSensor(coordinator, device, description))
 
-    async_add_entities(sensors)
+    return sensors
 
 
 class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
@@ -350,6 +379,29 @@ class BHyveSensor(BHyveCoordinatorEntity, SensorEntity):
                 self.device_data, self.native_value
             )
         return super().available
+
+
+class BHyveNextWateringSensor(BHyveSensor):
+    """
+    Next watering: Orbit's time, else one worked out from the programs.
+
+    Worked out on every read from the current status and programs, so a mode
+    change, a run starting or a program edit shows straight away.
+    """
+
+    def _next_watering(self) -> NextWatering:
+        programs = self.coordinator.data.get("programs", {}).values()
+        return next_watering(self.device_data, programs)
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the next watering time."""
+        return self._next_watering().start
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the programs starting then and how the time was found."""
+        return _next_watering_attributes(self._next_watering())
 
 
 class BHyveZoneHistorySensor(BHyveCoordinatorEntity, SensorEntity):

@@ -1,0 +1,130 @@
+[
+  {
+    "name": "Lawn",
+    "program_start_date": "2026-05-12T00:00:00-07:00",
+    "frequency": {
+      "type": "interval",
+      "interval": 2,
+      "interval_start_time": "2026-05-12T00:00:00-07:00"
+    },
+    "updated_at": "2026-10-28T12:00:00.000Z",
+    "updated_via": "wifi",
+    "start_times": [
+      "03:00"
+    ],
+    "id": "prog-16",
+    "budget": 100,
+    "device_id": "timer-lawn-03",
+    "program": "a",
+    "run_times": [
+      {
+        "run_time": 30,
+        "station": 1
+      }
+    ],
+    "enabled": true,
+    "created_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "name": "Raised Bed",
+    "program_start_date": "2026-05-12T00:00:00-07:00",
+    "frequency": {
+      "type": "interval",
+      "interval": 3,
+      "interval_start_time": "2026-05-12T00:00:00-07:00"
+    },
+    "updated_at": "2026-10-28T12:00:00.000Z",
+    "updated_via": "wifi",
+    "start_times": [
+      "04:00"
+    ],
+    "id": "prog-21",
+    "budget": 100,
+    "device_id": "timer-raised-bed-08",
+    "program": "a",
+    "run_times": [
+      {
+        "run_time": 30,
+        "station": 1
+      }
+    ],
+    "enabled": true,
+    "created_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "pending_timer_ack": true,
+    "name": "Old Schedule",
+    "program_start_date": "2026-05-11T00:00:00.000-07:00",
+    "frequency": {
+      "type": "interval",
+      "interval": 3
+    },
+    "updated_at": "2026-10-28T12:00:00.000Z",
+    "updated_via": "wifi",
+    "start_times": [
+      "06:00"
+    ],
+    "id": "prog-22",
+    "budget": 100,
+    "device_id": "timer-hedge-09",
+    "program": null,
+    "run_times": [
+      {
+        "run_time": 30,
+        "station": 1
+      }
+    ],
+    "enabled": false,
+    "created_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "name": "Hedge",
+    "program_start_date": "2026-05-11T00:00:00.000-07:00",
+    "frequency": {
+      "type": "interval",
+      "interval": 3,
+      "interval_start_time": "2026-05-11T00:00:00-07:00"
+    },
+    "updated_at": "2026-10-28T12:00:00.000Z",
+    "updated_via": "wifi",
+    "start_times": [
+      "06:00"
+    ],
+    "id": "prog-23",
+    "budget": 100,
+    "device_id": "timer-hedge-09",
+    "program": "a",
+    "run_times": [
+      {
+        "run_time": 30,
+        "station": 1
+      }
+    ],
+    "enabled": true,
+    "created_at": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "name": "Mornings",
+    "program_start_date": "2026-10-11T00:00:00-07:00",
+    "frequency": {
+      "type": "even"
+    },
+    "updated_at": "2026-10-28T12:00:00.000Z",
+    "updated_via": "wifi",
+    "start_times": [
+      "04:00"
+    ],
+    "id": "prog-24",
+    "budget": 100,
+    "device_id": "timer-flower-bed-11",
+    "program": "a",
+    "run_times": [
+      {
+        "run_time": 45,
+        "station": 1
+      }
+    ],
+    "enabled": true,
+    "created_at": "2026-01-01T00:00:00.000Z"
+  }
+]

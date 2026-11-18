@@ -118,7 +118,12 @@ class TestConfigFlow:
                 CONF_USERNAME: TEST_USERNAME,
                 CONF_PASSWORD: TEST_PASSWORD,
             }
-            assert result["options"] == {CONF_DEVICES: [TEST_DEVICE_ID, "device-789"]}
+            # Auto-add defaults on; everything the picker offered is known.
+            assert result["options"] == {
+                CONF_DEVICES: [TEST_DEVICE_ID, "device-789"],
+                "auto_add_devices": True,
+                "known_devices": [TEST_DEVICE_ID, "device-789"],
+            }
 
     async def test_user_flow_invalid_credentials(self, hass: HomeAssistant) -> None:
         """Test user flow with invalid credentials."""

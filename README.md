@@ -20,6 +20,7 @@ The following controllers have been verified as compatible with this integration
 - [Orbit 57925 B-hyve Smart 8-Zone Indoor-Mount Sprinkler Controller](https://www.amazon.com/dp/B07DJ628XH).
 - [Orbit 57995 B-hyve XR](https://www.amazon.com/Orbit-57995-16-Zone-Sprinkler-Controller/dp/B08J2C3FL5).
 - [Orbit B-hyve XD](https://www.amazon.com/Orbit-24516-B-hyve-Smart-Watering/dp/B09KKFLN1D/) (with the Gen 2 Wifi hub).
+- Orbit B-hyve Gen 2 hose timer (hardware `HT25A-0001`, e.g. 90205Z) with the Gen 2 Wi-Fi hub (`BH1G2`). These timers don't report a next watering time; see [Device Next Watering sensor](#device-next-watering-sensor).
 
 _Note_: The Wifi hub is required to provide the faucet controllers with internet connectivity.
 
@@ -59,6 +60,14 @@ If you do not wish to use HACS, then please download the latest version from the
 4. Complete the guided configuration
 
 <img width="450" alt="Configure B-hyve from Home Assistant" src="https://user-images.githubusercontent.com/81972/177079633-672ef7be-3b20-4350-bc46-9dc6cd9c8e19.png">
+
+### Devices added later
+
+Devices you add to your B-hyve account after setup (for example a new hose timer paired with a hub you already have) are added to Home Assistant automatically within about five minutes.
+
+To turn this off, or to choose which devices appear, open **Settings > Devices & Services > Orbit B-hyve > Configure**. A device you deselect there is removed from Home Assistant and is not added back until you select it again.
+
+Upgrading from an earlier version: your current selection is kept. If a timer you already own is missing, open **Configure** and select it. Devices added from then on appear by themselves.
 
 ### Help
 
@@ -105,6 +114,8 @@ The following attributes are set on next watering sensor entities:
 | Attribute  | Type           | Notes                                                          |
 | ---------- | -------------- | -------------------------------------------------------------- |
 | `programs` | `list[string]` | The programs scheduled to run at this time, if any.            |
+| `computed_from_program` | `bool` | Set when Orbit did not send a next watering time and the integration works it out from the timer's programs instead. This is always the case for Gen 2 hose timers. |
+| `next_watering_unavailable` | `string` | Set with `computed_from_program` when no time could be worked out, to say why the sensor is `unknown`: `timer_off` (device mode is Off), `rain_delay` (a rain delay is active), `no_upcoming_run` (no enabled program has a run coming) or `not_computable` (the timer has a Smart Watering program or a schedule type the integration cannot read). |
 
 ### Temperature sensor
 

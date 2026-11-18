@@ -12,7 +12,7 @@ from homeassistant.const import (
     EVENT_HOMEASSISTANT_STOP,
     Platform,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
@@ -20,18 +20,25 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
+from homeassistant.helpers.device_registry import (
+    CONNECTION_NETWORK_MAC,
+    DeviceEntry,
+    DeviceInfo,
+)
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
 
 from .const import (
+    CONF_AUTO_ADD,
     CONF_DEVICES,
     DEVICE_BRIDGE,
     DOMAIN,
     EVENT_PROGRAM_CHANGED,
     LOGGER,
     MANUFACTURER,
+    SIGNAL_NEW_DEVICES,
 )
 from .coordinator import BHyveDataUpdateCoordinator
 from .pybhyve import BHyveClient
@@ -81,6 +88,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         programs = await client.timer_programs
     except (BHyveError, TimeoutError) as err:
         raise ConfigEntryNotReady(err) from err
+
+    coordinator.async_add_new_devices(all_devices)
     devices = filter_configured_devices(entry, all_devices)
 
     # Remove any leaf devices that are no longer selected in options from the
@@ -144,6 +153,43 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """
+    Turn on auto-add for entries made before it existed.
+
+    The account's devices are recorded as known on the entry's next setup
+    (which fetches them anyway), so the user's selection stands and only
+    devices added to the account after that are added.
+    """
+    if entry.version > 1:
+        return False
+    if entry.minor_version < 2:  # noqa: PLR2004
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, CONF_AUTO_ADD: True}, minor_version=2
+        )
+    return True
+
+
+@callback
+def async_listen_for_new_devices(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    add_devices: Callable[[list[BHyveDevice]], None],
+) -> None:
+    """Call add_devices with each batch of devices auto-added while running."""
+
+    # A @callback, or the dispatcher would run add_devices in the executor.
+    @callback
+    def _devices_added(devices: list[BHyveDevice]) -> None:
+        add_devices(devices)
+
+    entry.async_on_unload(
+        async_dispatcher_connect(
+            hass, SIGNAL_NEW_DEVICES.format(entry.entry_id), _devices_added
+        )
+    )
+
+
 async def remove_devices_from_registry(
     hass: HomeAssistant, entry_id: str, device_ids: set[str]
 ) -> None:
@@ -159,6 +205,29 @@ async def remove_devices_from_registry(
             device_registry.async_remove_device(device.id)
         except HomeAssistantError:
             _LOGGER.exception("Failed to remove device %s from registry", device.id)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: DeviceEntry
+) -> bool:
+    """Allow deleting a device the B-hyve account no longer has."""
+    data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if data is None:
+        return False
+    # The account's full list: a device whose data failed to load on the last
+    # poll is still on the account.
+    try:
+        in_account = {str(d.get("id")) for d in await data["client"].devices}
+    except (BHyveError, TimeoutError):
+        return False
+    device_ids = {i for domain, i in device_entry.identifiers if domain == DOMAIN}
+    if device_ids & in_account:
+        return False
+    # No longer loaded, so it gets its entities again if it ever comes back.
+    data["devices"][:] = [
+        d for d in data["devices"] if str(d.get("id")) not in device_ids
+    ]
+    return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
