@@ -19,7 +19,12 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from . import BHyveCoordinatorEntity, async_run_each, bhyve_command
+from . import (
+    BHyveCoordinatorEntity,
+    async_listen_for_new_devices,
+    async_run_each,
+    bhyve_command,
+)
 from .const import (
     DEVICE_SPRINKLER,
     DOMAIN,
@@ -130,22 +135,18 @@ def _create_program_switch(
     )
 
 
-async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
-) -> None:
-    """Set up the BHyve switch platform from a config entry."""
-    coordinator: BHyveDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id][
-        "coordinator"
-    ]
-    devices: list[BHyveDevice] = hass.data[DOMAIN][entry.entry_id]["devices"]
-
+def _switches_for(
+    coordinator: BHyveDataUpdateCoordinator,
+    devices: list[BHyveDevice],
+    device_by_id: dict[str, BHyveDevice],
+) -> list[SwitchEntity]:
+    """Return the switches for these devices, recording each in device_by_id."""
     switches = []
-    device_by_id = {}
+    batch = {device.get("id"): device for device in devices}
+    device_by_id.update(batch)
 
     # Create rain delay switches for sprinkler devices
     for device in devices:
-        device_id = device.get("id")
-        device_by_id[device_id] = device
         if device.get("type") == DEVICE_SPRINKLER:
             if not device.get("status"):
                 _LOGGER.warning(
@@ -189,14 +190,33 @@ async def async_setup_entry(
     for program in coordinator.data.get("programs", {}).values():
         if program.get("is_smart_program"):
             continue
-        program_device = device_by_id.get(program.get("device_id"))
+        # Only this batch's devices: earlier ones have their switches already.
+        program_device = batch.get(program.get("device_id"))
         if program_device is not None:
             _LOGGER.info("Creating switch: Program %s", program.get("name"))
             switches.append(
                 _create_program_switch(coordinator, program_device, program)
             )
 
-    async_add_entities(switches)
+    return switches
+
+
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up the BHyve switch platform from a config entry."""
+    coordinator: BHyveDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id][
+        "coordinator"
+    ]
+    devices: list[BHyveDevice] = hass.data[DOMAIN][entry.entry_id]["devices"]
+
+    device_by_id: dict[str, BHyveDevice] = {}
+    async_add_entities(_switches_for(coordinator, devices, device_by_id))
+    async_listen_for_new_devices(
+        hass,
+        entry,
+        lambda new: async_add_entities(_switches_for(coordinator, new, device_by_id)),
+    )
 
     _remove_deleted_program_switches(hass, entry, coordinator)
 

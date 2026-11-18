@@ -12,7 +12,7 @@ from homeassistant.const import (
     EVENT_HOMEASSISTANT_STOP,
     Platform,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
@@ -25,26 +25,25 @@ from homeassistant.helpers.device_registry import (
     DeviceEntry,
     DeviceInfo,
 )
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
 
 from .const import (
+    CONF_AUTO_ADD,
     CONF_DEVICES,
     DEVICE_BRIDGE,
     DOMAIN,
     EVENT_PROGRAM_CHANGED,
     LOGGER,
     MANUFACTURER,
+    SIGNAL_NEW_DEVICES,
 )
 from .coordinator import BHyveDataUpdateCoordinator
 from .pybhyve import BHyveClient
 from .pybhyve.errors import AuthenticationError, BHyveError
-from .util import (
-    filter_configured_devices,
-    new_leaf_device_ids,
-    options_with_new_devices,
-)
+from .util import filter_configured_devices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,7 +89,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except (BHyveError, TimeoutError) as err:
         raise ConfigEntryNotReady(err) from err
 
-    _select_new_devices(hass, entry, all_devices)
+    coordinator.async_add_new_devices(all_devices, add_entities=False)
     devices = filter_configured_devices(entry, all_devices)
 
     # Remove any leaf devices that are no longer selected in options from the
@@ -154,19 +153,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-def _select_new_devices(
-    hass: HomeAssistant, entry: ConfigEntry, all_devices: list[BHyveDevice]
-) -> None:
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
-    Select devices added to the B-hyve account since the options were saved.
+    Turn on auto-add for entries made before it existed.
 
-    Gen 2 timers paired after setup were never offered, so never showed up.
+    The account's devices are recorded as known on the entry's next setup
+    (which fetches them anyway), so the user's selection stands and only
+    devices added to the account after that are added.
     """
-    if new_ids := new_leaf_device_ids(entry.options, all_devices):
-        _LOGGER.info("Adding devices new to the B-hyve account: %s", new_ids)
+    if entry.version > 1:
+        return False
+    if entry.minor_version < 2:  # noqa: PLR2004
         hass.config_entries.async_update_entry(
-            entry, options=options_with_new_devices(entry.options, new_ids)
+            entry, options={**entry.options, CONF_AUTO_ADD: True}, minor_version=2
         )
+    return True
+
+
+@callback
+def async_listen_for_new_devices(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    add_devices: Callable[[list[BHyveDevice]], None],
+) -> None:
+    """Call add_devices with each batch of devices auto-added while running."""
+
+    @callback
+    def _devices_added(devices: list[BHyveDevice]) -> None:
+        add_devices(devices)
+
+    entry.async_on_unload(
+        async_dispatcher_connect(
+            hass, SIGNAL_NEW_DEVICES.format(entry.entry_id), _devices_added
+        )
+    )
 
 
 async def remove_devices_from_registry(
@@ -190,10 +210,15 @@ async def async_remove_config_entry_device(
     hass: HomeAssistant, entry: ConfigEntry, device_entry: DeviceEntry
 ) -> bool:
     """Allow deleting a device the B-hyve account no longer has."""
-    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get("coordinator")
-    if coordinator is None or not coordinator.data:
+    data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if data is None:
         return False
-    in_account = set(coordinator.data.get("devices", {}))
+    # The account's full list: a device whose data failed to load on the last
+    # poll is still on the account.
+    try:
+        in_account = {str(d.get("id")) for d in await data["client"].devices}
+    except (BHyveError, TimeoutError):
+        return False
     return not any(
         domain == DOMAIN and device_id in in_account
         for domain, device_id in device_entry.identifiers

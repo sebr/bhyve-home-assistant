@@ -2,12 +2,18 @@
 
 from collections.abc import Iterable, Mapping
 from datetime import date, datetime, time, timedelta, tzinfo
-from typing import Any
+from typing import Any, NamedTuple
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.util import dt
 
-from .const import CONF_AUTO_ADD, CONF_DEVICES, CONF_KNOWN_DEVICES, DEVICE_BRIDGE
+from .const import (
+    CONF_AUTO_ADD,
+    CONF_DEVICES,
+    CONF_KNOWN_DEVICES,
+    DEVICE_BRIDGE,
+    MODE_OFF,
+)
 
 # Orbit returns ~2106-02-07 (epoch max) as a sentinel for "nothing scheduled".
 # Treat any timestamp from this year on as that sentinel.
@@ -137,46 +143,75 @@ def _runs_on(
     return None
 
 
+class NextStart(NamedTuple):
+    """When a timer's programs next start it, worked out from the programs."""
+
+    start: datetime | None
+    programs: list[str]
+    # False when a program that waters the timer can't be read: a smart
+    # program, a frequency this code doesn't know, no usable start time.
+    computable: bool
+
+
+class NextWatering(NamedTuple):
+    """A timer's next watering, as the Next watering sensor shows it."""
+
+    start: datetime | None
+    programs: list[str]
+    # True when Orbit sent no usable time and this came from the programs.
+    computed: bool = False
+    # Why a computed time is missing: timer_off, rain_delay, not_computable,
+    # no_upcoming_run.
+    unavailable: str | None = None
+
+
 def _program_next_start(  # noqa: PLR0911
     program: Mapping[str, Any], zone: tzinfo, now: datetime
-) -> datetime | None:
-    """Return when one (non-smart, enabled) program next starts, if known."""
-    if not _counts(program) or program.get("is_smart_program"):
-        return None
+) -> tuple[datetime | None, bool]:
+    """
+    Return when one program next starts, and whether that could be worked out.
+
+    A program that doesn't water (disabled, no letter, no run time) is
+    readable and has no start.
+    """
+    if not _counts(program):
+        return None, True
     frequency = program.get("frequency")
-    if not isinstance(frequency, dict):
-        return None
+    if program.get("is_smart_program") or not isinstance(frequency, dict):
+        return None, False
     starts = sorted(
         parsed
         for text in program.get("start_times") or []
         if isinstance(text, str) and (parsed := dt.parse_time(text)) is not None
     )
     if not starts:
-        return None
+        return None, False
 
     first_day = _local_date(program.get("program_start_date"), zone)
     last_day = _local_date(program.get("program_end_date"), zone)
     anchor = _local_date(frequency.get("interval_start_time"), zone) or first_day
 
-    today = now.astimezone(zone).date()
+    # Start at the first day the program can run, however far off that is.
+    candidates = [now.astimezone(zone).date(), first_day]
+    if frequency.get("type") == "interval":
+        candidates.append(anchor)
+    scan_from = max(d for d in candidates if d is not None)
     interval = frequency.get("interval")
     horizon = max(interval if isinstance(interval, int) else 0, 31) + 1
     for offset in range(horizon + 1):
-        day = today + timedelta(days=offset)
-        if first_day is not None and day < first_day:
-            continue
+        day = scan_from + timedelta(days=offset)
         if last_day is not None and day > last_day:
-            return None
+            return None, True
         runs = _runs_on(frequency, day, anchor)
         if runs is None:
-            return None
+            return None, False
         if not runs:
             continue
         for start in starts:
             candidate = datetime.combine(day, time(start.hour, start.minute), zone)
             if candidate > now:
-                return candidate
-    return None
+                return candidate, True
+    return None, True
 
 
 def _counts(program: Mapping[str, Any]) -> bool:
@@ -188,45 +223,14 @@ def _counts(program: Mapping[str, Any]) -> bool:
     )
 
 
-def _guessable(program: Mapping[str, Any]) -> bool:
-    """next_program_start knows how this program's days work."""
-    if program.get("is_smart_program"):
-        return False
-    frequency = program.get("frequency")
-    if not isinstance(frequency, dict):
-        return False
-    kind = frequency.get("type")
-    if kind in ("days", "even", "odd"):
-        return True
-    if kind == "interval":
-        interval = frequency.get("interval")
-        anchor = frequency.get("interval_start_time") or program.get(
-            "program_start_date"
-        )
-        return isinstance(interval, int) and interval > 0 and anchor is not None
-    return False
-
-
-def programs_computable(
-    device: Mapping[str, Any], programs: Iterable[Mapping[str, Any]]
-) -> bool:
-    """Every program that would water this timer is one next_program_start can read."""
-    device_id = device.get("id")
-    return all(
-        _guessable(p)
-        for p in programs
-        if p.get("device_id") == device_id and _counts(p)
-    )
-
-
 def next_program_start(
     device: Mapping[str, Any], programs: Iterable[Mapping[str, Any]], now: datetime
-) -> tuple[datetime, list[str]] | None:
+) -> NextStart:
     """
     Return a timer's next scheduled start and the program letters starting then.
 
-    For timers whose status has no ``next_start_time`` (Gen 2 hose timers
-    behind a BH1G2 hub). Uses the timer's enabled, non-smart programs:
+    For timers Orbit sends no usable ``next_start_time`` for (Gen 2 hose
+    timers behind a BH1G2 hub). Uses the timer's enabled, non-smart programs:
     frequency ``days`` (0 = Sunday), ``even``, ``odd`` (calendar parity) or
     ``interval`` (counted from ``interval_start_time``, else the program's
     start date), its ``start_times`` on the timer's own clock, and the
@@ -237,19 +241,58 @@ def next_program_start(
     device_id = device.get("id")
     best: datetime | None = None
     letters: list[str] = []
+    computable = True
     for program in programs:
         if program.get("device_id") != device_id:
             continue
-        start = _program_next_start(program, zone, now)
+        start, readable = _program_next_start(program, zone, now)
+        computable = computable and readable
         if start is None:
             continue
         if best is None or start < best:
             best, letters = start, [program["program"]]
         elif start == best:
             letters.append(program["program"])
-    if best is None:
-        return None
-    return best, sorted(letters)
+    return NextStart(best, sorted(letters), computable)
+
+
+def _orbit_next_start_usable(status: Mapping[str, Any]) -> bool:
+    """Orbit sent a next_start_time that is a time and not its sentinel."""
+    text = status.get("next_start_time")
+    if not isinstance(text, str):
+        return False
+    parsed = orbit_time_to_local_time(text)
+    return parsed is not None and parsed.year < _NEXT_WATERING_SENTINEL_YEAR
+
+
+def next_watering(
+    device: Mapping[str, Any],
+    programs: Iterable[Mapping[str, Any]],
+    now: datetime | None = None,
+) -> NextWatering:
+    """
+    Return a timer's next watering: Orbit's time, else one from its programs.
+
+    Worked out each time it's read, from the device's current status and
+    programs, so a mode change, a run starting or a program edit shows at once.
+    """
+    status = device.get("status")
+    if not isinstance(status, dict):
+        status = {}
+    if _orbit_next_start_usable(status):
+        start = next_watering_time(status)
+        return NextWatering(
+            start, list(status.get("next_start_programs") or []) if start else []
+        )
+    if status.get("run_mode") == MODE_OFF:
+        return NextWatering(None, [], computed=True, unavailable="timer_off")
+    if rain_delay_active(status):
+        return NextWatering(None, [], computed=True, unavailable="rain_delay")
+    result = next_program_start(device, programs, now or dt.now())
+    if result.start is not None:
+        return NextWatering(result.start, result.programs, computed=True)
+    reason = "no_upcoming_run" if result.computable else "not_computable"
+    return NextWatering(None, [], computed=True, unavailable=reason)
 
 
 def new_leaf_device_ids(
@@ -258,20 +301,41 @@ def new_leaf_device_ids(
     """
     Return the account's devices that the device picker has never offered.
 
-    Only when auto-add is on and the entry records what it offered; an entry
-    from before auto-add existed keeps its selection until its options are
-    saved once. Bridges are always included anyway, so never "new".
+    Only when auto-add is on and the entry records what it offered (an entry
+    migrated from before auto-add records it on its first setup, see
+    options_with_known_devices_seeded). Bridges are always included anyway,
+    so never "new".
     """
     if options.get(CONF_AUTO_ADD) is not True:
         return []
     known = options.get(CONF_KNOWN_DEVICES)
     if known is None:
         return []
+    return [d for d in leaf_device_ids(all_devices) if d not in known]
+
+
+def leaf_device_ids(all_devices: Iterable[Mapping[str, Any]]) -> list[str]:
+    """Return the ids of the account's devices other than bridges."""
     return [
         str(d["id"])
         for d in all_devices
-        if d.get("id") and d.get("type") != DEVICE_BRIDGE and str(d["id"]) not in known
+        if d.get("id") and d.get("type") != DEVICE_BRIDGE
     ]
+
+
+def options_with_known_devices_seeded(
+    options: Mapping[str, Any], all_devices: Iterable[Mapping[str, Any]]
+) -> dict[str, Any] | None:
+    """
+    Return the options with the account's devices recorded as known, if unrecorded.
+
+    For an entry migrated from before auto-add: every device on the account
+    then counts as offered, so the user's selection stands and only devices
+    added to the account later are added. None when already recorded.
+    """
+    if CONF_KNOWN_DEVICES in options:
+        return None
+    return {**options, CONF_KNOWN_DEVICES: leaf_device_ids(all_devices)}
 
 
 def options_with_new_devices(

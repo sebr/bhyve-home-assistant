@@ -9,11 +9,14 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    DEVICE_BRIDGE,
     DEVICE_SPRINKLER,
     DOMAIN,
     EVENT_BATTERY_STATUS,
@@ -28,16 +31,15 @@ from .const import (
     MODE_AUTO,
     MODE_MANUAL,
     MODE_OFF,
-    NEXT_START_COMPUTED,
-    NEXT_START_MISSING,
+    SIGNAL_NEW_DEVICES,
 )
 from .pybhyve.errors import AuthenticationError, BHyveError
 from .util import (
+    filter_configured_devices,
     new_leaf_device_ids,
-    next_program_start,
+    options_with_known_devices_seeded,
     options_with_new_devices,
     orbit_time_to_local_time,
-    programs_computable,
     watering_in_progress,
 )
 
@@ -134,8 +136,9 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                 if program_id:
                     data["programs"][program_id] = program
 
-            self._fill_next_start_times(data)
-            self._add_new_devices(devices)
+            # During setup, async_setup_entry adds them before the platforms load.
+            if self.entry.state is ConfigEntryState.LOADED:
+                self.async_add_new_devices(devices, add_entities=True)
 
             return data  # noqa: TRY300
 
@@ -146,61 +149,50 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             msg = f"Error communicating with API: {err}"
             raise UpdateFailed(msg) from err
 
-    def _add_new_devices(self, devices: list[BHyveDevice]) -> None:
+    @callback
+    def async_add_new_devices(
+        self, all_devices: list[BHyveDevice], *, add_entities: bool
+    ) -> None:
         """
-        Select devices new to the account and reload so their entities appear.
+        Select devices new to the B-hyve account (when auto-add is on).
 
-        Only once the entry is running: during setup, async_setup_entry adds
-        them itself before the platforms load.
+        During setup (add_entities=False) the platforms then load them with
+        the rest. Once running, their entities are added through
+        SIGNAL_NEW_DEVICES, without reloading the entry; only a hub that is
+        new too needs a reload, since hubs are registered before the
+        platforms load.
         """
-        if self.entry.state is not ConfigEntryState.LOADED:
+        options = self.entry.options
+        if seeded := options_with_known_devices_seeded(options, all_devices):
+            options = seeded
+        new_ids = new_leaf_device_ids(options, all_devices)
+        if new_ids:
+            _LOGGER.info("Adding devices new to the B-hyve account: %s", new_ids)
+            options = options_with_new_devices(options, new_ids)
+        if options is not self.entry.options:
+            self.hass.config_entries.async_update_entry(self.entry, options=options)
+        if not new_ids or not add_entities:
             return
-        if not (new_ids := new_leaf_device_ids(self.entry.options, devices)):
+
+        if any(
+            d.get("type") == DEVICE_BRIDGE and d.get("id") not in self.bridge_device_ids
+            for d in all_devices
+        ):
+            self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
             return
-        _LOGGER.info("Adding devices new to the B-hyve account: %s", new_ids)
-        self.hass.config_entries.async_update_entry(
-            self.entry, options=options_with_new_devices(self.entry.options, new_ids)
+        new_devices = [
+            d
+            for d in filter_configured_devices(self.entry, all_devices)
+            if str(d.get("id")) in new_ids
+        ]
+        self.hass.data[DOMAIN][self.entry.entry_id]["devices"].extend(new_devices)
+        # After this poll's data is stored, so the new entities find theirs.
+        self.hass.loop.call_soon(
+            async_dispatcher_send,
+            self.hass,
+            SIGNAL_NEW_DEVICES.format(self.entry.entry_id),
+            new_devices,
         )
-        self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
-
-    def _fill_next_start_times(self, data: dict[str, Any]) -> None:
-        """
-        Compute next_start_time for timers whose status has none.
-
-        Gen 2 hose timers (behind a BH1G2 hub) never report next_start_time,
-        so their Next watering sensor stayed unknown. Their next start comes
-        from their programs instead, marked NEXT_START_COMPUTED so a value
-        Orbit sent is never overwritten and a computed one is never mistaken
-        for Orbit's on the next poll (the client returns cached dicts).
-        Runs on polls (whose run_mode is the device's own) and program
-        events, not on device events.
-        """
-        programs = list(data.get("programs", {}).values())
-        now = dt_util.now()
-        for bundle in data.get("devices", {}).values():
-            device = bundle.get("device", {})
-            if device.get("type") != DEVICE_SPRINKLER:
-                continue
-            status = device.get("status")
-            if not isinstance(status, dict):
-                continue
-            if "next_start_time" in status and not status.get(NEXT_START_COMPUTED):
-                continue
-            status.pop("next_start_time", None)
-            status.pop("next_start_programs", None)
-            status.pop(NEXT_START_MISSING, None)
-            status[NEXT_START_COMPUTED] = True
-            if status.get("run_mode") == MODE_OFF:
-                status[NEXT_START_MISSING] = "timer_off"
-                continue
-            if result := next_program_start(device, programs, now):
-                start, letters = result
-                status["next_start_time"] = start.isoformat()
-                status["next_start_programs"] = letters
-            elif not programs_computable(device, programs):
-                status[NEXT_START_MISSING] = "not_computable"
-            else:
-                status[NEXT_START_MISSING] = "no_upcoming_run"
 
     async def _fetch_device_bundle(self, device: BHyveDevice) -> dict[str, Any] | None:
         """Fetch history + landscapes for a single device."""
@@ -565,7 +557,6 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                         "bhyve_program_created",
                         {"program_id": program_id, "program": program_data},
                     )
-            self._fill_next_start_times(self.data)
             self.async_update_listeners()
             return
 
@@ -582,7 +573,6 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                     "bhyve_program_deleted",
                     {"program_id": program_id},
                 )
-                self._fill_next_start_times(self.data)
                 self.async_update_listeners()
                 return
             if is_smart:
@@ -607,9 +597,6 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         # If no program data provided, just update enabled status
         elif "enabled" in event_data:
             self.data["programs"][program_id]["enabled"] = event_data["enabled"]
-
-        # A program edit moves a computed next watering.
-        self._fill_next_start_times(self.data)
 
         # Notify all listening entities
         self.async_update_listeners()

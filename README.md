@@ -59,7 +59,7 @@ If you do not wish to use HACS, then please download the latest version from the
 3. Search for `Orbit B-hyve`
 4. Complete the guided configuration
 
-Devices added to your B-hyve account later (for example a new Gen 2 hose timer paired with an existing hub) are added automatically while **Add new B-hyve devices automatically** is on (the default). Devices you untick in the integration's options stay off. Entries set up before this option existed keep their device selection until their options are saved once (Settings > Devices & Services > Orbit B-hyve > Configure).
+Devices added to your B-hyve account later (for example a new Gen 2 hose timer paired with an existing hub) are added automatically while **Add new B-hyve devices automatically** is on (the default). Devices you untick in the integration's options stay off. Existing setups get the option turned on when they upgrade: the devices already on the account keep your current selection, and devices added to the account after that are added. New devices appear without reloading the integration.
 
 <img width="450" alt="Configure B-hyve from Home Assistant" src="https://user-images.githubusercontent.com/81972/177079633-672ef7be-3b20-4350-bc46-9dc6cd9c8e19.png">
 
@@ -108,8 +108,8 @@ The following attributes are set on next watering sensor entities:
 | Attribute  | Type           | Notes                                                          |
 | ---------- | -------------- | -------------------------------------------------------------- |
 | `programs` | `list[string]` | The programs scheduled to run at this time, if any.            |
-| `computed_from_program` | `bool` | Set for timers that don't report a next watering (Gen 2 hose timers): the time is computed from the timer's enabled, non-smart programs on the timer's own clock. |
-| `next_watering_unavailable` | `string` | With `computed_from_program`, why there is no time: `timer_off`, `rain_delay`, `no_upcoming_run`, `not_computable` (a smart program or an unknown frequency), or `past` (a run just started; the next poll computes the one after). |
+| `computed_from_program` | `bool` | Set when Orbit reports no usable next watering (Gen 2 hose timers always; others when Orbit sends none): the time is computed from the timer's enabled, non-smart programs on the timer's own clock. |
+| `next_watering_unavailable` | `string` | With `computed_from_program`, why there is no time: `timer_off`, `rain_delay`, `no_upcoming_run` or `not_computable` (a smart program or an unknown frequency). It is worked out whenever the sensor updates, so a mode change or a run starting shows straight away. |
 
 ### Temperature sensor
 

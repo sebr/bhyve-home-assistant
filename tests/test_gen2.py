@@ -40,15 +40,16 @@ from custom_components.bhyve.const import (
     CONF_DEVICES,
     CONF_KNOWN_DEVICES,
     DOMAIN,
-    NEXT_START_COMPUTED,
-    NEXT_START_MISSING,
 )
 from custom_components.bhyve.coordinator import BHyveDataUpdateCoordinator
 from custom_components.bhyve.pybhyve import BHyveClient
 from custom_components.bhyve.sensor import _next_watering_attributes
 from custom_components.bhyve.util import (
+    NextWatering,
     new_leaf_device_ids,
     next_program_start,
+    next_watering,
+    options_with_known_devices_seeded,
     options_with_new_devices,
     watering_in_progress,
 )
@@ -106,27 +107,28 @@ class TestNextProgramStart:
         result = next_program_start(
             device(HEDGE), orbit_programs(), at("2026-10-28T09:40")
         )
-        assert result == (at("2026-10-29T06:00"), ["a"])
+        assert result[:2] == (at("2026-10-29T06:00"), ["a"])
 
     def test_interval_program_runs_today_when_the_time_is_ahead(self) -> None:
         """On a run day before 06:00 the run is today."""
         result = next_program_start(
             device(HEDGE), orbit_programs(), at("2026-10-29T05:59")
         )
-        assert result == (at("2026-10-29T06:00"), ["a"])
+        assert result[:2] == (at("2026-10-29T06:00"), ["a"])
 
     def test_interval_program_skips_a_run_already_started(self) -> None:
         """At 06:00 exactly the run has started: the next is 3 days later."""
         result = next_program_start(
             device(HEDGE), orbit_programs(), at("2026-10-29T06:00")
         )
-        assert result == (at("2026-11-01T06:00"), ["a"])
+        assert result[:2] == (at("2026-11-01T06:00"), ["a"])
 
     def test_disabled_program_and_one_without_a_letter_are_ignored(self) -> None:
         """Hedge's old "Trees" program (disabled, program null) never counts."""
         programs = [p for p in orbit_programs() if p["name"] == "Trees"]
         assert (
-            next_program_start(device(HEDGE), programs, at("2026-10-28T09:40")) is None
+            next_program_start(device(HEDGE), programs, at("2026-10-28T09:40")).start
+            is None
         )
 
     def test_even_days(self) -> None:
@@ -134,16 +136,15 @@ class TestNextProgramStart:
         result = next_program_start(
             device(BED), orbit_programs(), at("2026-10-28T09:40")
         )
-        assert result == (at("2026-10-30T04:00"), ["a"])
+        assert result[:2] == (at("2026-10-30T04:00"), ["a"])
 
     def test_even_days_across_the_dst_change(self) -> None:
         """Nov 1 2026 is the fall-back day; Nov 2 04:00 is PST (-08:00)."""
         result = next_program_start(
             device(BED), orbit_programs(), at("2026-10-31T07:00")
         )
-        assert result is not None
-        assert result[0] == at("2026-11-02T04:00")
-        assert result[0].utcoffset().total_seconds() == -8 * 3600
+        assert result.start == at("2026-11-02T04:00")
+        assert result.start.utcoffset().total_seconds() == -8 * 3600
 
     def test_odd_days(self) -> None:
         """Odd days are calendar parity, like the B-hyve app's label."""
@@ -151,7 +152,7 @@ class TestNextProgramStart:
         bed = next(p for p in programs if p["device_id"] == BED)
         bed["frequency"] = {"type": "odd"}
         result = next_program_start(device(BED), [bed], at("2026-10-28T09:40"))
-        assert result == (at("2026-10-29T04:00"), ["a"])
+        assert result[:2] == (at("2026-10-29T04:00"), ["a"])
 
     def test_week_days_zero_is_sunday(self) -> None:
         """days: [0] (Sunday) from Wednesday Oct 28 -> Sunday Nov 1."""
@@ -159,7 +160,7 @@ class TestNextProgramStart:
         bed = next(p for p in programs if p["device_id"] == BED)
         bed["frequency"] = {"type": "days", "days": [0]}
         result = next_program_start(device(BED), [bed], at("2026-10-28T09:40"))
-        assert result == (at("2026-11-01T04:00"), ["a"])
+        assert result[:2] == (at("2026-11-01T04:00"), ["a"])
 
     def test_earliest_start_time_of_several(self) -> None:
         """Several start times: the first one still ahead."""
@@ -167,7 +168,7 @@ class TestNextProgramStart:
         bed = next(p for p in programs if p["device_id"] == BED)
         bed["start_times"] = ["21:30", "04:00"]
         result = next_program_start(device(BED), [bed], at("2026-10-28T09:40"))
-        assert result == (at("2026-10-28T21:30"), ["a"])
+        assert result[:2] == (at("2026-10-28T21:30"), ["a"])
 
     def test_program_not_started_yet(self) -> None:
         """Nothing before program_start_date."""
@@ -175,21 +176,25 @@ class TestNextProgramStart:
         bed = next(p for p in programs if p["device_id"] == BED)
         bed["program_start_date"] = "2026-11-05T00:00:00-08:00"
         result = next_program_start(device(BED), [bed], at("2026-10-28T09:40"))
-        assert result == (at("2026-11-06T04:00"), ["a"])
+        assert result[:2] == (at("2026-11-06T04:00"), ["a"])
 
     def test_program_already_ended(self) -> None:
         """Nothing after program_end_date."""
         programs = orbit_programs()
         bed = next(p for p in programs if p["device_id"] == BED)
         bed["program_end_date"] = "2026-10-29T00:00:00-07:00"
-        assert next_program_start(device(BED), [bed], at("2026-10-28T09:40")) is None
+        assert (
+            next_program_start(device(BED), [bed], at("2026-10-28T09:40")).start is None
+        )
 
     def test_no_run_time_means_no_watering(self) -> None:
         """A program whose stations all run 0 minutes waters nothing."""
         programs = orbit_programs()
         bed = next(p for p in programs if p["device_id"] == BED)
         bed["run_times"] = [{"station": 1, "run_time": 0}]
-        assert next_program_start(device(BED), [bed], at("2026-10-28T09:40")) is None
+        assert (
+            next_program_start(device(BED), [bed], at("2026-10-28T09:40")).start is None
+        )
 
     def test_two_programs_same_time_both_named(self) -> None:
         """Two programs starting together are both listed, in letter order."""
@@ -197,26 +202,65 @@ class TestNextProgramStart:
         bed = next(p for p in programs if p["device_id"] == BED)
         second = {**copy.deepcopy(bed), "id": "prog-b", "program": "b"}
         result = next_program_start(device(BED), [second, bed], at("2026-10-28T09:40"))
-        assert result == (at("2026-10-30T04:00"), ["a", "b"])
+        assert result[:2] == (at("2026-10-30T04:00"), ["a", "b"])
 
     def test_other_devices_programs_do_not_count(self) -> None:
         """Only the timer's own programs."""
         programs = [p for p in orbit_programs() if p["device_id"] != BED]
-        assert next_program_start(device(BED), programs, at("2026-10-28T09:40")) is None
+        assert (
+            next_program_start(device(BED), programs, at("2026-10-28T09:40")).start
+            is None
+        )
 
     def test_smart_program_is_not_guessed(self) -> None:
         """Smart (weather-driven) programs: no guess, the sensor stays unknown."""
         programs = orbit_programs()
         bed = next(p for p in programs if p["device_id"] == BED)
         bed["is_smart_program"] = True
-        assert next_program_start(device(BED), [bed], at("2026-10-28T09:40")) is None
+        result = next_program_start(device(BED), [bed], at("2026-10-28T09:40"))
+        assert result.start is None
+        assert result.computable is False
 
     def test_unknown_frequency_is_not_guessed(self) -> None:
         """A frequency this code doesn't know gives no time rather than a wrong one."""
         programs = orbit_programs()
         bed = next(p for p in programs if p["device_id"] == BED)
         bed["frequency"] = {"type": "interval_hours", "interval_hours": 6}
-        assert next_program_start(device(BED), [bed], at("2026-10-28T09:40")) is None
+        result = next_program_start(device(BED), [bed], at("2026-10-28T09:40"))
+        assert result.start is None
+        assert result.computable is False
+
+    def test_program_starting_months_ahead(self) -> None:
+        """A start date beyond the ~32-day scan is still found (review, #510)."""
+        programs = orbit_programs()
+        bed = next(p for p in programs if p["device_id"] == BED)
+        bed["program_start_date"] = "2027-03-01T00:00:00-08:00"
+        result = next_program_start(device(BED), [bed], at("2026-10-28T09:40"))
+        assert result[:2] == (at("2027-03-02T04:00"), ["a"])
+
+    def test_interval_first_run_months_ahead(self) -> None:
+        """An interval whose first day is far off is found too."""
+        programs = orbit_programs()
+        hedge = next(p for p in programs if p["device_id"] == HEDGE and p["enabled"])
+        hedge["frequency"]["interval_start_time"] = "2027-02-10T00:00:00-08:00"
+        result = next_program_start(device(HEDGE), [hedge], at("2026-10-28T09:40"))
+        assert result[:2] == (at("2027-02-10T06:00"), ["a"])
+
+    def test_interval_without_a_usable_anchor_is_not_computable(self) -> None:
+        """No parseable interval start and no program start: can't compute."""
+        programs = orbit_programs()
+        hedge = next(p for p in programs if p["device_id"] == HEDGE and p["enabled"])
+        hedge["frequency"]["interval_start_time"] = "not a time"
+        hedge["program_start_date"] = None
+        result = next_program_start(device(HEDGE), [hedge], at("2026-10-28T09:40"))
+        assert result.start is None
+        assert result.computable is False
+
+    def test_a_program_that_does_not_water_is_still_computable(self) -> None:
+        """Disabled programs don't make the timer "not computable"."""
+        programs = [p for p in orbit_programs() if p["name"] == "Trees"]
+        result = next_program_start(device(HEDGE), programs, at("2026-10-28T09:40"))
+        assert result.computable is True
 
 
 # --------------------------------------------------------------------------
@@ -243,78 +287,105 @@ def make_coordinator(
     client.get_landscape = AsyncMock(return_value=None)
     entry = MagicMock()
     entry.entry_id = "test_entry"
-    entry.options = options or {}
+    entry.options = options or {CONF_KNOWN_DEVICES: []}
     entry.state = ConfigEntryState.LOADED
     coordinator = BHyveDataUpdateCoordinator(hass, client, entry)
     coordinator.fixture_devices = devices  # type: ignore[attr-defined]
     return coordinator
 
 
-class TestCoordinatorNextStart:
-    """The coordinator fills in what Gen 2 timers don't report."""
+def upcoming(coordinator: BHyveDataUpdateCoordinator, device_id: str) -> NextWatering:
+    """Next watering for a device, as its sensor reads it now."""
+    return next_watering(
+        coordinator.data["devices"][device_id]["device"],
+        coordinator.data["programs"].values(),
+    )
 
-    async def test_gen2_timers_get_a_computed_next_start(
+
+class TestNextWatering:
+    """
+    next_watering: Orbit's time, else one worked out from the programs.
+
+    Worked out when read, from the current status and programs, never stored.
+    """
+
+    async def test_gen2_timers_get_a_computed_time(
         self, hass: HomeAssistant, freezer: Any
     ) -> None:
-        """Both Gen 2 timers get next_start_time + programs, marked as computed."""
+        """Both Gen 2 timers get a time and programs, marked as computed."""
         freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
         coordinator = make_coordinator(hass)
-        data = await coordinator._async_update_data()
-
-        hedge = data["devices"][HEDGE]["device"]["status"]
-        assert datetime.fromisoformat(hedge["next_start_time"]) == at(
-            "2026-10-29T06:00"
+        coordinator.data = await coordinator._async_update_data()
+        assert upcoming(coordinator, HEDGE) == NextWatering(
+            at("2026-10-29T06:00"), ["a"], computed=True
         )
-        assert hedge["next_start_programs"] == ["a"]
-        assert hedge[NEXT_START_COMPUTED] is True
-
-        bed = data["devices"][BED]["device"]["status"]
-        assert datetime.fromisoformat(bed["next_start_time"]) == at("2026-10-30T04:00")
-
-    async def test_orbit_reported_next_start_is_left_alone(
-        self, hass: HomeAssistant, freezer: Any
-    ) -> None:
-        """Gen 1 timers keep Orbit's own value, unmarked."""
-        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
-        coordinator = make_coordinator(hass)
-        data = await coordinator._async_update_data()
-        veggie = data["devices"][VEGGIE]["device"]["status"]
-        assert veggie["next_start_time"] == "2026-10-30T04:00:00-07:00"
-        assert NEXT_START_COMPUTED not in veggie
-
-    async def test_timer_switched_off_has_no_next_start(
-        self, hass: HomeAssistant, freezer: Any
-    ) -> None:
-        """A poll saying the timer is off: no computed next watering."""
-        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
-        coordinator = make_coordinator(hass)
-        bed = next(d for d in coordinator.fixture_devices if d["id"] == BED)
-        bed["status"]["run_mode"] = "off"
-        data = await coordinator._async_update_data()
-        status = data["devices"][BED]["device"]["status"]
+        assert upcoming(coordinator, BED).start == at("2026-10-30T04:00")
+        # Nothing is written into the client's cached device dicts.
+        status = coordinator.data["devices"][HEDGE]["device"]["status"]
         assert "next_start_time" not in status
-        assert status[NEXT_START_COMPUTED] is True
 
-    async def test_device_events_do_not_blank_the_computed_time(
+    async def test_orbit_reported_time_is_used(
         self, hass: HomeAssistant, freezer: Any
     ) -> None:
-        """
-        A watering ending must not wipe the computed next watering.
+        """Gen 1 timers: Orbit's own value, not marked."""
+        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
+        coordinator = make_coordinator(hass)
+        coordinator.data = await coordinator._async_update_data()
+        veggie = upcoming(coordinator, VEGGIE)
+        assert veggie.start == at("2026-10-30T04:00")
+        assert veggie.computed is False
 
-        Only polls and program events recompute it.
-        """
+    @pytest.mark.parametrize("sent", [None, "2106-02-07T06:28:15.000Z", "garbage"])
+    def test_unusable_orbit_time_is_computed(self, freezer: Any, sent: Any) -> None:
+        """Orbit's null, its 2106 placeholder or junk: computed (review, #510)."""
+        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
+        bed = device(BED)
+        bed["status"]["next_start_time"] = sent
+        result = next_watering(bed, orbit_programs())
+        assert result == NextWatering(at("2026-10-30T04:00"), ["a"], computed=True)
+
+    async def test_mode_change_shows_at_once(
+        self, hass: HomeAssistant, freezer: Any
+    ) -> None:
+        """Off, then back on, by websocket: no wait for a poll (review, #510)."""
+        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
+        coordinator = make_coordinator(hass)
+        coordinator.data = await coordinator._async_update_data()
+        await coordinator.async_handle_device_event(
+            {"event": "change_mode", "device_id": BED, "mode": "off"}
+        )
+        assert upcoming(coordinator, BED) == NextWatering(
+            None, [], computed=True, unavailable="timer_off"
+        )
+        await coordinator.async_handle_device_event(
+            {"event": "change_mode", "device_id": BED, "mode": "auto"}
+        )
+        assert upcoming(coordinator, BED).start == at("2026-10-30T04:00")
+
+    async def test_run_starting_moves_to_the_next(
+        self, hass: HomeAssistant, freezer: Any
+    ) -> None:
+        """Once a run starts, the next one shows, not "unknown" until a poll."""
+        freezer.move_to(at("2026-10-29T05:00").astimezone(UTC))
+        coordinator = make_coordinator(hass)
+        coordinator.data = await coordinator._async_update_data()
+        assert upcoming(coordinator, HEDGE).start == at("2026-10-29T06:00")
+        freezer.move_to(at("2026-10-29T06:00:30").astimezone(UTC))
+        assert upcoming(coordinator, HEDGE).start == at("2026-11-01T06:00")
+
+    async def test_watering_ending_keeps_the_time(
+        self, hass: HomeAssistant, freezer: Any
+    ) -> None:
+        """A watering ending doesn't blank the next watering."""
         freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
         coordinator = make_coordinator(hass)
         coordinator.data = await coordinator._async_update_data()
         await coordinator.async_handle_device_event(
             {"event": "watering_complete", "device_id": BED}
         )
-        status = coordinator.data["devices"][BED]["device"]["status"]
-        assert datetime.fromisoformat(status["next_start_time"]) == at(
-            "2026-10-30T04:00"
-        )
+        assert upcoming(coordinator, BED).start == at("2026-10-30T04:00")
 
-    async def test_program_change_recomputes(
+    async def test_program_change_moves_it(
         self, hass: HomeAssistant, freezer: Any
     ) -> None:
         """A program edit in the B-hyve app moves the computed time."""
@@ -331,29 +402,7 @@ class TestCoordinatorNextStart:
                 "program": {"start_times": ["19:15"]},
             }
         )
-        status = coordinator.data["devices"][BED]["device"]["status"]
-        assert datetime.fromisoformat(status["next_start_time"]) == at(
-            "2026-10-28T19:15"
-        )
-
-    async def test_cached_device_is_recomputed_not_trusted(
-        self, hass: HomeAssistant, freezer: Any
-    ) -> None:
-        """
-        The client caches the device list for 5 minutes and returns the same dicts.
-
-        A computed value from the previous poll must not be mistaken for
-        Orbit's: the next poll recomputes it.
-        """
-        freezer.move_to(at("2026-10-29T05:00").astimezone(UTC))
-        coordinator = make_coordinator(hass)
-        await coordinator._async_update_data()
-        freezer.move_to(at("2026-10-29T06:30").astimezone(UTC))
-        data = await coordinator._async_update_data()
-        status = data["devices"][HEDGE]["device"]["status"]
-        assert datetime.fromisoformat(status["next_start_time"]) == at(
-            "2026-11-01T06:00"
-        )
+        assert upcoming(coordinator, BED).start == at("2026-10-28T19:15")
 
 
 # --------------------------------------------------------------------------
@@ -416,10 +465,19 @@ class TestIdleSentinel:
 class TestNewDeviceIds:
     """Which account devices are new since the options were last chosen."""
 
-    def test_legacy_options_add_nothing(self) -> None:
-        """Entries set up before this feature keep their selection as-is."""
-        options = {CONF_DEVICES: GEN1_TIMERS}
+    def test_unrecorded_known_devices_add_nothing(self) -> None:
+        """Until the account's devices are recorded, nothing counts as new."""
+        options = {CONF_DEVICES: GEN1_TIMERS, CONF_AUTO_ADD: True}
         assert new_leaf_device_ids(options, orbit_devices()) == []
+
+    def test_seeding_records_every_device_once(self) -> None:
+        """A migrated entry: the account's devices become known, no hubs."""
+        options = {CONF_DEVICES: GEN1_TIMERS, CONF_AUTO_ADD: True}
+        seeded = options_with_known_devices_seeded(options, orbit_devices())
+        assert seeded is not None
+        assert set(seeded[CONF_KNOWN_DEVICES]) == {*GEN1_TIMERS, HEDGE, BED}
+        assert seeded[CONF_DEVICES] == GEN1_TIMERS
+        assert options_with_known_devices_seeded(seeded, orbit_devices()) is None
 
     def test_auto_add_off_adds_nothing(self) -> None:
         """The user said no."""
@@ -590,14 +648,16 @@ def patched_client(cloud: FakeOrbitCloud) -> Any:
     return factory
 
 
-def entry_with(options: dict) -> MockConfigEntry:
-    """Return a bhyve config entry with these options."""
+def entry_with(options: dict, minor_version: int = 2) -> MockConfigEntry:
+    """Return a bhyve config entry with these options (1: from before auto-add)."""
     return MockConfigEntry(
         domain=DOMAIN,
         title="user@example.com",
         unique_id="user@example.com",
         data={CONF_USERNAME: "user@example.com", CONF_PASSWORD: "password"},
         options=options,
+        version=1,
+        minor_version=minor_version,
     )
 
 
@@ -690,19 +750,46 @@ class TestSetup:
         assert hedge.via_device_id == hub.id
         assert hedge.model == "HT25A-0001"
 
-    async def test_legacy_entry_is_unchanged(self, hass: HomeAssistant) -> None:
-        """No auto-add option yet: the selection stays as it was (Gen 2 not added)."""
-        entry = entry_with({CONF_DEVICES: GEN1_TIMERS})
-        cloud = FakeOrbitCloud()
+    async def test_entry_from_before_auto_add_is_migrated(
+        self, hass: HomeAssistant, freezer: Any
+    ) -> None:
+        """
+        An existing setup gets auto-add without opening the options (review, #510).
+
+        Devices already on the account keep the user's choice; one added to
+        the account afterwards appears.
+        """
+        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
+        without_bed = [d for d in orbit_devices() if d["id"] != BED]
+        cloud = FakeOrbitCloud(devices=without_bed)
+        entry = entry_with({CONF_DEVICES: GEN1_TIMERS}, minor_version=1)
         await set_up(hass, entry, cloud)
-        assert entry.options == {CONF_DEVICES: GEN1_TIMERS}
+
+        assert entry.minor_version == 2
+        assert entry.options[CONF_AUTO_ADD] is True
+        assert set(entry.options[CONF_KNOWN_DEVICES]) == {*GEN1_TIMERS, HEDGE}
+        assert entry.options[CONF_DEVICES] == GEN1_TIMERS
         assert hass.states.get("valve.hedge_zone") is None
         assert hass.states.get("valve.vegetable_garden_zone") is not None
 
-    async def test_new_timer_while_running_reloads_and_appears(
-        self, hass: HomeAssistant, freezer: Any
+        cloud.devices = orbit_devices()
+        coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+        coordinator.client._last_poll_devices = 0
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+        assert entry.options[CONF_DEVICES] == [*GEN1_TIMERS, BED]
+        assert hass.states.get("valve.flower_bed_zone") is not None
+        assert hass.states.get("valve.hedge_zone") is None
+
+    async def test_new_timer_while_running_appears_without_a_reload(
+        self, hass: HomeAssistant, freezer: Any, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """A timer added to the account later appears after the next poll."""
+        """
+        A timer added to the account later appears after the next poll.
+
+        Only its entities are added: same login, same websocket, the other
+        entities never drop out (review, #510).
+        """
         freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
         without_bed = [d for d in orbit_devices() if d["id"] != BED]
         cloud = FakeOrbitCloud(devices=without_bed)
@@ -712,6 +799,63 @@ class TestSetup:
         )
         await set_up(hass, entry, cloud)
         assert hass.states.get("valve.flower_bed_zone") is None
+        coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+        logins = cloud.requests.count(("POST", "/v1/session"))
+
+        seen: list[str] = []
+        hass.bus.async_listen(
+            "state_changed",
+            lambda event: (
+                seen.append(event.data["entity_id"])
+                if event.data["new_state"] is None
+                or event.data["new_state"].state == "unavailable"
+                else None
+            ),
+        )
+
+        cloud.devices = orbit_devices()
+        coordinator.client._last_poll_devices = 0
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
+        assert BED in entry.options[CONF_DEVICES]
+        assert entry.state is ConfigEntryState.LOADED
+        assert hass.data[DOMAIN][entry.entry_id]["coordinator"] is coordinator
+        assert cloud.requests.count(("POST", "/v1/session")) == logins
+        assert len(cloud.sockets) == 1
+        assert seen == []
+        assert hass.states.get("valve.flower_bed_zone").state == "closed"
+        nxt = hass.states.get("sensor.flower_bed_next_watering")
+        assert datetime.fromisoformat(nxt.state) == at("2026-10-30T04:00")
+        assert hass.states.get("switch.flower_bed_program_a_program").state == "on"
+        # Nothing already there was created a second time.
+        assert "already exists" not in caplog.text
+        assert hass.states.get("switch.hedge_hedge_program_2") is None
+        registry = dr.async_get(hass)
+        hub = registry.async_get_device_by_identifier(
+            (DOMAIN, GEN2_HUB), entry.entry_id
+        )
+        bed = registry.async_get_device_by_identifier((DOMAIN, BED), entry.entry_id)
+        assert bed.via_device_id == hub.id
+
+    async def test_new_timer_on_a_new_hub_reloads(
+        self, hass: HomeAssistant, freezer: Any
+    ) -> None:
+        """A new hub has to be registered first, so that case still reloads."""
+        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
+        gen1_only = [
+            d for d in orbit_devices() if d["id"] not in (HEDGE, BED, GEN2_HUB)
+        ]
+        cloud = FakeOrbitCloud(devices=gen1_only)
+        entry = entry_with(
+            {
+                CONF_DEVICES: GEN1_TIMERS,
+                CONF_AUTO_ADD: True,
+                CONF_KNOWN_DEVICES: GEN1_TIMERS,
+            }
+        )
+        await set_up(hass, entry, cloud)
+        assert hass.states.get("valve.hedge_zone") is None
 
         cloud.devices = orbit_devices()
         coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
@@ -720,9 +864,9 @@ class TestSetup:
             await coordinator.async_refresh()
             await hass.async_block_till_done()
 
-        assert BED in entry.options[CONF_DEVICES]
         assert entry.state is ConfigEntryState.LOADED
-        assert hass.states.get("valve.flower_bed_zone") is not None
+        assert hass.states.get("valve.hedge_zone") is not None
+        assert hass.states.get("binary_sensor.gen_2_hub_connected") is not None
 
     async def test_setup_refresh_and_reconnect_never_write(
         self, hass: HomeAssistant
@@ -808,6 +952,44 @@ class TestFlows:
         assert set(entry.options[CONF_KNOWN_DEVICES]) == {*GEN1_TIMERS, HEDGE, BED}
         assert hass.states.get("valve.hedge_zone") is not None
 
+    async def test_options_form_ticks_devices_not_added_yet(
+        self, hass: HomeAssistant
+    ) -> None:
+        """
+        A device new to the account that no poll has added yet starts ticked.
+
+        Submitting the form as shown must not turn it off for good (review, #510).
+        """
+        without_bed = [d for d in orbit_devices() if d["id"] != BED]
+        cloud = FakeOrbitCloud(devices=without_bed)
+        known = [*GEN1_TIMERS, HEDGE]
+        entry = entry_with(
+            {CONF_DEVICES: GEN1_TIMERS, CONF_AUTO_ADD: True, CONF_KNOWN_DEVICES: known}
+        )
+        await set_up(hass, entry, cloud)
+        cloud.devices = orbit_devices()
+        hass.data[DOMAIN][entry.entry_id]["client"]._last_poll_devices = 0
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        schema = result["data_schema"].schema
+        ticked = next(k for k in schema if k == CONF_DEVICES).default()
+        # Hedge was offered before and left unticked: it stays unticked.
+        assert set(ticked) == {*GEN1_TIMERS, BED}
+
+    async def test_options_form_ticks_nothing_new_with_auto_add_off(
+        self, hass: HomeAssistant
+    ) -> None:
+        """With auto-add off, only the saved selection is ticked."""
+        known = [*GEN1_TIMERS, HEDGE]
+        entry = entry_with(
+            {CONF_DEVICES: GEN1_TIMERS, CONF_AUTO_ADD: False, CONF_KNOWN_DEVICES: known}
+        )
+        await set_up(hass, entry, FakeOrbitCloud())
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        schema = result["data_schema"].schema
+        ticked = next(k for k in schema if k == CONF_DEVICES).default()
+        assert set(ticked) == set(GEN1_TIMERS)
+
     async def test_config_flow_records_known_devices(self, hass: HomeAssistant) -> None:
         """A new entry starts with auto-add on and everything offered known."""
         cloud = FakeOrbitCloud()
@@ -864,134 +1046,75 @@ async def test_device_gone_from_account_can_be_deleted(hass: HomeAssistant) -> N
     assert await async_remove_config_entry_device(hass, entry, gone) is True
     assert await async_remove_config_entry_device(hass, entry, present) is False
 
+    # Its data failed to load on the last poll: still on the account, so it
+    # still can't be deleted (review, #510).
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    del coordinator.data["devices"][VEGGIE]
+    assert await async_remove_config_entry_device(hass, entry, present) is False
+
 
 class TestNextWateringAttributes:
     """What the Next watering sensor says about where its time came from."""
 
-    def test_computed_time(self, freezer: Any) -> None:
+    def test_computed_time(self) -> None:
         """A computed time: its programs, and that it was computed."""
-        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
-        status = {
-            "next_start_time": "2026-10-29T06:00:00-07:00",
-            "next_start_programs": ["a"],
-            NEXT_START_COMPUTED: True,
-        }
-        assert _next_watering_attributes({"status": status}) == {
-            "programs": ["a"],
-            "computed_from_program": True,
-        }
+        assert _next_watering_attributes(
+            NextWatering(at("2026-10-29T06:00"), ["a"], computed=True)
+        ) == {"programs": ["a"], "computed_from_program": True}
 
-    def test_nothing_computed_still_says_so(self) -> None:
+    def test_no_time_says_why(self) -> None:
         """
         Mark an uncomputed time, so nobody reads it as "the timer says none due".
 
-        A Gen 2 timer whose time couldn't be computed (smart program, unknown
-        frequency, the minutes between a run starting and the next poll).
+        "unknown" alone doesn't tell a switched-off timer from one with
+        nothing scheduled.
         """
-        assert _next_watering_attributes({"status": {NEXT_START_COMPUTED: True}}) == {
-            "computed_from_program": True,
-            "next_watering_unavailable": "past",
-        }
+        assert _next_watering_attributes(
+            NextWatering(None, [], computed=True, unavailable="timer_off")
+        ) == {"computed_from_program": True, "next_watering_unavailable": "timer_off"}
 
-    def test_orbit_time_is_unmarked(self, freezer: Any) -> None:
+    def test_orbit_time_is_unmarked(self) -> None:
         """Gen 1: Orbit's own time, no mark; nothing when Orbit has none."""
-        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
-        status = {
-            "next_start_time": "2026-10-30T04:00:00-07:00",
-            "next_start_programs": ["a"],
-        }
-        assert _next_watering_attributes({"status": status}) == {"programs": ["a"]}
-        assert _next_watering_attributes({"status": {}}) == {}
+        assert _next_watering_attributes(
+            NextWatering(at("2026-10-30T04:00"), ["a"])
+        ) == {"programs": ["a"]}
+        assert _next_watering_attributes(NextWatering(None, [])) == {}
 
 
 class TestWhyNoNextWatering:
-    """
-    When a Gen 2 timer has no computed time, the sensor says why.
+    """When a Gen 2 timer has no computed time, next_watering says why."""
 
-    "unknown" alone doesn't tell a switched-off timer from one with nothing
-    scheduled, so a dashboard can't explain the missing time.
-    """
-
-    async def test_timer_off(self, hass: HomeAssistant, freezer: Any) -> None:
-        """A poll saying the timer is off: reason timer_off."""
+    def test_timer_off(self, freezer: Any) -> None:
+        """The timer is off: timer_off."""
         freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
-        coordinator = make_coordinator(hass)
-        bed = next(d for d in coordinator.fixture_devices if d["id"] == BED)
+        bed = device(BED)
         bed["status"]["run_mode"] = "off"
-        data = await coordinator._async_update_data()
-        assert (
-            data["devices"][BED]["device"]["status"][NEXT_START_MISSING] == "timer_off"
-        )
+        assert next_watering(bed, orbit_programs()).unavailable == "timer_off"
 
-    async def test_smart_program_is_not_computable(
-        self, hass: HomeAssistant, freezer: Any
-    ) -> None:
+    def test_rain_delay(self, freezer: Any) -> None:
+        """A rain delay in force: rain_delay."""
+        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
+        bed = device(BED)
+        bed["status"]["rain_delay"] = 24
+        assert next_watering(bed, orbit_programs()).unavailable == "rain_delay"
+
+    def test_smart_program_is_not_computable(self, freezer: Any) -> None:
         """A smart program (or a frequency the code doesn't know): not_computable."""
         freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
-        coordinator = make_coordinator(hass)
-        programs = await coordinator.client.timer_programs
+        programs = orbit_programs()
         next(p for p in programs if p["device_id"] == BED)["is_smart_program"] = True
-        data = await coordinator._async_update_data()
-        assert (
-            data["devices"][BED]["device"]["status"][NEXT_START_MISSING]
-            == "not_computable"
-        )
+        assert next_watering(device(BED), programs).unavailable == "not_computable"
 
-    async def test_program_ended_is_no_upcoming_run(
-        self, hass: HomeAssistant, freezer: Any
-    ) -> None:
+    def test_program_ended_is_no_upcoming_run(self, freezer: Any) -> None:
         """Every program known and none runs again: no_upcoming_run."""
         freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
-        coordinator = make_coordinator(hass)
-        programs = await coordinator.client.timer_programs
+        programs = orbit_programs()
         next(p for p in programs if p["device_id"] == BED)["program_end_date"] = (
             "2026-10-01T00:00:00-07:00"
         )
-        data = await coordinator._async_update_data()
-        assert (
-            data["devices"][BED]["device"]["status"][NEXT_START_MISSING]
-            == "no_upcoming_run"
-        )
+        assert next_watering(device(BED), programs).unavailable == "no_upcoming_run"
 
-    async def test_computed_time_has_no_reason(
-        self, hass: HomeAssistant, freezer: Any
-    ) -> None:
-        """A computed time clears any earlier reason."""
+    def test_computed_time_has_no_reason(self, freezer: Any) -> None:
+        """A computed time carries no reason."""
         freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
-        coordinator = make_coordinator(hass)
-        bed = next(d for d in coordinator.fixture_devices if d["id"] == BED)
-        bed["status"]["run_mode"] = "off"
-        await coordinator._async_update_data()
-        bed["status"]["run_mode"] = "auto"
-        data = await coordinator._async_update_data()
-        status = data["devices"][BED]["device"]["status"]
-        assert NEXT_START_MISSING not in status
-        assert "next_start_time" in status
-
-    def test_sensor_attribute(self, freezer: Any) -> None:
-        """next_watering_unavailable: the stored reason, else rain_delay, else past."""
-        freezer.move_to(at("2026-10-28T09:40").astimezone(UTC))
-        base = {NEXT_START_COMPUTED: True}
-        off = {**base, NEXT_START_MISSING: "timer_off"}
-        assert _next_watering_attributes({"status": off}) == {
-            "computed_from_program": True,
-            "next_watering_unavailable": "timer_off",
-        }
-        rain = {
-            **base,
-            "rain_delay": 24,
-            "next_start_time": "2026-10-29T06:00:00-07:00",
-        }
-        assert (
-            _next_watering_attributes({"status": rain})["next_watering_unavailable"]
-            == "rain_delay"
-        )
-        past = {**base, "next_start_time": "2026-10-28T06:00:00-07:00"}
-        assert (
-            _next_watering_attributes({"status": past})["next_watering_unavailable"]
-            == "past"
-        )
-        ahead = {**base, "next_start_time": "2026-10-29T06:00:00-07:00"}
-        assert "next_watering_unavailable" not in _next_watering_attributes(
-            {"status": ahead}
-        )
+        assert next_watering(device(BED), orbit_programs()).unavailable is None

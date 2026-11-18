@@ -25,11 +25,16 @@ from homeassistant.util import dt
 
 from custom_components.bhyve.pybhyve.typings import BHyveZoneLandscape
 
-from . import BHyveCoordinatorEntity, async_run_each, bhyve_command
+from . import (
+    BHyveCoordinatorEntity,
+    async_listen_for_new_devices,
+    async_run_each,
+    bhyve_command,
+)
 from .const import DEVICE_SPRINKLER, DOMAIN, EVENT_CHANGE_MODE
 from .pybhyve.errors import BHyveError
 from .util import (
-    next_watering_time,
+    next_watering,
     orbit_time_to_local_time,
     orbit_timestamp_now,
     watering_in_progress,
@@ -157,15 +162,10 @@ VALVE_DESCRIPTION = BHyveValveEntityDescription(
 )
 
 
-async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
-) -> None:
-    """Set up the BHyve valve platform from a config entry."""
-    coordinator: BHyveDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id][
-        "coordinator"
-    ]
-    devices: list[BHyveDevice] = hass.data[DOMAIN][entry.entry_id]["devices"]
-
+def _valves_for(
+    coordinator: BHyveDataUpdateCoordinator, devices: list[BHyveDevice]
+) -> list[BHyveZoneValve]:
+    """Return the zone valves for these devices."""
     valves = []
 
     for device in devices:
@@ -203,7 +203,22 @@ async def async_setup_entry(
                     )
                 )
 
-    async_add_entities(valves)
+    return valves
+
+
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up the BHyve valve platform from a config entry."""
+    coordinator: BHyveDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id][
+        "coordinator"
+    ]
+    devices: list[BHyveDevice] = hass.data[DOMAIN][entry.entry_id]["devices"]
+
+    async_add_entities(_valves_for(coordinator, devices))
+    async_listen_for_new_devices(
+        hass, entry, lambda new: async_add_entities(_valves_for(coordinator, new))
+    )
 
     async def async_service_handler(service: Any) -> None:
         """Map services to method of BHyve devices."""
@@ -362,13 +377,14 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
                 attrs[ATTR_IMAGE_URL] = image_url
 
         # Add next start time if available
-        next_start_time = next_watering_time(status)
-        if next_start_time is not None:
-            next_start_programs = status.get("next_start_programs")
+        upcoming = next_watering(
+            self.device_data, self.coordinator.data.get("programs", {}).values()
+        )
+        if upcoming.start is not None:
             attrs.update(
                 {
-                    ATTR_NEXT_START_TIME: next_start_time.isoformat(),
-                    ATTR_NEXT_START_PROGRAMS: next_start_programs,
+                    ATTR_NEXT_START_TIME: upcoming.start.isoformat(),
+                    ATTR_NEXT_START_PROGRAMS: upcoming.programs,
                 }
             )
 

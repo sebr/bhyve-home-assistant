@@ -11,7 +11,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
 )
 
-from . import BHyveCoordinatorEntity
+from . import BHyveCoordinatorEntity, async_listen_for_new_devices
 from .const import DEVICE_BRIDGE, DEVICE_FLOOD, DEVICE_SPRINKLER, DOMAIN
 
 if TYPE_CHECKING:
@@ -103,14 +103,18 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     devices = hass.data[DOMAIN][entry.entry_id]["devices"]
 
-    entities = [
-        BHyveBinarySensor(coordinator, device, description)
-        for device in devices
-        for description in BINARY_SENSOR_TYPES
-        if device.get("type") in description.device_types
-    ]
+    def entities_for(devices: list) -> list[BHyveBinarySensor]:
+        return [
+            BHyveBinarySensor(coordinator, device, description)
+            for device in devices
+            for description in BINARY_SENSOR_TYPES
+            if device.get("type") in description.device_types
+        ]
 
-    async_add_entities(entities)
+    async_add_entities(entities_for(devices))
+    async_listen_for_new_devices(
+        hass, entry, lambda new: async_add_entities(entities_for(new))
+    )
 
 
 class BHyveBinarySensor(BHyveCoordinatorEntity, BinarySensorEntity):

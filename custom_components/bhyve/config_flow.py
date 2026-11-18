@@ -39,6 +39,8 @@ class BHyveConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for BHyve."""
 
     VERSION = 1
+    # 2: auto-add devices new to the account (see async_migrate_entry).
+    MINOR_VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -221,8 +223,18 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
 
         # Filter saved defaults to only include devices that still exist,
         # in case a device was removed from the B-hyve account.
-        saved_devices = self.config_entry.options.get(CONF_DEVICES, [])
+        options = self.config_entry.options
+        saved_devices = options.get(CONF_DEVICES, [])
         valid_defaults = [d for d in saved_devices if d in device_options]
+        # A device new to the account that a poll hasn't added yet is ticked,
+        # so submitting the form doesn't turn it off for good.
+        if (
+            options.get(CONF_AUTO_ADD, True)
+            and (known := options.get(CONF_KNOWN_DEVICES)) is not None
+        ):
+            valid_defaults += [
+                d for d in device_options if d not in known and d not in valid_defaults
+            ]
         self._offered = list(device_options)
 
         return self.async_show_form(
