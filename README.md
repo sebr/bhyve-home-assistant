@@ -59,9 +59,15 @@ If you do not wish to use HACS, then please download the latest version from the
 3. Search for `Orbit B-hyve`
 4. Complete the guided configuration
 
-Devices added to your B-hyve account later (for example a new Gen 2 hose timer paired with an existing hub) are added automatically while **Add new B-hyve devices automatically** is on (the default). Devices you untick in the integration's options stay off. Existing setups get the option turned on when they upgrade: the devices already on the account keep your current selection, and devices added to the account after that are added. New devices appear without reloading the integration.
-
 <img width="450" alt="Configure B-hyve from Home Assistant" src="https://user-images.githubusercontent.com/81972/177079633-672ef7be-3b20-4350-bc46-9dc6cd9c8e19.png">
+
+### Devices added later
+
+Devices you add to your B-hyve account after setup (for example a new hose timer paired with a hub you already have) are added to Home Assistant automatically within about five minutes.
+
+To turn this off, or to choose which devices appear, open **Settings > Devices & Services > Orbit B-hyve > Configure**. A device you deselect there is removed from Home Assistant and is not added back until you select it again.
+
+Upgrading from an earlier version: your current selection is kept. If a timer you already own is missing, open **Configure** and select it. Devices added from then on appear by themselves.
 
 ### Help
 
@@ -108,8 +114,8 @@ The following attributes are set on next watering sensor entities:
 | Attribute  | Type           | Notes                                                          |
 | ---------- | -------------- | -------------------------------------------------------------- |
 | `programs` | `list[string]` | The programs scheduled to run at this time, if any.            |
-| `computed_from_program` | `bool` | Set when Orbit reports no usable next watering (Gen 2 hose timers always; others when Orbit sends none): the time is computed from the timer's enabled, non-smart programs on the timer's own clock. |
-| `next_watering_unavailable` | `string` | With `computed_from_program`, why there is no time: `timer_off`, `rain_delay`, `no_upcoming_run` or `not_computable` (a smart program or an unknown frequency). It is worked out whenever the sensor updates, so a mode change or a run starting shows straight away. |
+| `computed_from_program` | `bool` | Set when Orbit did not send a next watering time and the integration works it out from the timer's programs instead. This is always the case for Gen 2 hose timers. |
+| `next_watering_unavailable` | `string` | Set with `computed_from_program` when no time could be worked out, to say why the sensor is `unknown`: `timer_off` (device mode is Off), `rain_delay` (a rain delay is active), `no_upcoming_run` (no enabled program has a run coming) or `not_computable` (the timer has a Smart Watering program or a schedule type the integration cannot read). |
 
 ### Temperature sensor
 

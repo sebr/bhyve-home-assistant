@@ -16,6 +16,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_DEVICES,
+    CONF_KNOWN_DEVICES,
     DEVICE_BRIDGE,
     DEVICE_SPRINKLER,
     DOMAIN,
@@ -35,10 +37,10 @@ from .const import (
 )
 from .pybhyve.errors import AuthenticationError, BHyveError
 from .util import (
+    device_time_zone_id,
     filter_configured_devices,
-    new_leaf_device_ids,
-    options_with_known_devices_seeded,
-    options_with_new_devices,
+    leaf_device_ids,
+    new_device_ids,
     orbit_time_to_local_time,
     watering_in_progress,
 )
@@ -136,9 +138,14 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                 if program_id:
                     data["programs"][program_id] = program
 
-            # During setup, async_setup_entry adds them before the platforms load.
+            # Programs run on the timer's own clock; load its zone off the loop.
+            for zone_id in {device_time_zone_id(device) for device in devices}:
+                if zone_id:
+                    await dt_util.async_get_time_zone(zone_id)
+
+            # During setup, async_setup_entry does this before the platforms load.
             if self.entry.state is ConfigEntryState.LOADED:
-                self.async_add_new_devices(devices, add_entities=True)
+                self.async_add_new_devices(devices)
 
             return data  # noqa: TRY300
 
@@ -150,48 +157,59 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(msg) from err
 
     @callback
-    def async_add_new_devices(
-        self, all_devices: list[BHyveDevice], *, add_entities: bool
-    ) -> None:
+    def async_add_new_devices(self, all_devices: list[BHyveDevice]) -> None:
         """
-        Select devices new to the B-hyve account (when auto-add is on).
+        Select devices new to the B-hyve account, and add their entities.
 
-        During setup (add_entities=False) the platforms then load them with
-        the rest. Once running, their entities are added through
-        SIGNAL_NEW_DEVICES, without reloading the entry; only a hub that is
-        new too needs a reload, since hubs are registered before the
-        platforms load.
+        During setup the platforms load them with the rest. Once running,
+        the entities of a selected device that isn't loaded yet are added
+        through SIGNAL_NEW_DEVICES, without reloading the entry. Only a new
+        hub needs a reload, since hubs are registered before the platforms
+        load.
         """
         options = self.entry.options
-        if seeded := options_with_known_devices_seeded(options, all_devices):
-            options = seeded
-        new_ids = new_leaf_device_ids(options, all_devices)
+        known = options.get(CONF_KNOWN_DEVICES)
+        new_ids = new_device_ids(options, all_devices)
         if new_ids:
             _LOGGER.info("Adding devices new to the B-hyve account: %s", new_ids)
-            options = options_with_new_devices(options, new_ids)
-        if options is not self.entry.options:
-            self.hass.config_entries.async_update_entry(self.entry, options=options)
-        if not new_ids or not add_entities:
+        if known is None or new_ids:
+            # An entry from before auto-add: every device already on the
+            # account counts as offered, so the user's selection stands.
+            if known is None:
+                known = leaf_device_ids(all_devices)
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                options={
+                    **options,
+                    CONF_DEVICES: [*options.get(CONF_DEVICES, []), *new_ids],
+                    CONF_KNOWN_DEVICES: [*known, *new_ids],
+                },
+            )
+        if self.entry.state is not ConfigEntryState.LOADED:
             return
 
-        if any(
-            d.get("type") == DEVICE_BRIDGE and d.get("id") not in self.bridge_device_ids
-            for d in all_devices
-        ):
-            self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
-            return
-        new_devices = [
+        loaded = self.hass.data[DOMAIN][self.entry.entry_id]["devices"]
+        loaded_ids = {d.get("id") for d in loaded}
+        # A timer with no status yet (not paired with its hub) waits for a
+        # later poll, so it is added with its valve and switches.
+        missing = [
             d
             for d in filter_configured_devices(self.entry, all_devices)
-            if str(d.get("id")) in new_ids
+            if d.get("id") not in loaded_ids
+            and (d.get("type") != DEVICE_SPRINKLER or d.get("status"))
         ]
-        self.hass.data[DOMAIN][self.entry.entry_id]["devices"].extend(new_devices)
+        if not missing:
+            return
+        if any(d.get("type") == DEVICE_BRIDGE for d in missing):
+            self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
+            return
+        loaded.extend(missing)
         # After this poll's data is stored, so the new entities find theirs.
         self.hass.loop.call_soon(
             async_dispatcher_send,
             self.hass,
             SIGNAL_NEW_DEVICES.format(self.entry.entry_id),
-            new_devices,
+            missing,
         )
 
     async def _fetch_device_bundle(self, device: BHyveDevice) -> dict[str, Any] | None:
@@ -310,7 +328,7 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         status = device.get("status")
         if not isinstance(status, dict):
             return
-        # Gen 2 timers report watering_status {"clear_on_idle": true} while idle.
+        # An idle timer may report watering_status {"clear_on_idle": true}.
         if status.get("run_mode") == MODE_MANUAL and not watering_in_progress(status):
             if resume := self._resume_modes.get(device_id):
                 status["run_mode"] = resume

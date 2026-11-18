@@ -89,7 +89,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except (BHyveError, TimeoutError) as err:
         raise ConfigEntryNotReady(err) from err
 
-    coordinator.async_add_new_devices(all_devices, add_entities=False)
+    coordinator.async_add_new_devices(all_devices)
     devices = filter_configured_devices(entry, all_devices)
 
     # Remove any leaf devices that are no longer selected in options from the
@@ -178,6 +178,7 @@ def async_listen_for_new_devices(
 ) -> None:
     """Call add_devices with each batch of devices auto-added while running."""
 
+    # A @callback, or the dispatcher would run add_devices in the executor.
     @callback
     def _devices_added(devices: list[BHyveDevice]) -> None:
         add_devices(devices)
@@ -219,10 +220,14 @@ async def async_remove_config_entry_device(
         in_account = {str(d.get("id")) for d in await data["client"].devices}
     except (BHyveError, TimeoutError):
         return False
-    return not any(
-        domain == DOMAIN and device_id in in_account
-        for domain, device_id in device_entry.identifiers
-    )
+    device_ids = {i for domain, i in device_entry.identifiers if domain == DOMAIN}
+    if device_ids & in_account:
+        return False
+    # No longer loaded, so it gets its entities again if it ever comes back.
+    data["devices"][:] = [
+        d for d in data["devices"] if str(d.get("id")) not in device_ids
+    ]
+    return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

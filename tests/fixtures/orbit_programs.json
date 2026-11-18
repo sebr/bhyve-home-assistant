@@ -1,237 +1,130 @@
 [
- {
-  "name": "Patio",
-  "program_start_date": "2026-05-12T00:00:00-07:00",
-  "frequency": {
-   "type": "interval",
-   "interval": 2,
-   "interval_start_time": "2026-05-12T00:00:00-07:00"
+  {
+    "name": "Lawn",
+    "program_start_date": "2026-05-12T00:00:00-07:00",
+    "frequency": {
+      "type": "interval",
+      "interval": 2,
+      "interval_start_time": "2026-05-12T00:00:00-07:00"
+    },
+    "updated_at": "2026-10-28T12:00:00.000Z",
+    "updated_via": "wifi",
+    "start_times": [
+      "03:00"
+    ],
+    "id": "prog-16",
+    "budget": 100,
+    "device_id": "timer-lawn-03",
+    "program": "a",
+    "run_times": [
+      {
+        "run_time": 30,
+        "station": 1
+      }
+    ],
+    "enabled": true,
+    "created_at": "2026-01-01T00:00:00.000Z"
   },
-  "updated_at": "2026-07-23T13:16:02.503Z",
-  "updated_via": "wifi",
-  "start_times": [
-   "03:00"
-  ],
-  "id": "prog-16",
-  "budget": 100,
-  "device_id": "timer-patio-03",
-  "program": "a",
-  "run_times": [
-   {
-    "run_time": 30,
-    "station": 1
-   }
-  ],
-  "enabled": true,
-  "created_at": "2025-04-06T21:59:13.667Z"
- },
- {
-  "pending_timer_ack": true,
-  "name": "Side Yard Old",
-  "program_start_date": "2025-04-16T07:00:00.000Z",
-  "frequency": {
-   "type": "even"
+  {
+    "name": "Raised Bed",
+    "program_start_date": "2026-05-12T00:00:00-07:00",
+    "frequency": {
+      "type": "interval",
+      "interval": 3,
+      "interval_start_time": "2026-05-12T00:00:00-07:00"
+    },
+    "updated_at": "2026-10-28T12:00:00.000Z",
+    "updated_via": "wifi",
+    "start_times": [
+      "04:00"
+    ],
+    "id": "prog-21",
+    "budget": 100,
+    "device_id": "timer-raised-bed-08",
+    "program": "a",
+    "run_times": [
+      {
+        "run_time": 30,
+        "station": 1
+      }
+    ],
+    "enabled": true,
+    "created_at": "2026-01-01T00:00:00.000Z"
   },
-  "updated_at": "2026-05-12T02:17:52.750Z",
-  "updated_via": "wifi",
-  "start_times": [
-   "05:00"
-  ],
-  "id": "prog-17",
-  "budget": 100,
-  "device_id": "timer-side-yard-05",
-  "program": null,
-  "run_times": [
-   {
-    "run_time": 45,
-    "station": 1
-   }
-  ],
-  "enabled": false,
-  "created_at": "2025-04-17T00:22:32.451Z"
- },
- {
-  "name": "Side Yard",
-  "program_start_date": "2026-05-13T00:00:00-07:00",
-  "frequency": {
-   "type": "interval",
-   "interval": 3,
-   "interval_start_time": "2026-05-13T00:00:00-07:00"
+  {
+    "pending_timer_ack": true,
+    "name": "Old Schedule",
+    "program_start_date": "2026-05-11T00:00:00.000-07:00",
+    "frequency": {
+      "type": "interval",
+      "interval": 3
+    },
+    "updated_at": "2026-10-28T12:00:00.000Z",
+    "updated_via": "wifi",
+    "start_times": [
+      "06:00"
+    ],
+    "id": "prog-22",
+    "budget": 100,
+    "device_id": "timer-hedge-09",
+    "program": null,
+    "run_times": [
+      {
+        "run_time": 30,
+        "station": 1
+      }
+    ],
+    "enabled": false,
+    "created_at": "2026-01-01T00:00:00.000Z"
   },
-  "program_end_date": null,
-  "updated_at": "2026-08-25T11:14:54.859Z",
-  "updated_via": "wifi",
-  "start_times": [
-   "21:00"
-  ],
-  "id": "prog-18",
-  "budget": 100,
-  "device_id": "timer-side-yard-05",
-  "program": "a",
-  "run_times": [
-   {
-    "run_time": 30,
-    "station": 1
-   }
-  ],
-  "enabled": true,
-  "created_at": "2026-05-12T02:17:52.727Z"
- },
- {
-  "name": "Back Yard",
-  "program_start_date": "2026-05-13T00:00:00-07:00",
-  "frequency": {
-   "type": "interval",
-   "interval": 2,
-   "interval_start_time": "2026-05-13T00:00:00-07:00"
+  {
+    "name": "Hedge",
+    "program_start_date": "2026-05-11T00:00:00.000-07:00",
+    "frequency": {
+      "type": "interval",
+      "interval": 3,
+      "interval_start_time": "2026-05-11T00:00:00-07:00"
+    },
+    "updated_at": "2026-10-28T12:00:00.000Z",
+    "updated_via": "wifi",
+    "start_times": [
+      "06:00"
+    ],
+    "id": "prog-23",
+    "budget": 100,
+    "device_id": "timer-hedge-09",
+    "program": "a",
+    "run_times": [
+      {
+        "run_time": 30,
+        "station": 1
+      }
+    ],
+    "enabled": true,
+    "created_at": "2026-01-01T00:00:00.000Z"
   },
-  "program_end_date": null,
-  "updated_at": "2026-07-23T13:14:56.488Z",
-  "updated_via": "wifi",
-  "start_times": [
-   "00:00"
-  ],
-  "id": "prog-19",
-  "budget": 100,
-  "device_id": "timer-back-yard-06",
-  "program": "a",
-  "run_times": [
-   {
-    "run_time": 30,
-    "station": 1
-   }
-  ],
-  "enabled": true,
-  "created_at": "2025-04-17T00:31:31.280Z"
- },
- {
-  "name": "Front Yard",
-  "program_start_date": "2026-05-13T00:00:00-07:00",
-  "frequency": {
-   "type": "interval",
-   "interval": 2,
-   "interval_start_time": "2026-05-13T00:00:00-07:00"
-  },
-  "program_end_date": null,
-  "is_basic_program": false,
-  "updated_at": "2026-07-23T13:15:23.840Z",
-  "updated_via": "wifi",
-  "start_times": [
-   "01:00"
-  ],
-  "id": "prog-20",
-  "budget": 100,
-  "device_id": "timer-front-yard-07",
-  "program": "a",
-  "run_times": [
-   {
-    "run_time": 31,
-    "station": 1
-   }
-  ],
-  "enabled": true,
-  "created_at": "2025-05-04T13:40:30.638Z"
- },
- {
-  "name": "Vegetable Garden",
-  "program_start_date": "2026-05-12T00:00:00-07:00",
-  "frequency": {
-   "type": "interval",
-   "interval": 3,
-   "interval_start_time": "2026-05-12T00:00:00-07:00"
-  },
-  "updated_at": "2026-05-12T23:52:01.009Z",
-  "updated_via": "wifi",
-  "start_times": [
-   "04:00"
-  ],
-  "id": "prog-21",
-  "budget": 100,
-  "device_id": "timer-vegetable-garden-08",
-  "program": "a",
-  "run_times": [
-   {
-    "run_time": 30,
-    "station": 1
-   }
-  ],
-  "enabled": true,
-  "created_at": "2025-05-07T20:49:51.665Z"
- },
- {
-  "pending_timer_ack": true,
-  "name": "Trees",
-  "program_start_date": "2026-05-11T00:00:00.000-07:00",
-  "frequency": {
-   "type": "interval",
-   "interval": 3
-  },
-  "updated_at": "2026-05-11T23:46:29.496Z",
-  "updated_via": "wifi",
-  "start_times": [
-   "06:00"
-  ],
-  "id": "prog-22",
-  "budget": 100,
-  "device_id": "timer-hedge-09",
-  "program": null,
-  "run_times": [
-   {
-    "run_time": 30,
-    "station": 1
-   }
-  ],
-  "enabled": false,
-  "created_at": "2026-05-11T23:42:46.282Z"
- },
- {
-  "name": "Hedge",
-  "program_start_date": "2026-05-11T00:00:00.000-07:00",
-  "frequency": {
-   "type": "interval",
-   "interval": 3,
-   "interval_start_time": "2026-05-11T00:00:00-07:00"
-  },
-  "updated_at": "2026-10-25T16:38:09.429Z",
-  "updated_via": "wifi",
-  "start_times": [
-   "06:00"
-  ],
-  "id": "prog-23",
-  "budget": 100,
-  "device_id": "timer-hedge-09",
-  "program": "a",
-  "run_times": [
-   {
-    "run_time": 30,
-    "station": 1
-   }
-  ],
-  "enabled": true,
-  "created_at": "2026-05-11T23:46:29.490Z"
- },
- {
-  "name": "Program A",
-  "program_start_date": "2026-10-11T00:00:00-07:00",
-  "frequency": {
-   "type": "even"
-  },
-  "updated_at": "2026-10-14T17:20:35.778Z",
-  "updated_via": "wifi",
-  "start_times": [
-   "04:00"
-  ],
-  "id": "prog-24",
-  "budget": 100,
-  "device_id": "timer-flower-bed-11",
-  "program": "a",
-  "run_times": [
-   {
-    "run_time": 45,
-    "station": 1
-   }
-  ],
-  "enabled": true,
-  "created_at": "2026-10-11T19:20:47.038Z"
- }
+  {
+    "name": "Mornings",
+    "program_start_date": "2026-10-11T00:00:00-07:00",
+    "frequency": {
+      "type": "even"
+    },
+    "updated_at": "2026-10-28T12:00:00.000Z",
+    "updated_via": "wifi",
+    "start_times": [
+      "04:00"
+    ],
+    "id": "prog-24",
+    "budget": 100,
+    "device_id": "timer-flower-bed-11",
+    "program": "a",
+    "run_times": [
+      {
+        "run_time": 45,
+        "station": 1
+      }
+    ],
+    "enabled": true,
+    "created_at": "2026-01-01T00:00:00.000Z"
+  }
 ]

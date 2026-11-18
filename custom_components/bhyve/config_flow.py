@@ -28,6 +28,7 @@ from .const import (
 )
 from .pybhyve import BHyveClient
 from .pybhyve.errors import AuthenticationError, BHyveError
+from .util import new_device_ids
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -182,22 +183,28 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
     ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
-            # Everything the form offered is "known": a device left
-            # unticked is one the user chose not to have, never auto-added.
-            known = list(
-                dict.fromkeys(
-                    [
-                        *self.config_entry.options.get(CONF_KNOWN_DEVICES, []),
-                        *self._offered,
-                    ]
-                )
-            )
+            options = self.config_entry.options
             return self.async_create_entry(
                 title="",
                 data={
-                    CONF_DEVICES: user_input[CONF_DEVICES],
+                    # A device auto-added while the form was open wasn't on
+                    # it, so it can't have been deselected: keep it.
+                    CONF_DEVICES: [
+                        *user_input[CONF_DEVICES],
+                        *(
+                            d
+                            for d in options.get(CONF_DEVICES, [])
+                            if d not in self._offered
+                        ),
+                    ],
                     CONF_AUTO_ADD: user_input.get(CONF_AUTO_ADD, True),
-                    CONF_KNOWN_DEVICES: known,
+                    # Everything the form offered is "known": a device left
+                    # deselected is one the user chose not to have.
+                    CONF_KNOWN_DEVICES: list(
+                        dict.fromkeys(
+                            [*options.get(CONF_KNOWN_DEVICES, []), *self._offered]
+                        )
+                    ),
                 },
             )
 
@@ -226,15 +233,9 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
         options = self.config_entry.options
         saved_devices = options.get(CONF_DEVICES, [])
         valid_defaults = [d for d in saved_devices if d in device_options]
-        # A device new to the account that a poll hasn't added yet is ticked,
-        # so submitting the form doesn't turn it off for good.
-        if (
-            options.get(CONF_AUTO_ADD, True)
-            and (known := options.get(CONF_KNOWN_DEVICES)) is not None
-        ):
-            valid_defaults += [
-                d for d in device_options if d not in known and d not in valid_defaults
-            ]
+        # A device new to the account that a poll hasn't added yet is selected,
+        # so submitting the form as shown doesn't leave it out for good.
+        valid_defaults += new_device_ids(options, devices)
         self._offered = list(device_options)
 
         return self.async_show_form(
@@ -247,7 +248,7 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
                     ): cv.multi_select(device_options),
                     vol.Optional(
                         CONF_AUTO_ADD,
-                        default=self.config_entry.options.get(CONF_AUTO_ADD, True),
+                        default=options.get(CONF_AUTO_ADD, True),
                     ): bool,
                 }
             ),
