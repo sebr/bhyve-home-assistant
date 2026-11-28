@@ -459,25 +459,45 @@ class TestAutoAdd:
         """
         An existing setup gets auto-add without opening the options.
 
-        Devices already on the account keep the user's choice; one added to
-        the account afterwards appears.
+        The Gen 2 timer already on the account but never selected (#420:
+        paired after setup) is added. An unselected Gen 1 timer keeps the
+        user's choice. One added to the account afterwards appears.
         """
         cloud.devices = orbit_devices(without=(BED,))
-        entry = await set_up(hass, GEN1_TIMERS, minor_version=1)
+        entry = await set_up(hass, [LAWN], minor_version=1)
 
         assert entry.minor_version == 2
         assert entry.options == {
-            CONF_DEVICES: GEN1_TIMERS,
+            CONF_DEVICES: [LAWN, HEDGE],
             CONF_AUTO_ADD: True,
-            CONF_KNOWN_DEVICES: [*GEN1_TIMERS, HEDGE],
+            CONF_KNOWN_DEVICES: [LAWN, RAISED_BED, HEDGE],
         }
-        assert hass.states.get("valve.hedge_zone") is None
-        assert hass.states.get("valve.raised_bed_zone") is not None
+        assert hass.states.get("valve.hedge_zone") is not None
+        assert hass.states.get("valve.raised_bed_zone") is None
 
         cloud.devices = orbit_devices()
         await poll(hass, freezer)
-        assert entry.options[CONF_DEVICES] == [*GEN1_TIMERS, BED]
+        assert entry.options[CONF_DEVICES] == [LAWN, HEDGE, BED]
         assert hass.states.get("valve.flower_bed_zone") is not None
+        assert hass.states.get("valve.raised_bed_zone") is None
+
+    async def test_migration_keeps_a_saved_auto_add_off(
+        self, hass: HomeAssistant
+    ) -> None:
+        """An entry that already says auto-add is off keeps it off."""
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            unique_id=USERNAME,
+            data={CONF_USERNAME: USERNAME, CONF_PASSWORD: PASSWORD},
+            options={CONF_DEVICES: GEN1_TIMERS, CONF_AUTO_ADD: False},
+            minor_version=1,
+        )
+        entry.add_to_hass(hass)
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await settle(hass)
+        assert entry.minor_version == 2
+        assert entry.options[CONF_AUTO_ADD] is False
+        assert entry.options[CONF_DEVICES] == GEN1_TIMERS
         assert hass.states.get("valve.hedge_zone") is None
 
     async def test_options_saved_by_an_older_version_still_auto_add(
@@ -674,7 +694,7 @@ class TestFlows:
 
     @pytest.mark.parametrize(
         ("auto_add", "selected"),
-        [(True, [*GEN1_TIMERS, BED]), (False, GEN1_TIMERS)],
+        [(True, [*GEN1_TIMERS, BED]), (False, [*GEN1_TIMERS, BED])],
     )
     async def test_options_form_selects_devices_not_added_yet(
         self,
@@ -688,9 +708,9 @@ class TestFlows:
         """
         A device new to the account that no poll has added yet starts selected.
 
-        Submitting the form as shown must not leave it out for good. Hedge was
-        offered before and deselected, so it stays deselected. With auto-add
-        off, only the saved selection is selected.
+        Submitting the form as shown must not leave it out for good, with
+        auto-add on or off. Hedge was offered before and deselected, so it
+        stays deselected.
         """
         cloud.devices = orbit_devices(without=(BED,))
         entry = await set_up(
@@ -726,6 +746,113 @@ class TestFlows:
         await settle(hass)
         assert entry.options[CONF_DEVICES] == [*GEN1_TIMERS, HEDGE, BED]
         assert hass.states.get("valve.flower_bed_zone") is not None
+
+    async def test_turning_auto_add_on_in_the_form_keeps_a_new_timer(
+        self, hass: HomeAssistant, cloud: FakeOrbitCloud, freezer: FrozenDateTimeFactory
+    ) -> None:
+        """
+        Auto-add was off; the user turns it on without touching the list.
+
+        The timer new to the account was ticked, so it is selected, not
+        recorded as known and unselected for good.
+        """
+        cloud.devices = orbit_devices(without=(BED,))
+        entry = await set_up(
+            hass, GEN1_TIMERS, known=[*GEN1_TIMERS, HEDGE], auto_add=False
+        )
+        cloud.devices = orbit_devices()
+        freezer.tick(timedelta(minutes=6))
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        devices = next(k for k in result["data_schema"].schema if k == CONF_DEVICES)
+        await hass.config_entries.options.async_configure(
+            result["flow_id"], {CONF_DEVICES: devices.default(), CONF_AUTO_ADD: True}
+        )
+        await settle(hass)
+        assert entry.options[CONF_DEVICES] == [*GEN1_TIMERS, BED]
+        assert hass.states.get("valve.flower_bed_zone") is not None
+
+    async def test_saving_drops_devices_gone_from_the_account(
+        self, hass: HomeAssistant
+    ) -> None:
+        """A saved id the account no longer has isn't carried forward."""
+        gone = "timer-gone-99"
+        entry = await set_up(hass, [*GEN1_TIMERS, HEDGE, BED, gone])
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_DEVICES: [*GEN1_TIMERS, HEDGE, BED], CONF_AUTO_ADD: True},
+        )
+        await settle(hass)
+        assert entry.options[CONF_DEVICES] == [*GEN1_TIMERS, HEDGE, BED]
+
+
+@pytest.mark.usefixtures("connected")
+class TestNextWateringUpdates:
+    """When the stored next watering is worked out again."""
+
+    async def test_a_start_that_passes_moves_on_without_a_poll(
+        self, hass: HomeAssistant, freezer: FrozenDateTimeFactory
+    ) -> None:
+        """At the computed start the sensor moves to the run after it."""
+        await set_up(hass, [HEDGE])
+        start = at("2026-10-29T06:00")
+        freezer.move_to(start - timedelta(seconds=10))
+        async_fire_time_changed(hass)  # the poll, 10 s before the start
+        await settle(hass)
+        assert next_watering_state(hass, "hedge") == start
+
+        freezer.move_to(start + timedelta(seconds=2))
+        async_fire_time_changed(hass)  # no poll due for ~5 minutes
+        await settle(hass)
+        after = next_watering_state(hass, "hedge")
+        assert after is not None
+        assert after > start
+        valve = hass.states.get("valve.hedge_zone")
+        assert datetime.fromisoformat(valve.attributes["next_start_time"]) == after
+
+    async def test_worked_out_once_per_timer_per_update(
+        self, hass: HomeAssistant, cloud: FakeOrbitCloud
+    ) -> None:
+        """Not once per entity: the valve and the sensor read the stored value."""
+        await set_up(hass, [*GEN1_TIMERS, HEDGE, BED])
+        with patch(
+            "custom_components.bhyve.coordinator.next_watering",
+            wraps=next_watering,
+        ) as worked_out:
+            cloud.socket.push({"event": "change_mode", "device_id": BED, "mode": "off"})
+            await settle(hass)
+        timers = [d for d in cloud.devices if d["type"] == "sprinkler_timer"]
+        assert worked_out.call_count == len(timers)
+        state = hass.states.get("sensor.flower_bed_next_watering")
+        assert state.state == "unknown"
+        assert state.attributes["next_watering_unavailable"] == "timer_off"
+
+
+@pytest.mark.usefixtures("connected")
+async def test_new_device_whose_data_failed_waits_for_a_later_poll(
+    hass: HomeAssistant, cloud: FakeOrbitCloud, freezer: FrozenDateTimeFactory
+) -> None:
+    """No entities with empty data: added on the poll that loads its data."""
+    cloud.devices = orbit_devices(without=(BED,))
+    entry = await set_up(hass, [*GEN1_TIMERS, HEDGE])
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    fetch = coordinator._fetch_device_bundle
+
+    async def bed_fails(device: dict[str, Any]) -> dict[str, Any] | None:
+        if device.get("id") == BED:
+            msg = "landscape service down"
+            raise TimeoutError(msg)
+        return await fetch(device)
+
+    cloud.devices = orbit_devices()
+    with patch.object(coordinator, "_fetch_device_bundle", bed_fails):
+        await poll(hass, freezer)
+    assert BED in entry.options[CONF_DEVICES]
+    assert hass.states.get("valve.flower_bed_zone") is None
+
+    await poll(hass, freezer)
+    assert hass.states.get("valve.flower_bed_zone").state == "closed"
 
 
 def test_fixture_programs_are_what_the_tests_assume() -> None:

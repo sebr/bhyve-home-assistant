@@ -28,7 +28,7 @@ from .const import (
 )
 from .pybhyve import BHyveClient
 from .pybhyve.errors import AuthenticationError, BHyveError
-from .util import new_device_ids
+from .util import unoffered_device_ids
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -177,6 +177,7 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
     def __init__(self) -> None:
         """Initialize the options flow."""
         self._offered: list[str] = []
+        self._saved_when_shown: list[str] = []
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -188,13 +189,16 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
                 title="",
                 data={
                     # A device auto-added while the form was open wasn't on
-                    # it, so it can't have been deselected: keep it.
+                    # it, so it can't have been deselected: keep it. Other
+                    # saved devices the form didn't offer have left the
+                    # account, and are dropped.
                     CONF_DEVICES: [
                         *user_input[CONF_DEVICES],
                         *(
                             d
                             for d in options.get(CONF_DEVICES, [])
                             if d not in self._offered
+                            and d not in self._saved_when_shown
                         ),
                     ],
                     CONF_AUTO_ADD: user_input.get(CONF_AUTO_ADD, True),
@@ -233,10 +237,14 @@ class BhyveOptionsFlowHandler(OptionsFlowWithReload):
         options = self.config_entry.options
         saved_devices = options.get(CONF_DEVICES, [])
         valid_defaults = [d for d in saved_devices if d in device_options]
-        # A device new to the account that a poll hasn't added yet is selected,
-        # so submitting the form as shown doesn't leave it out for good.
-        valid_defaults += new_device_ids(options, devices)
+        # A device the user has never been offered starts selected, with
+        # auto-add on or off: submitting the form records it as known, so
+        # leaving it unticked unseen would keep it out for good.
+        valid_defaults = list(
+            dict.fromkeys([*valid_defaults, *unoffered_device_ids(options, devices)])
+        )
         self._offered = list(device_options)
+        self._saved_when_shown = list(saved_devices)
 
         return self.async_show_form(
             step_id="init",

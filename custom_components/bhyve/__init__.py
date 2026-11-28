@@ -26,6 +26,8 @@ from homeassistant.helpers.device_registry import (
     DeviceInfo,
 )
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
@@ -43,7 +45,7 @@ from .const import (
 from .coordinator import BHyveDataUpdateCoordinator
 from .pybhyve import BHyveClient
 from .pybhyve.errors import AuthenticationError, BHyveError
-from .util import filter_configured_devices
+from .util import filter_configured_devices, leaf_device_ids
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -96,10 +98,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # device registry. OptionsFlowWithReload triggers a reload after options
     # change, so this runs on every setup and cleans up de-selected devices.
     configured_ids = set(entry.options.get(CONF_DEVICES, []))
-    leaf_device_ids = {
-        str(d["id"]) for d in all_devices if d.get("type") != DEVICE_BRIDGE
-    }
-    if removed_device_ids := leaf_device_ids - configured_ids:
+    if removed_device_ids := set(leaf_device_ids(all_devices)) - configured_ids:
         await remove_devices_from_registry(hass, entry.entry_id, removed_device_ids)
 
     # Register bridges before any platform loads, so child devices can point at
@@ -157,31 +156,42 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     Turn on auto-add for entries made before it existed.
 
+    A saved auto_add_devices (from an earlier build of auto-add) wins.
+
     The account's devices are recorded as known on the entry's next setup
-    (which fetches them anyway), so the user's selection stands and only
-    devices added to the account after that are added.
+    (which fetches them anyway), so the user's selection stands, except
+    that an unselected Gen 2 hose timer is added (#420), as is any device
+    added to the account after that.
     """
     if entry.version > 1:
         return False
     if entry.minor_version < 2:  # noqa: PLR2004
         hass.config_entries.async_update_entry(
-            entry, options={**entry.options, CONF_AUTO_ADD: True}, minor_version=2
+            entry, options={CONF_AUTO_ADD: True, **entry.options}, minor_version=2
         )
     return True
 
 
 @callback
-def async_listen_for_new_devices(
+def async_add_device_entities[EntityT: Entity](
     hass: HomeAssistant,
     entry: ConfigEntry,
-    add_devices: Callable[[list[BHyveDevice]], None],
+    devices: list[BHyveDevice],
+    async_add_entities: AddEntitiesCallback,
+    factory: Callable[[list[BHyveDevice]], list[EntityT]],
 ) -> None:
-    """Call add_devices with each batch of devices auto-added while running."""
+    """
+    Add a platform's entities for these devices, and for devices added later.
 
-    # A @callback, or the dispatcher would run add_devices in the executor.
+    factory builds the entities for a batch of devices: first the loaded
+    devices, then each batch auto-added while the entry is running.
+    """
+    async_add_entities(factory(devices))
+
+    # A @callback, or the dispatcher would run it in the executor.
     @callback
-    def _devices_added(devices: list[BHyveDevice]) -> None:
-        add_devices(devices)
+    def _devices_added(new: list[BHyveDevice]) -> None:
+        async_add_entities(factory(new))
 
     entry.async_on_unload(
         async_dispatcher_connect(

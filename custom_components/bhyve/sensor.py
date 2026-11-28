@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
@@ -17,13 +18,13 @@ from homeassistant.const import (
 )
 from homeassistant.helpers.icon import icon_for_battery_level
 
-from . import BHyveCoordinatorEntity, async_listen_for_new_devices
+from . import BHyveCoordinatorEntity, async_add_device_entities
 from .const import (
     DEVICE_FLOOD,
     DEVICE_SPRINKLER,
     DOMAIN,
 )
-from .util import NextWatering, next_watering, orbit_time_to_local_time
+from .util import NextWatering, orbit_time_to_local_time
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -206,9 +207,8 @@ async def async_setup_entry(
         "coordinator"
     ]
     devices: list[BHyveDevice] = hass.data[DOMAIN][entry.entry_id]["devices"]
-    async_add_entities(_sensors_for(coordinator, devices))
-    async_listen_for_new_devices(
-        hass, entry, lambda new: async_add_entities(_sensors_for(coordinator, new))
+    async_add_device_entities(
+        hass, entry, devices, async_add_entities, partial(_sensors_for, coordinator)
     )
 
 
@@ -385,13 +385,12 @@ class BHyveNextWateringSensor(BHyveSensor):
     """
     Next watering: Orbit's time, else one worked out from the programs.
 
-    Worked out on every read from the current status and programs, so a mode
-    change, a run starting or a program edit shows straight away.
+    The coordinator works it out once per update (a poll, a websocket event,
+    or the soonest start passing), so the state and its attributes agree.
     """
 
     def _next_watering(self) -> NextWatering:
-        programs = self.coordinator.data.get("programs", {}).values()
-        return next_watering(self.device_data, programs)
+        return self.coordinator.next_watering(self._device_id)
 
     @property
     def native_value(self) -> datetime | None:

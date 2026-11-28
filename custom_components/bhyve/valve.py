@@ -6,6 +6,7 @@ import datetime
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
@@ -27,14 +28,13 @@ from custom_components.bhyve.pybhyve.typings import BHyveZoneLandscape
 
 from . import (
     BHyveCoordinatorEntity,
-    async_listen_for_new_devices,
+    async_add_device_entities,
     async_run_each,
     bhyve_command,
 )
 from .const import DEVICE_SPRINKLER, DOMAIN, EVENT_CHANGE_MODE
 from .pybhyve.errors import BHyveError
 from .util import (
-    next_watering,
     orbit_time_to_local_time,
     orbit_timestamp_now,
 )
@@ -214,9 +214,8 @@ async def async_setup_entry(
     ]
     devices: list[BHyveDevice] = hass.data[DOMAIN][entry.entry_id]["devices"]
 
-    async_add_entities(_valves_for(coordinator, devices))
-    async_listen_for_new_devices(
-        hass, entry, lambda new: async_add_entities(_valves_for(coordinator, new))
+    async_add_device_entities(
+        hass, entry, devices, async_add_entities, partial(_valves_for, coordinator)
     )
 
     async def async_service_handler(service: Any) -> None:
@@ -375,9 +374,7 @@ class BHyveZoneValve(BHyveCoordinatorEntity, ValveEntity):
                 attrs[ATTR_IMAGE_URL] = image_url
 
         # Add next start time if available
-        upcoming = next_watering(
-            self.device_data, self.coordinator.data.get("programs", {}).values()
-        )
+        upcoming = self.coordinator.next_watering(self._device_id)
         if upcoming.start is not None:
             attrs.update(
                 {

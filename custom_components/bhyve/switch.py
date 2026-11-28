@@ -21,7 +21,7 @@ from homeassistant.helpers import entity_registry as er
 
 from . import (
     BHyveCoordinatorEntity,
-    async_listen_for_new_devices,
+    async_add_device_entities,
     async_run_each,
     bhyve_command,
 )
@@ -211,11 +211,12 @@ async def async_setup_entry(
     devices: list[BHyveDevice] = hass.data[DOMAIN][entry.entry_id]["devices"]
 
     device_by_id: dict[str, BHyveDevice] = {}
-    async_add_entities(_switches_for(coordinator, devices, device_by_id))
-    async_listen_for_new_devices(
+    async_add_device_entities(
         hass,
         entry,
-        lambda new: async_add_entities(_switches_for(coordinator, new, device_by_id)),
+        devices,
+        async_add_entities,
+        lambda new: _switches_for(coordinator, new, device_by_id),
     )
 
     _remove_deleted_program_switches(hass, entry, coordinator)

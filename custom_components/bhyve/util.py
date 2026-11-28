@@ -296,20 +296,71 @@ def next_watering(
         return NextWatering(None, [], computed=True, unavailable="not_computable")
 
 
-def new_device_ids(
+def unoffered_device_ids(
     options: Mapping[str, Any], all_devices: Iterable[Mapping[str, Any]]
 ) -> list[str]:
     """
     Return the account's devices that the user has not been offered yet.
 
-    Empty when auto-add is off, and for an entry from before auto-add until
-    its first setup has recorded the account's devices as known. Bridges are
-    always included anyway, so never "new".
+    Whether or not auto-add is on. Empty for an entry from before auto-add
+    until its first setup has recorded which devices count as known.
+    Bridges are always included anyway, so never "unoffered".
     """
     known = options.get(CONF_KNOWN_DEVICES)
-    if known is None or not options.get(CONF_AUTO_ADD, True):
+    if known is None:
         return []
     return [d for d in leaf_device_ids(all_devices) if d not in known]
+
+
+def new_device_ids(
+    options: Mapping[str, Any], all_devices: Iterable[Mapping[str, Any]]
+) -> list[str]:
+    """Return the devices to auto-add: unoffered ones, while auto-add is on."""
+    if not options.get(CONF_AUTO_ADD, True):
+        return []
+    return unoffered_device_ids(options, all_devices)
+
+
+def is_gen2_hose_timer(
+    device: Mapping[str, Any], all_devices: Iterable[Mapping[str, Any]]
+) -> bool:
+    """
+    Return True for a Gen 2 hose timer (HT25A, behind a BH1G2 hub).
+
+    Before auto-add, these were never set up for anyone whose timer joined
+    the account after the integration did (#420).
+    """
+    if device.get("type") == DEVICE_BRIDGE:
+        return False
+    if str(device.get("hardware_version") or "").startswith("HT25A"):
+        return True
+    topic = device.get("device_gateway_topic")
+    return topic is not None and any(
+        d.get("type") == DEVICE_BRIDGE
+        and d.get("device_gateway_topic") == topic
+        and str(d.get("hardware_version") or "").startswith("BH1G2")
+        for d in all_devices
+    )
+
+
+def migrated_known_device_ids(
+    options: Mapping[str, Any], all_devices: Iterable[Mapping[str, Any]]
+) -> list[str]:
+    """
+    Return the devices an entry from before auto-add counts as already offered.
+
+    The user's selection stands for every device except an unselected Gen 2
+    hose timer: that one is treated as new (so auto-add selects it), since
+    the usual way it got there unselected is being paired after setup.
+    """
+    devices = list(all_devices)
+    selected = set(options.get(CONF_DEVICES, []))
+    by_id = {str(d.get("id")): d for d in devices}
+    return [
+        d
+        for d in leaf_device_ids(devices)
+        if d in selected or not is_gen2_hose_timer(by_id[d], devices)
+    ]
 
 
 def leaf_device_ids(all_devices: Iterable[Mapping[str, Any]]) -> list[str]:

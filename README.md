@@ -67,7 +67,7 @@ Devices you add to your B-hyve account after setup (for example a new hose timer
 
 To turn this off, or to choose which devices appear, open **Settings > Devices & Services > Orbit B-hyve > Configure**. A device you deselect there is removed from Home Assistant and is not added back until you select it again.
 
-Upgrading from an earlier version: your current selection is kept. If a timer you already own is missing, open **Configure** and select it. Devices added from then on appear by themselves.
+Upgrading from an earlier version: your current selection is kept, except that a Gen 2 hose timer already on your account but not selected is added (earlier versions never offered one paired after setup). Any other device you left unselected stays out; select it under **Configure** if you want it. Devices added from then on appear by themselves.
 
 ### Help
 

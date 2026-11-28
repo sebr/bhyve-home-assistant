@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
 from homeassistant.const import EntityCategory
 
-from . import BHyveCoordinatorEntity, async_listen_for_new_devices, bhyve_command
+from . import BHyveCoordinatorEntity, async_add_device_entities, bhyve_command
 from .const import DEVICE_SPRINKLER, DOMAIN
 
 if TYPE_CHECKING:
@@ -58,10 +58,7 @@ async def async_setup_entry(
             if device.get("type") in description.device_types
         ]
 
-    async_add_entities(entities_for(devices))
-    async_listen_for_new_devices(
-        hass, entry, lambda new: async_add_entities(entities_for(new))
-    )
+    async_add_device_entities(hass, entry, devices, async_add_entities, entities_for)
 
 
 class BHyveSelectEntity(BHyveCoordinatorEntity, SelectEntity):
