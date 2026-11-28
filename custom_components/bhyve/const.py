@@ -9,6 +9,16 @@ MANUFACTURER = "Orbit BHyve"
 
 CONF_CLIENT = "client"
 CONF_DEVICES = "devices"
+# Add devices that are new to the B-hyve account without asking again.
+CONF_AUTO_ADD = "auto_add_devices"
+# Every device id the user has been offered (selected or not), so a device
+# they deselected is never auto-added back. An entry from before auto-add
+# records the devices on the account at its first setup.
+CONF_KNOWN_DEVICES = "known_devices"
+
+# Dispatcher signal (formatted with the entry id) carrying devices newly
+# added to the entry, for each platform to add their entities.
+SIGNAL_NEW_DEVICES = "bhyve_new_devices_{}"
 
 DEVICE_BRIDGE = "bridge"
 DEVICE_SPRINKLER = "sprinkler_timer"

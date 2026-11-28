@@ -1,5 +1,6 @@
 """Test BHyve sensor entities."""
 
+from functools import partial
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -16,6 +17,7 @@ from custom_components.bhyve.sensor import (
     SENSOR_TYPES_BATTERY,
     SENSOR_TYPES_FLOOD,
     SENSOR_TYPES_SPRINKLER,
+    BHyveNextWateringSensor,
     BHyveSensor,
     BHyveSensorEntityDescription,
     BHyveZoneHistorySensor,
@@ -35,6 +37,11 @@ def create_mock_coordinator(devices: dict) -> MagicMock:
         "programs": {},
     }
     coordinator.last_update_success = True
+    # The real lookup, reading the mock's data.
+    coordinator.next_watering = partial(
+        BHyveDataUpdateCoordinator._work_out_next_watering,
+        coordinator,
+    )
     coordinator.async_set_updated_data = MagicMock()
     coordinator.client = MagicMock()
     coordinator.client.send_message = AsyncMock()
@@ -663,7 +670,7 @@ class TestBHyveNextWateringSensor:
         )
 
         description = create_sensor_description(device, SENSOR_TYPES_SPRINKLER[1])
-        return BHyveSensor(
+        return BHyveNextWateringSensor(
             coordinator=coordinator,
             device=device,
             description=description,
@@ -706,8 +713,11 @@ class TestBHyveNextWateringSensor:
 
         # No next_start_time in status — should return None (HA renders as Unknown)
         assert sensor.native_value is None
-        # No programs attribute when there is no schedule
-        assert sensor.extra_state_attributes == {}
+        # No programs to compute one from either, and the sensor says so.
+        assert sensor.extra_state_attributes == {
+            "computed_from_program": True,
+            "next_watering_unavailable": "no_upcoming_run",
+        }
 
     async def test_returns_none_when_rain_delay_active(
         self,
@@ -733,7 +743,12 @@ class TestBHyveNextWateringSensor:
         sensor = self._build_sensor(mock_sprinkler_device_with_next_start_time)
 
         assert sensor.native_value is None
-        assert sensor.extra_state_attributes == {}
+        # The sentinel isn't a usable time, so one is computed from the
+        # programs; this device has none.
+        assert sensor.extra_state_attributes == {
+            "computed_from_program": True,
+            "next_watering_unavailable": "no_upcoming_run",
+        }
 
     async def test_returns_none_when_next_start_time_is_in_the_past(
         self,

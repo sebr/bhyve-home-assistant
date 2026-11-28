@@ -12,7 +12,7 @@ from homeassistant.const import (
     EVENT_HOMEASSISTANT_STOP,
     Platform,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
@@ -20,23 +20,32 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
+from homeassistant.helpers.device_registry import (
+    CONNECTION_NETWORK_MAC,
+    DeviceEntry,
+    DeviceInfo,
+)
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.bhyve.pybhyve.typings import BHyveDevice
 
 from .const import (
+    CONF_AUTO_ADD,
     CONF_DEVICES,
     DEVICE_BRIDGE,
     DOMAIN,
     EVENT_PROGRAM_CHANGED,
     LOGGER,
     MANUFACTURER,
+    SIGNAL_NEW_DEVICES,
 )
 from .coordinator import BHyveDataUpdateCoordinator
 from .pybhyve import BHyveClient
 from .pybhyve.errors import AuthenticationError, BHyveError
-from .util import filter_configured_devices
+from .util import filter_configured_devices, leaf_device_ids
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,16 +90,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         programs = await client.timer_programs
     except (BHyveError, TimeoutError) as err:
         raise ConfigEntryNotReady(err) from err
+
+    coordinator.async_add_new_devices(all_devices)
     devices = filter_configured_devices(entry, all_devices)
 
     # Remove any leaf devices that are no longer selected in options from the
     # device registry. OptionsFlowWithReload triggers a reload after options
     # change, so this runs on every setup and cleans up de-selected devices.
     configured_ids = set(entry.options.get(CONF_DEVICES, []))
-    leaf_device_ids = {
-        str(d["id"]) for d in all_devices if d.get("type") != DEVICE_BRIDGE
-    }
-    if removed_device_ids := leaf_device_ids - configured_ids:
+    if removed_device_ids := set(leaf_device_ids(all_devices)) - configured_ids:
         await remove_devices_from_registry(hass, entry.entry_id, removed_device_ids)
 
     # Register bridges before any platform loads, so child devices can point at
@@ -144,6 +152,54 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """
+    Turn on auto-add for entries made before it existed.
+
+    A saved auto_add_devices (from an earlier build of auto-add) wins.
+
+    The account's devices are recorded as known on the entry's next setup
+    (which fetches them anyway), so the user's selection stands, except
+    that an unselected Gen 2 hose timer is added (#420), as is any device
+    added to the account after that.
+    """
+    if entry.version > 1:
+        return False
+    if entry.minor_version < 2:  # noqa: PLR2004
+        hass.config_entries.async_update_entry(
+            entry, options={CONF_AUTO_ADD: True, **entry.options}, minor_version=2
+        )
+    return True
+
+
+@callback
+def async_add_device_entities[EntityT: Entity](
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    devices: list[BHyveDevice],
+    async_add_entities: AddEntitiesCallback,
+    factory: Callable[[list[BHyveDevice]], list[EntityT]],
+) -> None:
+    """
+    Add a platform's entities for these devices, and for devices added later.
+
+    factory builds the entities for a batch of devices: first the loaded
+    devices, then each batch auto-added while the entry is running.
+    """
+    async_add_entities(factory(devices))
+
+    # A @callback, or the dispatcher would run it in the executor.
+    @callback
+    def _devices_added(new: list[BHyveDevice]) -> None:
+        async_add_entities(factory(new))
+
+    entry.async_on_unload(
+        async_dispatcher_connect(
+            hass, SIGNAL_NEW_DEVICES.format(entry.entry_id), _devices_added
+        )
+    )
+
+
 async def remove_devices_from_registry(
     hass: HomeAssistant, entry_id: str, device_ids: set[str]
 ) -> None:
@@ -159,6 +215,29 @@ async def remove_devices_from_registry(
             device_registry.async_remove_device(device.id)
         except HomeAssistantError:
             _LOGGER.exception("Failed to remove device %s from registry", device.id)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: DeviceEntry
+) -> bool:
+    """Allow deleting a device the B-hyve account no longer has."""
+    data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if data is None:
+        return False
+    # The account's full list: a device whose data failed to load on the last
+    # poll is still on the account.
+    try:
+        in_account = {str(d.get("id")) for d in await data["client"].devices}
+    except (BHyveError, TimeoutError):
+        return False
+    device_ids = {i for domain, i in device_entry.identifiers if domain == DOMAIN}
+    if device_ids & in_account:
+        return False
+    # No longer loaded, so it gets its entities again if it ever comes back.
+    data["devices"][:] = [
+        d for d in data["devices"] if str(d.get("id")) not in device_ids
+    ]
+    return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

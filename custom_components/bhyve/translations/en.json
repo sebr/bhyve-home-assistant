@@ -13,9 +13,13 @@
     "step": {
       "device": {
         "data": {
-          "devices": "Devices"
+          "devices": "Devices",
+          "auto_add_devices": "Add new devices automatically"
         },
-        "title": "Select Devices"
+        "title": "Select Devices",
+        "data_description": {
+          "auto_add_devices": "Devices you add to your B-hyve account later are added to Home Assistant within about five minutes. A device you deselect above is removed from Home Assistant and is not added back until you select it again. Its watering schedule is not affected."
+        }
       },
       "reauth": {
         "data": {
@@ -41,9 +45,13 @@
     "step": {
       "init": {
         "data": {
-          "devices": "Devices"
+          "devices": "Devices",
+          "auto_add_devices": "Add new devices automatically"
         },
-        "title": "Select Devices"
+        "title": "Select Devices",
+        "data_description": {
+          "auto_add_devices": "Devices you add to your B-hyve account later are added to Home Assistant within about five minutes. A device you deselect above is removed from Home Assistant and is not added back until you select it again. Its watering schedule is not affected."
+        }
       }
     }
   },

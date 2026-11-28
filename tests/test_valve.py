@@ -1,6 +1,7 @@
 """Test BHyve valve entities."""
 
 from datetime import timedelta
+from functools import partial
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -27,6 +28,11 @@ def create_mock_coordinator(devices: dict, programs: dict | None = None) -> Magi
         "programs": programs or {},
     }
     coordinator.last_update_success = True
+    # The real lookup, reading the mock's data.
+    coordinator.next_watering = partial(
+        BHyveDataUpdateCoordinator._work_out_next_watering,
+        coordinator,
+    )
     coordinator.async_set_updated_data = MagicMock()
     coordinator.client = MagicMock()
     coordinator.client.send_message = AsyncMock()

@@ -8,11 +8,18 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import CALLBACK_TYPE, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.event import async_track_point_in_utc_time
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_DEVICES,
+    CONF_KNOWN_DEVICES,
+    DEVICE_BRIDGE,
     DEVICE_SPRINKLER,
     DOMAIN,
     EVENT_BATTERY_STATUS,
@@ -27,9 +34,19 @@ from .const import (
     MODE_AUTO,
     MODE_MANUAL,
     MODE_OFF,
+    SIGNAL_NEW_DEVICES,
 )
 from .pybhyve.errors import AuthenticationError, BHyveError
-from .util import orbit_time_to_local_time
+from .util import (
+    NextWatering,
+    device_time_zone_id,
+    filter_configured_devices,
+    migrated_known_device_ids,
+    new_device_ids,
+    next_watering,
+    orbit_time_to_local_time,
+    watering_in_progress,
+)
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -84,6 +101,72 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         self._resume_modes: dict[str, str] = {}
         # Device id -> the latest rain_delay event, kept until a poll catches up.
         self._rain_delay_events: dict[str, _RainDelayEvent] = {}
+        # Timer id -> its next watering, worked out once per update.
+        self._next_waterings: dict[str, NextWatering] = {}
+        # Updates the entities once the soonest next watering has started.
+        self._cancel_wake: CALLBACK_TYPE | None = None
+        entry.async_on_unload(self._cancel_wake_up)
+
+    def next_watering(self, device_id: str) -> NextWatering:
+        """Return a timer's next watering as of the latest update."""
+        if (upcoming := self._next_waterings.get(device_id)) is None:
+            upcoming = self._work_out_next_watering(device_id)
+            self._next_waterings[device_id] = upcoming
+        return upcoming
+
+    def _work_out_next_watering(self, device_id: str) -> NextWatering:
+        data = self.data or {}
+        device = data.get("devices", {}).get(device_id, {}).get("device", {})
+        return next_watering(device, data.get("programs", {}).values())
+
+    @callback
+    def async_update_listeners(self) -> None:
+        """
+        Work out every timer's next watering once, then update the entities.
+
+        Every update goes through here: polls, websocket events, and the
+        wake-up at the soonest start, so a start that has passed is replaced
+        by the following one within a second instead of at the next poll.
+        """
+        devices = (self.data or {}).get("devices", {})
+        self._next_waterings = {
+            device_id: self._work_out_next_watering(device_id)
+            for device_id, bundle in devices.items()
+            if bundle.get("device", {}).get("type") == DEVICE_SPRINKLER
+        }
+        self._schedule_wake_up()
+        super().async_update_listeners()
+
+    def _schedule_wake_up(self) -> None:
+        self._cancel_wake_up()
+        if self._shutdown_requested or self.entry.state not in (
+            ConfigEntryState.LOADED,
+            ConfigEntryState.SETUP_IN_PROGRESS,
+        ):
+            return
+        starts = [u.start for u in self._next_waterings.values() if u.start]
+        if starts:
+            self._cancel_wake = async_track_point_in_utc_time(
+                self.hass,
+                self._wake_up,
+                dt_util.as_utc(min(starts)) + timedelta(seconds=1),
+            )
+
+    @callback
+    def _wake_up(self, _now: datetime) -> None:
+        self._cancel_wake = None
+        self.async_update_listeners()
+
+    async def async_shutdown(self) -> None:
+        """Cancel the wake-up too."""
+        self._cancel_wake_up()
+        await super().async_shutdown()
+
+    @callback
+    def _cancel_wake_up(self) -> None:
+        if self._cancel_wake is not None:
+            self._cancel_wake()
+            self._cancel_wake = None
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from API (periodic polling)."""
@@ -124,6 +207,15 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
                 if program_id:
                     data["programs"][program_id] = program
 
+            # Programs run on the timer's own clock; load its zone off the loop.
+            for zone_id in {device_time_zone_id(device) for device in devices}:
+                if zone_id:
+                    await dt_util.async_get_time_zone(zone_id)
+
+            # During setup, async_setup_entry does this before the platforms load.
+            if self.entry.state is ConfigEntryState.LOADED:
+                self.async_add_new_devices(devices, loaded_now=set(data["devices"]))
+
             return data  # noqa: TRY300
 
         except AuthenticationError as err:
@@ -132,6 +224,73 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         except (BHyveError, TimeoutError) as err:
             msg = f"Error communicating with API: {err}"
             raise UpdateFailed(msg) from err
+
+    @callback
+    def async_add_new_devices(
+        self,
+        all_devices: list[BHyveDevice],
+        *,
+        loaded_now: set[str] | None = None,
+    ) -> None:
+        """
+        Select devices new to the B-hyve account, and add their entities.
+
+        During setup the platforms load them with the rest. Once running,
+        the entities of a selected device that isn't loaded yet are added
+        through SIGNAL_NEW_DEVICES, without reloading the entry. Only a new
+        hub needs a reload, since hubs are registered before the platforms
+        load. loaded_now: the devices whose data this poll loaded; a device
+        whose data failed to load waits for a later poll.
+        """
+        options = self.entry.options
+        migrating = options.get(CONF_KNOWN_DEVICES) is None
+        if migrating:
+            # An entry from before auto-add: the user's selection stands,
+            # except that an unselected Gen 2 hose timer counts as new.
+            options = {
+                **options,
+                CONF_KNOWN_DEVICES: migrated_known_device_ids(options, all_devices),
+            }
+        known = options[CONF_KNOWN_DEVICES]
+        new_ids = new_device_ids(options, all_devices)
+        if new_ids:
+            _LOGGER.info("Adding devices new to the B-hyve account: %s", new_ids)
+        if migrating or new_ids:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                options={
+                    **options,
+                    CONF_DEVICES: [*options.get(CONF_DEVICES, []), *new_ids],
+                    CONF_KNOWN_DEVICES: [*known, *new_ids],
+                },
+            )
+        if self.entry.state is not ConfigEntryState.LOADED:
+            return
+
+        loaded = self.hass.data[DOMAIN][self.entry.entry_id]["devices"]
+        loaded_ids = {d.get("id") for d in loaded}
+        # A timer with no status yet (not paired with its hub) waits for a
+        # later poll, so it is added with its valve and switches.
+        missing = [
+            d
+            for d in filter_configured_devices(self.entry, all_devices)
+            if d.get("id") not in loaded_ids
+            and (loaded_now is None or d.get("id") in loaded_now)
+            and (d.get("type") != DEVICE_SPRINKLER or d.get("status"))
+        ]
+        if not missing:
+            return
+        if any(d.get("type") == DEVICE_BRIDGE for d in missing):
+            self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
+            return
+        loaded.extend(missing)
+        # After this poll's data is stored, so the new entities find theirs.
+        self.hass.loop.call_soon(
+            async_dispatcher_send,
+            self.hass,
+            SIGNAL_NEW_DEVICES.format(self.entry.entry_id),
+            missing,
+        )
 
     async def _fetch_device_bundle(self, device: BHyveDevice) -> dict[str, Any] | None:
         """Fetch history + landscapes for a single device."""
@@ -249,7 +408,8 @@ class BHyveDataUpdateCoordinator(DataUpdateCoordinator):
         status = device.get("status")
         if not isinstance(status, dict):
             return
-        if status.get("run_mode") == MODE_MANUAL and not status.get("watering_status"):
+        # An idle timer may report watering_status {"clear_on_idle": true}.
+        if status.get("run_mode") == MODE_MANUAL and not watering_in_progress(status):
             if resume := self._resume_modes.get(device_id):
                 status["run_mode"] = resume
         else:
